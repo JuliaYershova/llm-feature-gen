@@ -1,0 +1,23 @@
+# TBD
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "LLM_feature_gen"
+version = "0.1.0"
+description = "Feature discovery and generation utilities"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Julija Jeršova" }]
+license = { text = "MIT" }
+dependencies = [
+  "openai>=1.0.0",
+  "python-dotenv>=1.0.0",
+  "pydantic>=2",
+  "numpy>=1.26",
+  "Pillow>=10"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

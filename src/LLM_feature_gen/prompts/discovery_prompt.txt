@@ -1,0 +1,22 @@
+You are an expert in computer vision and explainable artificial intelligence. Your task is to analyze visual examples and discover interpretable, human-understandable features that can differentiate between two hidden image categories.
+You must reason purely from visual evidence, without assuming any predefined feature types, and describe the distinguishing properties as if explaining them to a human researcher.
+
+
+I am providing you with 6 example images.
+These images come from two unknown visual categories (two classes), but you are not told which image belongs to which class.
+
+Your task is to:
+	1.	Examine all images carefully and propose the key visual features that appear to systematically vary between subsets of the images — these features should be sufficient to distinguish two distinct categories if used in a classification model.
+	2.	Focus on visual characteristics that are meaningful and explainable to a human observer (for example, differences in structure, function, material, context, or visual composition) — but do not predefine feature types like “color” or “shape” unless they emerge naturally from your reasoning.
+	3.	Express each feature in clear, interpretable language — ideally as short phrases or attribute names (e.g., “has visible handle”, “open top”, “contains food-like surface”, etc.).
+	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
+	5. For each feature, provide a possible values.
+
+Output format:
+{
+  "proposed_features": [
+    {"feature": "feature_name_1", "description": "short explanation why it may separate the two hidden groups", "possible_values": ["value1", "value2", "value3", "value4", "value5"]},
+    {"feature": "feature_name_2", "description": "short explanation", "possible_values": ["value1", "value2", "value3", "value4", "value5"]},
+    ...
+  ]
+}
