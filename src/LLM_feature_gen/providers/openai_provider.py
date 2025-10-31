@@ -25,11 +25,11 @@ class OpenAIProvider:
         AZURE_OPENAI_GPT41_DEPLOYMENT_NAME  (default deployment/model name)
 
     - Two entry points:
-        image_features(image_base64_list, prompt=None, deployment_name=None, feature_gen=False)
+        image_features(image_base64_list, prompt=None, deployment_name=None, feature_gen=False, as_set=False)
         text_features(text_list, prompt=None, deployment_name=None, feature_gen=False)
 
-    - Returns a list of dicts (one per input item). Each element is
-      either {"features": ...parsed-json-or-text...} or {"error": "..."}.
+    - Returns a list of dicts (one per input item) in the usual case.
+      If `as_set=True`, returns a list with a single dict corresponding to the joint call.
     """
 
     def __init__(
@@ -77,7 +77,7 @@ class OpenAIProvider:
     ) -> Dict[str, Any]:
         """
         Sends a chat completion request and tries to parse JSON from the reply.
-        Falls back to {"raw": "..."} if parsing fails.
+        Falls back to {"features": "..."} if parsing fails.
         Retries on RateLimitError with exponential backoff.
         """
         backoff = 2
@@ -116,12 +116,18 @@ class OpenAIProvider:
         prompt: Optional[str] = None,
         deployment_name: Optional[str] = None,
         feature_gen: bool = False,
+        as_set: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         For each base64 image, ask the LLM to extract features.
+
+        - If as_set=False (default): behaves as before — one request per image,
+          returns a list of dicts.
+        - If as_set=True: sends ALL images in ONE request (for comparative / discovery
+          prompts) and returns a list with a single dict.
+
         `feature_gen=True` can be used to enforce a strict JSON schema prompt on the system side.
         """
-        results: List[Dict[str, Any]] = []
         deployment = deployment_name or self.default_deployment
 
         # fallback/default prompt
@@ -130,12 +136,31 @@ class OpenAIProvider:
         # System prompt
         system_prompt = "You are a feature extraction assistant for images."
         if feature_gen:
-            # you can extend this to require a particular JSON schema
             system_prompt = (
                 "You are a feature extraction assistant for images. "
                 "Respond in strict JSON with keys as feature names and values as concise strings."
             )
 
+        # ----------------------------
+        # NEW JOINT MODE
+        # ----------------------------
+        if as_set:
+            # one message with many images
+            user_content: List[Dict[str, Any]] = [{"type": "text", "text": base_prompt}]
+            for img_b64 in image_base64_list:
+                user_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}
+                })
+
+            out = self._chat_json(deployment, system_prompt, user_content)
+            # keep return type consistent with previous API: always a list
+            return [out]
+
+        # ----------------------------
+        # OLD PER-IMAGE MODE
+        # ----------------------------
+        results: List[Dict[str, Any]] = []
         for img_b64 in image_base64_list:
             user_content: List[Dict[str, Any]] = [{"type": "text", "text": base_prompt}]
             user_content.append({

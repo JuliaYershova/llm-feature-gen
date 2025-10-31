@@ -12,5 +12,5 @@ def load_prompt(name: str) -> str:
 
 
 image_discovery_prompt = load_prompt("discovery_prompt")
-text_discovery_prompt = load_prompt("generation_prompt")
+image_generation_prompt = load_prompt("generation_prompt")
 

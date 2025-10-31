@@ -23,44 +23,22 @@ def discover_features_from_images(
     image_paths_or_folder: str | List[str],
     prompt: str = image_discovery_prompt,
     provider: Optional[OpenAIProvider] = None,
-    as_set: bool = True,
+    as_set: bool = True,                     # <- default TRUE for discovery
     output_dir: str | Path = "outputs",
     output_filename: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     High-level helper: takes a list of image file paths OR a folder path,
     converts images to base64, calls the provider, and saves the JSON result.
-
-    Parameters
-    ----------
-    image_paths_or_folder : str | list[str]
-        Either a path to a folder containing images or a list of image file paths.
-    prompt : str
-        Prompt text to send to the LLM (defaults to image_discovery_prompt).
-    provider : OpenAIProvider, optional
-        If None, creates one using environment variables.
-    as_set : bool, default=True
-        If True, sends all images in one joint request (comparative reasoning).
-        If False, sends them individually and returns a list of results.
-    output_dir : str | Path, default="outputs"
-        Folder where the resulting JSON will be saved.
-    output_filename : str, optional
-        Optional custom name for the JSON file (without extension).
-
-    Returns
-    -------
-    dict
-        JSON-like object returned by the LLM.
     """
-
-    # Initialize provider
+    # 1) init provider
     provider = provider or OpenAIProvider(
         api_key=AZURE_OPENAI_API_KEY,
         endpoint=AZURE_OPENAI_ENDPOINT,
         api_version=AZURE_OPENAI_API_VERSION,
     )
 
-    # Determine image list
+    # 2) collect image paths
     if isinstance(image_paths_or_folder, (str, Path)):
         folder_path = Path(image_paths_or_folder)
         if not folder_path.exists():
@@ -80,7 +58,7 @@ def discover_features_from_images(
     if not image_paths:
         raise ValueError("No image files found to process.")
 
-    # Convert images to base64
+    # 3) to base64
     b64_list: List[str] = []
     for path in image_paths:
         try:
@@ -92,29 +70,41 @@ def discover_features_from_images(
     if not b64_list:
         raise RuntimeError("Failed to load any valid images from input.")
 
-    # Call provider
-    result = (
-        provider.image_features(b64_list, prompt=prompt)
-        if as_set
-        else provider.image_features(b64_list, prompt=prompt)
-    )
+    # 4) CALL PROVIDER
+    if as_set:
+        # send ALL images in ONE request – this uses your new provider logic
+        result_list = provider.image_features(
+            b64_list,
+            prompt=prompt,
+            as_set=True,
+        )
+    else:
+        # per-image behavior
+        result_list = provider.image_features(
+            b64_list,
+            prompt=prompt,
+            as_set=False,
+        )
 
-    # Create output directory if needed
+    # - joint mode: result_list is like: [ { "proposed_features": [...] } ]
+    # - per-image mode: result_list is list of dicts
+
+    # 5) save
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Define filename (timestamped if none provided)
     if output_filename is None:
-        output_filename = f"discovered_features.json"
+        output_filename = "discovered_features.json"
 
     output_path = output_dir / output_filename
 
-    # Save JSON
-    try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"Features saved to {output_path}")
-    except Exception as e:
-        print(f"Failed to save JSON: {e}")
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result_list, f, ensure_ascii=False, indent=2)
 
-    return result
+    print(f"Features saved to {output_path}")
+
+    # return the FIRST (and only) element in joint mode to keep downstream simple
+    if as_set and isinstance(result_list, list) and len(result_list) == 1:
+        return result_list[0]
+
+    return result_list
