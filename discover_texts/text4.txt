@@ -1,0 +1,1 @@
+To fix the issue, clear the application cache, restart the system, and reattempt the operation. If the problem persists, reinstall the software using the latest version.

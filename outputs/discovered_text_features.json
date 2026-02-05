@@ -1,0 +1,86 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "presence of personal experience or narrative",
+        "description": "One group includes texts that describe personal actions, feelings, or reflections, while the other group avoids personal perspective and focuses on objective or impersonal content.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "instructional or procedural content",
+        "description": "Some texts provide step-by-step instructions or procedures to follow, distinguishing them from texts that do not contain direct instructions.",
+        "possible_values": [
+          "contains explicit instructions",
+          "does not contain instructions"
+        ]
+      },
+      {
+        "feature": "use of technical or domain-specific terminology",
+        "description": "Texts that include specialized vocabulary related to technical, scientific, or professional domains can be separated from those that use everyday language.",
+        "possible_values": [
+          "technical terminology present",
+          "technical terminology absent"
+        ]
+      },
+      {
+        "feature": "presence of assumptions or theoretical framing",
+        "description": "Some texts explicitly state assumptions or theoretical perspectives, which can differentiate analytical or academic style from narrative or practical texts.",
+        "possible_values": [
+          "assumptions/theory stated",
+          "no assumptions/theory stated"
+        ]
+      },
+      {
+        "feature": "focus on problem-solving or troubleshooting",
+        "description": "Texts that describe how to resolve an issue or fix a problem contrast with those that do not address problem-solving directly.",
+        "possible_values": [
+          "problem-solving focus",
+          "no problem-solving focus"
+        ]
+      },
+      {
+        "feature": "emotional or subjective language",
+        "description": "Presence of words expressing feelings, expectations, or subjective reactions can separate personal or narrative texts from neutral or objective ones.",
+        "possible_values": [
+          "emotional/subjective language present",
+          "emotional/subjective language absent"
+        ]
+      },
+      {
+        "feature": "description of experimental or controlled conditions",
+        "description": "Texts that describe controlled environments or experimental setups differ from those that do not mention such conditions.",
+        "possible_values": [
+          "experimental/control conditions described",
+          "no experimental/control conditions described"
+        ]
+      },
+      {
+        "feature": "temporal framing or sequence of events",
+        "description": "Some texts narrate events over time or describe changes and progressions, while others focus on static information or instructions.",
+        "possible_values": [
+          "temporal sequence present",
+          "no temporal sequence"
+        ]
+      },
+      {
+        "feature": "use of imperative mood",
+        "description": "Texts that use commands or direct requests (imperative verbs) can be distinguished from those that use declarative or descriptive sentences.",
+        "possible_values": [
+          "imperative mood used",
+          "imperative mood not used"
+        ]
+      },
+      {
+        "feature": "level of abstraction",
+        "description": "Some texts discuss abstract concepts or general principles, while others focus on concrete actions or specific events.",
+        "possible_values": [
+          "abstract/general",
+          "concrete/specific"
+        ]
+      }
+    ]
+  }
+]

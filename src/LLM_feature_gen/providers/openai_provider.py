@@ -9,14 +9,17 @@ from dotenv import load_dotenv
 
 # OpenAI SDK (Azure)
 import openai
-from openai import AzureOpenAI
+from openai import OpenAI, AzureOpenAI
 
 load_dotenv()
 
 
 class OpenAIProvider:
     """
-    Thin adapter around Azure OpenAI for feature discovery/generation.
+    Thin adapter around  OpenAI (Azure or personal) for feature discovery/generation.
+        Supports:
+        - Azure OpenAI
+        - Personal / private OpenAI API
 
     - Reads credentials from .env:
         AZURE_OPENAI_API_KEY
@@ -30,6 +33,8 @@ class OpenAIProvider:
 
     - Returns a list of dicts (one per input item) in the usual case.
       If `as_set=True`, returns a list with a single dict corresponding to the joint call.
+
+    Provider is auto-detected from environment variables.
     """
 
     def __init__(
@@ -42,26 +47,63 @@ class OpenAIProvider:
         temperature: float = 0.0,
         max_tokens: int = 2048,
     ) -> None:
-        self.api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY")
-        self.api_version = api_version or os.getenv("AZURE_OPENAI_API_VERSION")
-        self.endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.default_deployment = (
-            default_deployment_name or os.getenv("AZURE_OPENAI_GPT41_DEPLOYMENT_NAME")
+
+        # -------------------------------------------------
+        # detect whether we are using Azure or not
+        # -------------------------------------------------
+        self.is_azure = bool(
+            endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
         )
 
-        if not (self.api_key and self.api_version and self.endpoint):
-            raise EnvironmentError(
-                "Missing Azure OpenAI .env vars: AZURE_OPENAI_API_KEY, "
-                "AZURE_OPENAI_API_VERSION, AZURE_OPENAI_ENDPOINT"
+        # -------------------------------------------------
+        # AZURE OPENAI
+        # -------------------------------------------------
+        if self.is_azure:
+            self.api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY")
+            self.api_version = api_version or os.getenv("AZURE_OPENAI_API_VERSION")
+            self.endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+
+            # renamed internally to default_model (deployment == model id)
+            self.default_model = (
+                    default_deployment_name
+                    or os.getenv("AZURE_OPENAI_GPT41_DEPLOYMENT_NAME")
             )
 
-        # AzureOpenAI client (new SDK style)
-        self.client: AzureOpenAI = openai.AzureOpenAI(
-            api_key=self.api_key,
-            api_version=self.api_version,
-            azure_endpoint=self.endpoint,
-        )
+            if not (self.api_key and self.api_version and self.endpoint):
+                raise EnvironmentError(
+                    "Missing Azure OpenAI .env vars: AZURE_OPENAI_API_KEY, "
+                    "AZURE_OPENAI_API_VERSION, AZURE_OPENAI_ENDPOINT"
+                )
 
+            # AzureOpenAI client (new SDK style)
+            self.client: AzureOpenAI = openai.AzureOpenAI(
+                api_key=self.api_key,
+                api_version=self.api_version,
+                azure_endpoint=self.endpoint,
+            )
+
+        # -------------------------------------------------
+        # PERSONAL / PRIVATE OPENAI
+        # -------------------------------------------------
+        else:
+            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            self.default_model = (
+                    default_deployment_name  # reuse same parameter
+                    or os.getenv("OPENAI_MODEL")
+            )
+
+            if not self.api_key:
+                raise EnvironmentError("Missing OPENAI_API_KEY")
+
+            if not self.default_model:
+                raise EnvironmentError("Missing OPENAI_MODEL")
+
+            # personal OpenAI client
+            self.client: OpenAI = OpenAI(api_key=self.api_key)
+
+        # -------------------------------------------------
+        # Common configuration
+        # -------------------------------------------------
         self.max_retries = max_retries
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -71,7 +113,7 @@ class OpenAIProvider:
     # -----------------------
     def _chat_json(
         self,
-        deployment_name: str,
+        deployment_name: str, #  meaning: deployment (Azure) OR model (OpenAI)
         system_prompt: str,
         user_content: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
@@ -129,7 +171,7 @@ class OpenAIProvider:
 
         `feature_gen=True` can be used to enforce a strict JSON schema prompt on the system side.
         """
-        deployment = deployment_name or self.default_deployment
+        deployment = deployment_name or self.default_model
 
         # fallback/default prompt
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
@@ -188,7 +230,7 @@ class OpenAIProvider:
         is appended (preserving your colleagues’ behavior).
         """
         results: List[Dict[str, Any]] = []
-        deployment = deployment_name or self.default_deployment
+        deployment = deployment_name or self.default_model
 
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
