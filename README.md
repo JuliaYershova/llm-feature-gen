@@ -30,16 +30,21 @@ Given a folder of images and a prompt, the library:
 LLM_feature_gen/
 ├─ src/
 │  └─ LLM_feature_gen/
-│     ├─ init.py
+│     ├─ __init__.py
 │     ├─ discover.py                # High-level orchestration for feature discovery
+│     ├─ generate.py                # Feature value generation
 │     ├─ providers/
-          ├─ openai_provider.py     # OpenAI API wrapper
-│         ├─ local_provider.py      # Local LLM wrapper
+│     │   ├─ openai_provider.py     # OpenAI / Azure OpenAI API wrapper
+│     │   └─ local_provider.py      # Local LLM wrapper
 │     ├─ prompts/
-│     │   ├─ discovery_prompt.txt   # Default reasoning prompt
-          ├─ generation_prompt.txt  # Default feature generation prompt
+│     │   ├─ image_discovery_prompt.txt
+│     │   ├─ text_discovery_prompt.txt
+│     │   ├─ image_generation_prompt.txt
+│     │   └─ text_generation_prompt.txt
 │     ├─ utils/
-│     │   └─ image.py               # Image → base64 conversion
+│     │   ├─ image.py               # Image → base64 conversion
+│     │   ├─ video.py               # Video frame and audio extraction
+│     │   └─ text.py                # Text extraction (txt, pdf, docx, etc.)
 │     └─ tests/
 │        └─ test_discover.py
 ├─ outputs/                         # Automatically generated feature JSONs
@@ -79,7 +84,7 @@ This will:
 - Read all .jpg/.png images from discover_images/
 - the default prompt (prompts/image_discovery_prompt.txt)
 - Send them to your LLM provider
-- Save the results to outputs/discovered_features_<timestamp>.json
+- Save the results to outputs/discovered_image_features.json
 
 Example saved JSON:
 ```json
@@ -94,6 +99,57 @@ Example saved JSON:
       "feature": "color tone",
       "description": "Images vary between metallic and earthy color palettes.",
       "possible_values": ["metallic", "matte", "bright", "dark"]
+    }
+  ]
+}
+```
+
+##  Example: Discover Features from Texts
+```python
+from LLM_feature_gen.discover import discover_features_from_texts
+
+# Folder with text documents (txt, pdf, docx, md, html)
+text_folder = "discover_texts"
+
+# Run feature discovery
+result = discover_features_from_texts(
+    texts_or_file=text_folder,
+    as_set=True,  # analyze all texts jointly
+)
+
+print(result)
+```
+
+This will:
+- Load all supported text files from discover_texts/,
+- Extract raw text automatically,
+- Use the default text discovery prompt,
+- Send them to your LLM provider,
+- Save the results to outputs/discovered_text_features.json.
+
+Example saved JSON:
+```json
+{
+  "proposed_features": [
+    {
+      "feature": "presence_of_personal_experience",
+      "description": "Some texts describe personal experiences or reflections, while others are more impersonal or instructional.",
+      "possible_values": ["present", "absent"]
+    },
+    {
+      "feature": "level_of_subjectivity",
+      "description": "Texts vary in how subjective or opinion-based they are compared to neutral or factual descriptions.",
+      "possible_values": ["highly subjective", "moderately subjective", "objective"]
+    },
+    {
+      "feature": "use_of_first_person_perspective",
+      "description": "Some texts use first-person pronouns indicating a personal perspective, while others do not.",
+      "possible_values": ["first person", "third person or impersonal"]
+    },
+    {
+      "feature": "presence_of_explicit_goal_or_intent",
+      "description": "Texts may explicitly state an intended goal, motivation, or purpose behind actions or descriptions.",
+      "possible_values": ["goal stated", "goal not stated"]
     }
   ]
 }
