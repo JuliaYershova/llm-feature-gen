@@ -11,6 +11,7 @@ from PIL import Image
 import numpy as np
 
 from .providers.openai_provider import OpenAIProvider
+from .providers.local_provider import LocalProvider
 from .utils.image import image_to_base64
 from .prompts import image_generation_prompt, text_generation_prompt
 
@@ -161,7 +162,7 @@ def assign_feature_values_from_folder(
         folder_path: Union[str, Path],
         class_name: str,
         discovered_features: Dict[str, Any],
-        provider: Optional[OpenAIProvider] = None,
+        provider: Optional[OpenAIProvider | LocalProvider] = None,
         output_dir: Union[str, Path] = "outputs",
         use_audio: bool = True,
 ) -> Path:
@@ -277,7 +278,7 @@ def generate_features(
         discovered_features_path: Union[str, Path],
         output_dir: Union[str, Path] = "outputs",
         classes: Optional[List[str]] = None,
-        provider: Optional[OpenAIProvider] = None,
+        provider: Optional[OpenAIProvider | LocalProvider] = None,
         merge_to_single_csv: bool = False,
         merged_csv_name: str = "all_feature_values.csv",
         use_audio: bool = True,

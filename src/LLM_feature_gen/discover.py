@@ -13,6 +13,7 @@ from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, transcribe_video
 from .providers.openai_provider import OpenAIProvider
+from .providers.local_provider import LocalProvider
 from .prompts import image_discovery_prompt, text_discovery_prompt
 import random
 
@@ -23,7 +24,7 @@ load_dotenv()
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
         prompt: str = image_discovery_prompt,
-        provider: Optional[OpenAIProvider] = None,
+        provider: Optional[OpenAIProvider | LocalProvider] = None,
         as_set: bool = True,  # <- default TRUE for discovery
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
@@ -110,7 +111,7 @@ def discover_features_from_images(
 def discover_features_from_videos(
         video_path: str,
         prompt: str = image_discovery_prompt,
-        provider: Optional[OpenAIProvider] = None,
+        provider: Optional[OpenAIProvider | LocalProvider] = None,
         num_frames: int = 5,
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
@@ -221,18 +222,14 @@ def discover_features_from_videos(
 def discover_features_from_texts(
         texts_or_file: str | List[str],  # input is text(s)
         prompt: str = text_discovery_prompt,
-        provider: Optional[OpenAIProvider] = None,
-        as_set: bool = True,  # same semantics as image version
+        provider: Optional[OpenAIProvider | LocalProvider] = None,
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Feature discovery / description for texts.
-
-    - as_set=True  → joint feature discovery (ALL texts together)
-    - as_set=False → per-text description (texts sent separately)
+    High-level helper: takes a list of text strings OR a folder path (txt files),
+    calls the provider, and saves the JSON result.
     """
-
     # 1) init provider
     provider = provider or OpenAIProvider()
 
