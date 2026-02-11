@@ -46,6 +46,7 @@ class OpenAIProvider:
         max_retries: int = 5,
         temperature: float = 0.0,
         max_tokens: int = 2048,
+        default_audio_model: Optional[str] = None,
     ) -> None:
 
         # -------------------------------------------------
@@ -82,6 +83,16 @@ class OpenAIProvider:
                 azure_endpoint=self.endpoint,
             )
 
+            self.audio_model = (
+                    default_audio_model
+                    or os.getenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
+            )
+
+            if not self.audio_model:
+                raise EnvironmentError(
+                    "Missing AZURE_OPENAI_WHISPER_DEPLOYMENT for Azure audio transcription."
+                )
+
         # -------------------------------------------------
         # PERSONAL / PRIVATE OPENAI
         # -------------------------------------------------
@@ -101,6 +112,12 @@ class OpenAIProvider:
             # personal OpenAI client
             self.client: OpenAI = OpenAI(api_key=self.api_key)
 
+            self.audio_model = (
+                    default_audio_model
+                    or os.getenv("OPENAI_AUDIO_MODEL")
+                    or "whisper-1"
+            )
+
         # -------------------------------------------------
         # Common configuration
         # -------------------------------------------------
@@ -116,12 +133,21 @@ class OpenAIProvider:
         deployment_name: str, #  meaning: deployment (Azure) OR model (OpenAI)
         system_prompt: str,
         user_content: List[Dict[str, Any]],
+        json_mode: bool = False,
     ) -> Dict[str, Any]:
         """
         Sends a chat completion request and tries to parse JSON from the reply.
         Falls back to {"features": "..."} if parsing fails.
         Retries on RateLimitError with exponential backoff.
         """
+
+        if json_mode and "JSON" not in system_prompt:
+            system_prompt += " Respond in strict JSON format."
+
+        kwargs = {}
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
         backoff = 2
         for attempt in range(self.max_retries):
             try:
@@ -133,6 +159,7 @@ class OpenAIProvider:
                     ],
                     temperature=self.temperature,
                     max_tokens=self.max_tokens,
+                    **kwargs,
                 )
                 text = resp.choices[0].message.content
                 try:
@@ -206,13 +233,13 @@ class OpenAIProvider:
         if as_set or extra_context:
             # one message with many images
             user_content = build_content(base_prompt, image_base64_list, extra_context)
-            out = self._chat_json(deployment, system_prompt, user_content)
+            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
             return [out]
 
         results: List[Dict[str, Any]] = []
         for img_b64 in image_base64_list:
             user_content = build_content(base_prompt, [img_b64], None)
-            out = self._chat_json(deployment, system_prompt, user_content)
+            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
             results.append(out)
 
         return results
@@ -255,7 +282,31 @@ class OpenAIProvider:
 
         for txt in text_list:
             user_content: List[Dict[str, Any]] = [{"type": "text", "text": txt}]
-            out = self._chat_json(deployment, system_prompt, user_content)
+            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
             results.append(out)
 
         return results
+
+    def transcribe_audio(self, audio_path: str) -> str:
+        """
+        Transcribes audio file using OpenAI Whisper (Cloud).
+        """
+
+        if not os.path.exists(audio_path):
+            return f"(Error: Audio file not found at {audio_path})"
+
+        try:
+            with open(audio_path, "rb") as audio_file:
+                transcript = self.client.audio.transcriptions.create(
+                    model=self.audio_model,
+                    file=audio_file,
+                )
+
+            return transcript.text
+
+        except openai.RateLimitError:
+            return "(Transcription Error: Rate limit exceeded.)"
+
+        except Exception as e:
+            return f"(Transcription Error: {str(e)})"
+

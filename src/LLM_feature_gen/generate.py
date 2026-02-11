@@ -1,6 +1,6 @@
 # src/LLM_feature_gen/generate.py
 from __future__ import annotations
-from .utils.video import extract_key_frames, transcribe_video
+from .utils.video import extract_key_frames, extract_audio_track
 import os
 import json
 from pathlib import Path
@@ -33,20 +33,45 @@ def _prepare_text_inputs(file_path: Path) -> List[str]:
     return extract_text_from_file(file_path)
 
 
-def _prepare_video_inputs(file_path: Path, use_audio: bool) -> Tuple[List[str], Optional[str]]:
+def _prepare_video_inputs(
+        file_path: Path,
+        use_audio: bool,
+        provider: Any
+) -> Tuple[List[str], Optional[str]]:
+    """
+    Prepare multimodal inputs for a video file.
+
+    Returns:
+        - list of base64 frames
+        - optional transcript string (or None)
+    """
+
     transcript_context = None
 
-    # 1. Audio / Transcript
+    # -------------------------------------------------
+    # 1) Audio → transcript (optional)
+    # -------------------------------------------------
     if use_audio:
-        raw_transcript = transcribe_video(str(file_path))
-        if raw_transcript and len(raw_transcript) > 10:
-            transcript_context = raw_transcript
-        else:
-            transcript_context = "No distinct speech detected."
-    else:
-        transcript_context = None
+        audio_file = None
+        try:
+            audio_file = extract_audio_track(str(file_path))
 
-    # 2. Visuals / Frames
+            if audio_file and os.path.exists(audio_file):
+                if hasattr(provider, "transcribe_audio"):
+                    transcript_context = provider.transcribe_audio(audio_file)
+                else:
+                    transcript_context = "(Audio transcription not supported by provider)"
+
+        except Exception as e:
+            print(f"Warning: Audio extraction failed for {file_path.name}: {e}")
+
+        finally:
+            if audio_file and os.path.exists(audio_file):
+                os.remove(audio_file)
+
+    # -------------------------------------------------
+    # 2) Visual frames
+    # -------------------------------------------------
     b64_list = extract_key_frames(str(file_path), frame_limit=6)
 
     if not b64_list:
@@ -211,10 +236,19 @@ def assign_feature_values_from_folder(
             # modality-specific execution
             # ----------------------------
             if ext in video_exts:
-                b64_list, transcript_context = _prepare_video_inputs(file_path, use_audio)
+                b64_list, transcript_context = _prepare_video_inputs(
+                    file_path,
+                    use_audio,
+                    provider
+                )
+
+                if not b64_list:
+                    continue
+
                 llm_resp = provider.image_features(
                     image_base64_list=b64_list,
                     prompt=full_prompt,
+                    as_set=True,
                     extra_context=transcript_context,
                 )
 

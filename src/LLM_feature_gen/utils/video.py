@@ -29,7 +29,7 @@ def _get_frame_signature(image: np.ndarray) -> np.ndarray:
     return np.concatenate([hist.flatten() * 5, small_flat])
 
 
-def extract_key_frames(video_path: str, frame_limit: int = 6, sharpness_threshold: float = 40.0) -> List[str]:
+def extract_key_frames(video_path: str, min_frames: int = 5, max_frames: int = 10, sharpness_threshold: float = 40.0) -> List[str]:
     """
     Selects diverse keyframes using K-Means clustering.
     Instead of looking for motion, it groups similar scenes and picks the sharpest image from each group.
@@ -40,6 +40,11 @@ def extract_key_frames(video_path: str, frame_limit: int = 6, sharpness_threshol
         return []
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 25
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / fps
+    frame_limit = int(duration / 5)
+    frame_limit = max(min_frames, min(frame_limit, max_frames))
 
     # Step 1: Gather candidates (~2 frames per second to be efficient)
     sample_rate = max(1, int(fps / 2))
@@ -124,44 +129,31 @@ def extract_key_frames(video_path: str, frame_limit: int = 6, sharpness_threshol
     return b64_list
 
 
-def transcribe_video(file_path: str) -> str:
+def extract_audio_track(file_path: str) -> Optional[str]:
     """
-    Extracts audio using FFmpeg and calls Azure OpenAI Whisper/Speech endpoint.
+    Extracts the audio track from a video file and saves it as a temporary WAV file.
+    Uses FFmpeg to convert the stream to mono, 16kHz PCM (standard for Whisper/STT).
+
+    Returns:
+        The path to the generated temporary WAV file, or None if extraction fails.
     """
-    endpoint = os.getenv("SPEECH_AZURE_OPENAI_ENDPOINT")
-    api_key = os.getenv("SPEECH_AZURE_OPENAI_API_KEY")
-    api_version = os.getenv("SPEECH_AZURE_OPENAI_API_VERSION")
-    deployment = os.getenv("SPEECH_GPT4O_MINI_TRANSCRIBE_DEPLOYMENT_NAME")  # Or high_quality var
-
-    if not (endpoint and api_key and deployment):
-        return "(Transcription skipped: Missing environment variables)"
-
     base_name = os.path.splitext(os.path.basename(file_path))[0]
+    # Create a unique temporary filename
     temp_audio_path = f"temp_audio_{base_name}_{int(time.time())}.wav"
 
     try:
+        # ffmpeg-python configuration:
+        # ac=1 (mono), ar=16000 (16kHz), acodec='pcm_s16le' (linear PCM)
         ffmpeg.input(file_path).output(
-            temp_audio_path, acodec='pcm_s16le', ac=1, ar='16k'
+            temp_audio_path,
+            acodec='pcm_s16le',
+            ac=1,
+            ar='16000'
         ).run(quiet=True, overwrite_output=True)
 
-        url = f"{endpoint}openai/deployments/{deployment}/audio/transcriptions?api-version={api_version}"
-
-        with open(temp_audio_path, "rb") as f:
-            response = requests.post(
-                url,
-                headers={"api-key": api_key},
-                files={"file": (os.path.basename(temp_audio_path), f, "audio/wav")},
-                data={"model": "gpt-4o-transcribe", "response_format": "json"},
-                timeout=300,
-            )
-
-        if response.status_code == 200:
-            return response.json().get("text", "(no text found)")
-        else:
-            return f"(Transcription failed: {response.status_code})"
-
-    except Exception as e:
-        return f"(Transcription error: {str(e)})"
-    finally:
         if os.path.exists(temp_audio_path):
-            os.remove(temp_audio_path)
+            return temp_audio_path
+        return None
+    except Exception as e:
+        print(f"Error extracting audio from {file_path}: {e}")
+        return None
