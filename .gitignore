@@ -1,0 +1,45 @@
+# Byte‑compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Environments & dependencies
+.env            # contains secrets; should never be committed
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python tools and test caches
+.pytest_cache/
+.cache/
+.tox/
+.nox/
+*.coverage
+coverage.*
+htmlcov/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# IDEs
+.idea/          # PyCharm project settings
+.vscode/        # VS Code settings
+
+# OS files
+.DS_Store       # macOS
+Thumbs.db       # Windows
+
+# Local images/results (customize as needed)
+outputs/        # generated feature JSONs and other outputs
+discover_images/ # your local image dataset (if not meant to be tracked)
+
+# Logs and temporary files
+*.log

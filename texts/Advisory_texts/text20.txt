@@ -1,0 +1,1 @@
+The protocol specifies that samples must be stored at −20°C and analyzed within 48 hours to preserve data integrity.

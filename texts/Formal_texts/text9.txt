@@ -1,0 +1,1 @@
+After comparing several options, I chose the simpler solution because it was easier to maintain and required fewer assumptions about future use.

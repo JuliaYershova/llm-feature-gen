@@ -1,0 +1,1 @@
+The model was evaluated using cross-validation, and performance metrics were averaged across folds to ensure robustness of the reported results.

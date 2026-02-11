@@ -1,0 +1,1 @@
+The system logs all access attempts and stores them securely for auditing purposes, ensuring compliance with internal security policies.

@@ -11,6 +11,9 @@ def load_prompt(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-image_discovery_prompt = load_prompt("discovery_prompt")
-image_generation_prompt = load_prompt("generation_prompt")
+image_discovery_prompt = load_prompt("image_discovery_prompt")
+image_generation_prompt = load_prompt("image_generation_prompt")
+
+text_discovery_prompt = load_prompt("text_discovery_prompt")
+text_generation_prompt = load_prompt("text_generation_prompt")
 
