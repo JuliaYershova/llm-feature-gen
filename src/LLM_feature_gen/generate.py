@@ -24,6 +24,59 @@ except ImportError:  # pragma: no cover
 # helpers
 # ----------------------------
 
+def _prepare_tabular_inputs(
+        file_path: Path,
+        text_column: str,
+        label_column: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Load tabular file and extract row-level inputs.
+
+    Returns a list of dicts:
+        [
+            {"text": "...", "label": "..."},
+            ...
+        ]
+    """
+
+    suffix = file_path.suffix.lower()
+
+    if suffix == ".csv":
+        try:
+            df = pd.read_csv(file_path)
+        except Exception:
+            df = pd.read_csv(file_path, sep=";")
+
+    elif suffix in [".xlsx", ".xls"]:
+        df = pd.read_excel(file_path)
+
+    elif suffix == ".parquet":
+        df = pd.read_parquet(file_path)
+
+    elif suffix == ".json":
+        df = pd.read_json(file_path)
+
+    else:
+        raise ValueError(f"Unsupported tabular format: {suffix}")
+
+    if text_column not in df.columns:
+        raise ValueError(f"Column '{text_column}' not found in {file_path.name}")
+
+    results: List[Dict[str, Any]] = []
+
+    for _, row in df.iterrows():
+        entry = {
+            "text": str(row[text_column])
+        }
+
+        if label_column and label_column in df.columns:
+            entry["label"] = row[label_column]
+
+        results.append(entry)
+
+    return results
+
+
 def _prepare_text_inputs(file_path: Path) -> List[str]:
     """
     Load text from a file (txt, pdf, docx, etc.)
@@ -164,6 +217,8 @@ def assign_feature_values_from_folder(
         provider: Optional[OpenAIProvider] = None,
         output_dir: Union[str, Path] = "outputs",
         use_audio: bool = True,
+        text_column: Optional[str] = None,
+        label_column: Optional[str] = None,
 ) -> Path:
     provider = provider or OpenAIProvider()
     folder_path = Path(folder_path)
@@ -177,8 +232,9 @@ def assign_feature_values_from_folder(
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
     text_exts = {".txt", ".pdf", ".docx", ".md", ".html"}
+    tabular_exts = {".csv", ".xlsx", ".xls", ".parquet", ".json"}
 
-    all_exts = video_exts | image_exts | text_exts
+    all_exts = video_exts | image_exts | text_exts | tabular_exts
 
     files = sorted(
         f for f in os.listdir(class_folder)
@@ -190,14 +246,69 @@ def assign_feature_values_from_folder(
 
     iterator = tqdm(files, desc=class_name, unit="file") if tqdm else files
 
+    all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
+
+    if not csv_path.exists():
+        pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
+
     for filename in iterator:
         file_path = class_folder / filename
         ext = file_path.suffix.lower()
 
         try:
-            # ----------------------------
-            # prompt selection (single place)
-            # ----------------------------
+            # =========================================================
+            # TABULAR HANDLING (row-level processing)
+            # =========================================================
+            if ext in tabular_exts:
+
+                if not text_column:
+                    raise ValueError("For tabular generation, text_column must be provided.")
+
+                rows = _prepare_tabular_inputs(
+                    file_path=file_path,
+                    text_column=text_column,
+                    label_column=label_column,
+                )
+
+                full_prompt = _build_prompt_for_generation(
+                    text_generation_prompt,
+                    discovered_features
+                )
+
+                for idx, row_data in enumerate(rows):
+
+                    text_value = row_data["text"]
+
+                    llm_resp = provider.text_features(
+                        [text_value],
+                        prompt=full_prompt,
+                    )
+
+                    parsed = llm_resp[0]
+
+                    if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
+                        parsed = {"features": parse_json_from_markdown(parsed["features"])}
+
+                    inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
+
+                    row_dict: Dict[str, Any] = {
+                        "File": f"{filename}__row_{idx}",
+                        "Class": row_data.get("label", class_name),
+                        "raw_llm_output": json.dumps(parsed, ensure_ascii=False),
+                    }
+
+                    for feat in feature_names:
+                        value = inner.get(feat, "not given by LLM")
+                        row_dict[feat] = f"{feat} = {value}"
+
+                    df_out = pd.DataFrame([row_dict], columns=all_columns)
+                    df_out.to_csv(csv_path, mode="a", header=False, index=False)
+
+                continue  # skip default file-level logic
+
+            # =========================================================
+            # STANDARD FILE-LEVEL HANDLING
+            # =========================================================
             if ext in image_exts or ext in video_exts:
                 base_prompt = image_generation_prompt
             elif ext in text_exts:
@@ -207,9 +318,6 @@ def assign_feature_values_from_folder(
 
             full_prompt = _build_prompt_for_generation(base_prompt, discovered_features)
 
-            # ----------------------------
-            # modality-specific execution
-            # ----------------------------
             if ext in video_exts:
                 b64_list, transcript_context = _prepare_video_inputs(file_path, use_audio)
                 llm_resp = provider.image_features(
@@ -239,32 +347,33 @@ def assign_feature_values_from_folder(
             print(f"Error processing {filename}: {e}")
             continue
 
-        # normalize JSON
+        # =========================================================
+        # FILE-LEVEL RESULT WRITING
+        # =========================================================
         if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
             parsed = {"features": parse_json_from_markdown(parsed["features"])}
 
         if not feature_names:
             feature_names = _infer_feature_names_from_llm(parsed)
 
-        all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
+        inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
 
-        if not csv_path.exists():
-            pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
-
-        row: Dict[str, Any] = {
+        row = {
             "File": filename,
             "Class": class_name,
             "raw_llm_output": json.dumps(parsed, ensure_ascii=False),
         }
 
-        inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
-
         for feat in feature_names:
             value = inner.get(feat, "not given by LLM")
             row[feat] = f"{feat} = {value}"
 
-        df = pd.DataFrame([row], columns=all_columns)
-        df.to_csv(csv_path, mode="a", header=False, index=False)
+        pd.DataFrame([row], columns=all_columns).to_csv(
+            csv_path,
+            mode="a",
+            header=False,
+            index=False
+        )
 
     return csv_path
 
@@ -281,6 +390,8 @@ def generate_features(
         merge_to_single_csv: bool = False,
         merged_csv_name: str = "all_feature_values.csv",
         use_audio: bool = True,
+        text_column: Optional[str] = None,
+        label_column: Optional[str] = None,
 ) -> Dict[str, str]:
     root_folder = Path(root_folder)
     provider = provider or OpenAIProvider()
@@ -300,6 +411,8 @@ def generate_features(
             provider=provider,
             output_dir=output_dir,
             use_audio=use_audio,
+            text_column=text_column,
+            label_column=label_column,
         )
         csv_paths[cls] = str(csv_path)
 
@@ -317,6 +430,12 @@ def generate_features(
 # ----------------------------
 # modality-specific wrappers
 # ----------------------------
+def generate_features_from_tabular(*args, **kwargs) -> Dict[str, str]:
+    if "discovered_features_path" not in kwargs:
+        kwargs["discovered_features_path"] = "outputs/discovered_tabular_features.json"
+    return generate_features(*args, **kwargs)
+
+
 def generate_features_from_texts(*args, **kwargs) -> Dict[str, str]:
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_text_features.json"

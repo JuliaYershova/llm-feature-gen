@@ -2,93 +2,83 @@
   {
     "proposed_features": [
       {
-        "feature": "overall sentiment",
-        "description": "The texts differ in expressing positive or negative feelings about the subject, which can separate favorable from unfavorable opinions.",
+        "feature": "focus on portability and ease of handling",
+        "description": "One group emphasizes how the device is easy to carry and use on the go, highlighting size and comfort, while the other group does not mention portability.",
         "possible_values": [
-          "positive",
-          "negative"
+          "mentions portability",
+          "does not mention portability"
         ]
       },
       {
-        "feature": "focus on emotional impact",
-        "description": "Some texts emphasize emotional responses or feelings evoked, distinguishing those that highlight emotional engagement from those that do not.",
+        "feature": "mentions hardware upgradeability",
+        "description": "Some texts explicitly discuss the ability to upgrade or replace internal components, indicating a focus on hardware customization, which is absent in the other group.",
         "possible_values": [
-          "emotional emphasis",
-          "neutral or critical tone"
+          "upgradeable hardware mentioned",
+          "no upgradeability mentioned"
         ]
       },
       {
-        "feature": "mention of specific artistic elements",
-        "description": "Certain texts reference particular components like acting, soundtrack, or visuals, which can differentiate detailed critiques from more general statements.",
+        "feature": "focus on software or app usage",
+        "description": "One group references apps or software designed for quick interaction, suggesting a user experience or software-centric perspective, while the other group focuses on hardware specs.",
         "possible_values": [
-          "acting",
-          "story/plot",
-          "soundtrack",
-          "visuals",
-          "dialogue",
-          "character development",
-          "none"
+          "mentions apps or software",
+          "no mention of apps or software"
         ]
       },
       {
-        "feature": "use of evaluative adjectives",
-        "description": "The presence of strong positive or negative descriptive words (e.g., brilliant, terrible) can help distinguish enthusiastic from critical texts.",
+        "feature": "mentions specific hardware components",
+        "description": "Some texts highlight particular hardware parts like graphics cards and storage capacity, indicating a technical or performance-oriented description.",
         "possible_values": [
-          "strong positive adjectives",
-          "strong negative adjectives",
-          "neutral or mild adjectives"
+          "mentions specific hardware components",
+          "does not mention specific hardware components"
         ]
       },
       {
-        "feature": "statement of engagement level",
-        "description": "Some texts explicitly mention how engaging or boring the experience was, which can separate texts based on perceived entertainment value.",
+        "feature": "mentions power or battery life",
+        "description": "Some texts discuss battery duration or power-related features, which may distinguish portable devices from stationary ones.",
         "possible_values": [
-          "engaged",
-          "bored",
-          "not mentioned"
+          "mentions battery life",
+          "no mention of battery life"
         ]
       },
       {
-        "feature": "presence of summary judgment",
-        "description": "Certain texts conclude with a clear overall evaluation (e.g., masterpiece, not worth the time), which can distinguish conclusive opinions from descriptive ones.",
+        "feature": "mentions usage environment or required setup",
+        "description": "One group refers to needing a stable desk surface or similar setup, implying a stationary or desktop use context, unlike the portable-focused group.",
         "possible_values": [
-          "positive summary",
-          "negative summary",
-          "no summary"
+          "mentions usage environment/setup",
+          "no mention of usage environment/setup"
         ]
       },
       {
-        "feature": "complexity assessment",
-        "description": "Some texts comment on the complexity or pacing of the subject, differentiating those that critique structure from those that focus on content or emotion.",
+        "feature": "repetition of content",
+        "description": "One text is repeated verbatim, which might indicate emphasis or a pattern in one group versus unique descriptions in the other.",
         "possible_values": [
-          "too complex",
-          "too slow",
-          "well-paced",
-          "not mentioned"
+          "repeated text present",
+          "no repeated text"
         ]
       },
       {
-        "feature": "use of personal experience framing",
-        "description": "Texts that include personal reactions or feelings (e.g., 'I was bored') differ from those that remain more objective or descriptive.",
+        "feature": "level of abstraction in description",
+        "description": "Some texts describe general capabilities or user experience (e.g., quick interaction), while others focus on concrete technical details (e.g., graphics card).",
         "possible_values": [
-          "personal experience",
-          "objective description"
+          "abstract/general description",
+          "concrete/technical description"
         ]
       },
       {
-        "feature": "presence of contrast or comparison",
-        "description": "Some texts contrast different elements (e.g., good acting but bad writing), which can separate nuanced critiques from uniformly positive or negative ones.",
+        "feature": "mentions device form factor",
+        "description": "Some texts explicitly mention physical form factors like fitting in a hand or pocket, which is a tangible physical attribute absent in the other group.",
         "possible_values": [
-          "contrast present",
-          "no contrast"
+          "mentions form factor",
+          "does not mention form factor"
         ]
       },
       {
-        "feature": "level of specificity",
-        "description": "Texts vary in how specifically they discuss elements (e.g., naming acting, soundtrack) versus making broad statements, which can distinguish detailed reviews from general impressions.",
+        "feature": "intended usage context implied",
+        "description": "One group implies mobile or handheld use, while the other implies stationary or desktop use, based on clues like portability or required desk surface.",
         "possible_values": [
-          "high specificity",
-          "low specificity"
+          "implies mobile/handheld use",
+          "implies stationary/desktop use"
         ]
       }
     ]
