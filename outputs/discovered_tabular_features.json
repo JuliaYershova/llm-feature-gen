@@ -1,0 +1,96 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "overall sentiment",
+        "description": "The texts differ in expressing positive or negative feelings about the subject, which can separate favorable from unfavorable opinions.",
+        "possible_values": [
+          "positive",
+          "negative"
+        ]
+      },
+      {
+        "feature": "focus on emotional impact",
+        "description": "Some texts emphasize emotional responses or feelings evoked, distinguishing those that highlight emotional engagement from those that do not.",
+        "possible_values": [
+          "emotional emphasis",
+          "neutral or critical tone"
+        ]
+      },
+      {
+        "feature": "mention of specific artistic elements",
+        "description": "Certain texts reference particular components like acting, soundtrack, or visuals, which can differentiate detailed critiques from more general statements.",
+        "possible_values": [
+          "acting",
+          "story/plot",
+          "soundtrack",
+          "visuals",
+          "dialogue",
+          "character development",
+          "none"
+        ]
+      },
+      {
+        "feature": "use of evaluative adjectives",
+        "description": "The presence of strong positive or negative descriptive words (e.g., brilliant, terrible) can help distinguish enthusiastic from critical texts.",
+        "possible_values": [
+          "strong positive adjectives",
+          "strong negative adjectives",
+          "neutral or mild adjectives"
+        ]
+      },
+      {
+        "feature": "statement of engagement level",
+        "description": "Some texts explicitly mention how engaging or boring the experience was, which can separate texts based on perceived entertainment value.",
+        "possible_values": [
+          "engaged",
+          "bored",
+          "not mentioned"
+        ]
+      },
+      {
+        "feature": "presence of summary judgment",
+        "description": "Certain texts conclude with a clear overall evaluation (e.g., masterpiece, not worth the time), which can distinguish conclusive opinions from descriptive ones.",
+        "possible_values": [
+          "positive summary",
+          "negative summary",
+          "no summary"
+        ]
+      },
+      {
+        "feature": "complexity assessment",
+        "description": "Some texts comment on the complexity or pacing of the subject, differentiating those that critique structure from those that focus on content or emotion.",
+        "possible_values": [
+          "too complex",
+          "too slow",
+          "well-paced",
+          "not mentioned"
+        ]
+      },
+      {
+        "feature": "use of personal experience framing",
+        "description": "Texts that include personal reactions or feelings (e.g., 'I was bored') differ from those that remain more objective or descriptive.",
+        "possible_values": [
+          "personal experience",
+          "objective description"
+        ]
+      },
+      {
+        "feature": "presence of contrast or comparison",
+        "description": "Some texts contrast different elements (e.g., good acting but bad writing), which can separate nuanced critiques from uniformly positive or negative ones.",
+        "possible_values": [
+          "contrast present",
+          "no contrast"
+        ]
+      },
+      {
+        "feature": "level of specificity",
+        "description": "Texts vary in how specifically they discuss elements (e.g., naming acting, soundtrack) versus making broad statements, which can distinguish detailed reviews from general impressions.",
+        "possible_values": [
+          "high specificity",
+          "low specificity"
+        ]
+      }
+    ]
+  }
+]

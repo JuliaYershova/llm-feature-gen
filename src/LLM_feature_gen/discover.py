@@ -310,3 +310,71 @@ def discover_features_from_texts(
         return result_list[0]
 
     return result_list
+
+
+def discover_features_from_tabular(
+        file_or_folder: str | Path,
+        text_column: str,
+        provider: Optional[OpenAIProvider] = None,
+        prompt: str = text_discovery_prompt,
+        as_set: bool = True,
+        output_dir: str | Path = "outputs",
+        output_filename: Optional[str] = None,
+        max_rows: Optional[int] = None,
+        ):
+    import pandas as pd
+    provider = provider or OpenAIProvider()
+    path = Path(file_or_folder)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Path not found: {path}")
+
+    def load_file(file_path: Path):
+        suffix = file_path.suffix.lower()
+        if suffix == ".csv":
+            try:
+                return pd.read_csv(file_path)
+            except:
+                return pd.read_csv(file_path, sep=";")
+        elif suffix in [".xlsx", ".xls"]:
+            return pd.read_excel(file_path)
+        elif suffix == ".parquet":
+            return pd.read_parquet(file_path)
+        elif suffix == ".json":
+            return pd.read_json(file_path)
+        else:
+            raise ValueError(f"Unsupported format: {suffix}")
+
+    dfs = []
+
+    if path.is_file():
+        dfs.append(load_file(path))
+    elif path.is_dir():
+        for f in sorted(path.iterdir()):
+            if f.is_file():
+                try:
+                    dfs.append(load_file(f))
+                except Exception as e:
+                    print(f"Skipping {f.name}: {e}")
+
+    if not dfs:
+        raise ValueError("No valid tabular files found.")
+
+    df = pd.concat(dfs, ignore_index=True)
+
+    if text_column not in df.columns:
+        raise ValueError(f"Column '{text_column}' not found.")
+
+    texts = df[text_column].dropna().astype(str).tolist()
+
+    if max_rows:
+        texts = texts[:max_rows]
+
+    return discover_features_from_texts(
+        texts_or_file=texts,
+        prompt=prompt,
+        provider=provider,
+        as_set=as_set,
+        output_dir=output_dir,
+        output_filename=output_filename or "discovered_tabular_features.json",
+    )

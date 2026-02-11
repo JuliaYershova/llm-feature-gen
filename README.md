@@ -16,6 +16,12 @@ e.g., creating structured tables for downstream models,
 
 The `discover` module focuses on **feature discovery** — identifying interpretable, discriminative visual or textual properties using an LLM.
 
+Supported Data Types
+- Images (.jpg, .png)
+- Text documents (.txt, .pdf, .docx, .md, .html)
+- Tabular datasets (.csv, .xlsx, .parquet, .json)
+- Videos (.mp4)
+
 ### ✅ What it does
 Given a folder of images and a prompt, the library:
 1. Converts each image into Base64 format,  
@@ -153,4 +159,63 @@ Example saved JSON:
     }
   ]
 }
+```
+
+##  Example: Discover Features from Tabular Data
+```python
+from LLM_feature_gen.discover import discover_features_from_tabular
+
+# Folder with tabular files (.csv, .xlsx, .parquet, .json)
+tabular_folder = "discover_tabular"
+
+# Run feature discovery
+result = discover_features_from_tabular(
+    texts_or_file=tabular_folder,
+    as_set=True,  # analyze all texts jointly
+    text_column="text",   # required: column containing raw text
+)
+
+print(result)
+```
+
+This will:
+1. Load all supported tabular files from the folder discover_tabular/
+2. Extract the specified text_column
+3. Apply the standard text discovery prompt
+4. Save the output to outputs/discovered_tabular_features.json.
+
+Example saved JSON:
+```json
+{
+    "proposed_features": [
+      {
+        "feature": "overall sentiment",
+        "description": "The texts differ in expressing positive or negative feelings about the subject, which can separate favorable from unfavorable opinions.",
+        "possible_values": [
+          "positive",
+          "negative"
+        ]
+      },
+      {
+        "feature": "focus on emotional impact",
+        "description": "Some texts emphasize emotional responses or feelings evoked, distinguishing those that highlight emotional engagement from those that do not.",
+        "possible_values": [
+          "emotional emphasis",
+          "neutral or critical tone"
+        ]
+      },
+      {
+        "feature": "mention of specific artistic elements",
+        "description": "Certain texts reference particular components like acting, soundtrack, or visuals, which can differentiate detailed critiques from more general statements.",
+        "possible_values": [
+          "acting",
+          "story/plot",
+          "soundtrack",
+          "visuals",
+          "dialogue",
+          "character development",
+          "none"
+        ]
+      }
+      }
 ```
