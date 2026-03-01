@@ -68,55 +68,41 @@ Clone or download the repository, then install in editable mode:
 pip install -e .
 ```
 
-## 🏠 Local Provider Setup (Ollama, vLLM, LM Studio)
+## 🧪 Running Tests
 
-The library supports local execution using any OpenAI-compatible server (like **Ollama**, **vLLM**, or **LM Studio**) and local audio transcription via **Faster-Whisper**.
+The project uses pytest. You don’t need external services (no network calls are made during tests), and heavy video tooling is stubbed out.
 
-### 1. Requirements
-If you wish to use local audio transcription, install the optional dependency:
-```bash
-pip install faster-whisper
+Quick start from the repository root (Windows PowerShell shown, works similarly on macOS/Linux):
+
+```powershell
+# 1) (Recommended) Create and activate a virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1   # On macOS/Linux: source .venv/bin/activate
+
+# 2) Install the package in editable mode
+pip install -e .
+
+# 3) Install test runner
+pip install -U pytest
+
+# 4) Run the test suite
+python -m pytest -q
 ```
 
-### 2. Environment Variables
-Add these to your `.env` file to configure the local behavior:
+Useful commands:
+- Run a single test file:
+  ```powershell
+  python -m pytest -q src\tests\test_discovery.py
+  ```
+- Run tests with verbose output:
+  ```powershell
+  python -m pytest -vv
+  ```
 
-```bash
-# Provider endpoint (e.g., Ollama)
-LOCAL_OPENAI_BASE_URL="http://localhost:11434/v1"
-LOCAL_OPENAI_API_KEY="ollama"  # Usually ignored by local servers
-
-# Model names
-LOCAL_MODEL_TEXT="llama3.1"
-LOCAL_MODEL_VISION="llama3.2-vision"
-
-# Local Whisper settings
-LOCAL_WHISPER_MODEL_SIZE="base" # tiny, base, small, medium, large-v3
-LOCAL_WHISPER_DEVICE="auto"     # cuda, cpu, or auto
-```
-
-### 3. Usage Example: Local Video Discovery
-To use the local provider, simply initialize `LocalProvider` and pass it to the discovery functions.
-
-> **💡 Performance Tip:** Smaller local vision models (like Llama 3.2 Vision) perform best when processing fewer frames at once. Use `max_total_frames_payload` to prevent context saturation.
-
-```python
-from LLM_feature_gen.providers.local_provider import LocalProvider
-from LLM_feature_gen.discover import discover_features_from_videos
-
-# 1. Initialize the local provider
-local_provider = LocalProvider()
-
-# 2. Run discovery on a video folder
-result = discover_features_from_videos(
-    videos_or_folder="my_videos",
-    provider=local_provider,
-    num_frames=3,                   # Frames per video
-    max_total_frames_payload=6      # Limit total frames for local LLM stability
-)
-
-print(result)
-```
+Notes:
+- Tests create and use temporary directories; they do not modify your repository files.
+- Video-related utilities are monkeypatched/stubbed in tests, so `ffmpeg` is not required to run the suite.
+- Environment variables for Azure OpenAI are not required for tests because a fake provider is used.
 
 ## 🔑 Environment Setup for OpenAI API
 
