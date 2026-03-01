@@ -1,0 +1,17 @@
+# Include package source and metadata
+recursive-include src *.py
+include pyproject.toml
+include README.md
+include LICENSE
+
+# Exclude local data folders – these must never be bundled into the sdist
+prune discover_images
+prune discover_tabular
+prune discover_texts
+prune discover_videos
+prune images
+prune outputs
+prune tabular
+prune texts
+prune videos
+

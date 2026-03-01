@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "LLM_feature_gen"
-version = "0.1.0"
+version = "0.1.2"
 description = "Feature discovery and generation utilities"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -16,8 +16,26 @@ dependencies = [
   "python-dotenv>=1.0.0",
   "pydantic>=2",
   "numpy>=1.26",
-  "Pillow>=10"
+  "Pillow>=10",
+  "opencv-python>=4.8",
+  "ffmpeg-python>=0.2",
+  "pandas>=2.0"
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+exclude = ["tests*"]
+
+# Belt-and-suspenders: don't bundle any non-code files from these folders
+[tool.setuptools.exclude-package-data]
+"*" = [
+  "discover_images/*",
+  "discover_tabular/*",
+  "discover_texts/*",
+  "discover_videos/*",
+  "images/*",
+  "outputs/*",
+  "tabular/*",
+  "texts/*",
+  "videos/*",
+]
