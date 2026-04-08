@@ -208,6 +208,41 @@ def test_discover_videos_warns_when_provider_has_no_transcriber(tmp_path: Path, 
     assert "proposed_features" in result
 
 
+def test_discover_videos_handles_frame_errors_and_short_transcripts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    bad_video = tmp_path / "bad.mp4"
+    good_video = tmp_path / "good.mp4"
+    bad_video.write_bytes(b"video")
+    good_video.write_bytes(b"video")
+    audio_path = tmp_path / "short.wav"
+    audio_path.write_bytes(b"audio")
+
+    def fake_extract_frames(path: str, frame_limit: int = 5):
+        if Path(path).name == "bad.mp4":
+            raise RuntimeError("frame failure")
+        return ["good-frame"]
+
+    monkeypatch.setattr(discover_mod, "extract_key_frames", fake_extract_frames)
+    monkeypatch.setattr(discover_mod, "extract_audio_track", lambda path: str(audio_path))
+
+    class ShortTranscriptProvider(ImageProvider):
+        def transcribe_audio(self, audio_path: str) -> str:
+            return "short"
+
+    provider = ShortTranscriptProvider()
+
+    result = discover_mod.discover_features_from_videos(
+        [str(bad_video), str(good_video)],
+        provider=provider,
+        use_audio=True,
+        as_set=False,
+        output_dir=tmp_path / "shortcase",
+    )
+
+    assert isinstance(result, list)
+    assert provider.calls[0]["images"] == ["good-frame"]
+    assert provider.calls[0]["extra_context"] is None
+
+
 def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     folder = tmp_path / "tabular"
     folder.mkdir()
