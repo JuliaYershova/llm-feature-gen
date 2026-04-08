@@ -335,16 +335,8 @@ def assign_feature_values_from_folder(
             # =========================================================
             # STANDARD FILE-LEVEL HANDLING
             # =========================================================
-            if ext in image_exts or ext in video_exts:
-                base_prompt = image_generation_prompt
-            elif ext in text_exts:
-                base_prompt = text_generation_prompt
-            else:
-                continue
-
-            full_prompt = _build_prompt_for_generation(base_prompt, discovered_features)
-
             if ext in video_exts:
+                full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
                 b64_list, transcript_context = _prepare_video_inputs(
                     file_path,
                     use_audio,
@@ -362,6 +354,7 @@ def assign_feature_values_from_folder(
                 )
 
             elif ext in image_exts:
+                full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
                 b64_list, _ = _prepare_image_inputs(file_path)
                 llm_resp = provider.image_features(
                     image_base64_list=b64_list,
@@ -369,12 +362,16 @@ def assign_feature_values_from_folder(
                 )
 
             elif ext in text_exts:
+                full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
                 texts = _prepare_text_inputs(file_path)
                 combined_text = "\n\n---\n\n".join(texts)
                 llm_resp = provider.text_features(
                     [combined_text],
                     prompt=full_prompt,
                 )
+
+            else:
+                continue
 
             parsed = llm_resp[0]
 
@@ -485,7 +482,7 @@ def generate_features_from_images(*args, **kwargs) -> Dict[str, str]:
 
 def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
     if "discovered_features_path" not in kwargs:
-        kwargs["discovered_features_path"] = "outputs/discovered_videos_features.json"
+        kwargs["discovered_features_path"] = "outputs/discovered_video_features.json"
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)

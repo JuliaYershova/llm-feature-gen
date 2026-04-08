@@ -6,7 +6,7 @@
 The library provides high-level utilities for:
 - Discovering human-interpretable features from sets of images,
 - Integrating prompts and model outputs into structured JSON representations,
-- - Generating new feature representations automatically from raw multimodal data,
+- Generating new feature representations automatically from raw multimodal data,
 e.g., creating structured tables for downstream models,
 
 
@@ -68,6 +68,12 @@ Clone or download the repository, then install in editable mode:
 pip install -e .
 ```
 
+For development and testing, use:
+
+```bash
+pip install -e ".[dev]"
+```
+
 Install from PyPI:
 
 ```bash
@@ -85,24 +91,24 @@ Quick start from the repository root (Windows PowerShell shown, works similarly 
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1   # On macOS/Linux: source .venv/bin/activate
 
-# 2) Install the package in editable mode
-pip install -e .
+# 2) Upgrade packaging tools in a fresh environment
+python -m pip install --upgrade pip setuptools wheel
 
-# 3) Install test runner
-pip install -U pytest
+# 3) Install the package with dev dependencies
+pip install -e ".[dev]"
 
 # 4) Run the test suite
-python -m pytest -q
+pytest
 ```
 
 Useful commands:
 - Run a single test file:
   ```powershell
-  python -m pytest -q src\tests\test_discovery.py
+  pytest src\tests\test_discovery.py
   ```
 - Run tests with verbose output:
   ```powershell
-  python -m pytest -vv
+  pytest -vv
   ```
 
 Notes:
@@ -212,7 +218,7 @@ tabular_folder = "discover_tabular"
 
 # Run feature discovery
 result = discover_features_from_tabular(
-    texts_or_file=tabular_folder,
+    file_or_folder=tabular_folder,
     as_set=True,  # analyze all texts jointly
     text_column="text",   # required: column containing raw text
 )

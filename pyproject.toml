@@ -22,6 +22,29 @@ dependencies = [
   "pandas>=2.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["src/tests"]
+addopts = "--cov=llm_feature_gen --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["llm_feature_gen"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+skip_empty = true
+
+[tool.setuptools.package-dir]
+"" = "src"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 exclude = ["tests*"]
