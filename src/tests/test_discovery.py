@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from LLM_feature_gen.discover import (
+from llm_feature_gen.discover import (
     discover_features_from_images,
     discover_features_from_videos,
 )
@@ -82,7 +82,7 @@ def test_images_from_folder_as_set_saves_and_returns_first(tmp_images_dir: Path,
     assert result.get("count") == 3
 
     # File saved with default name
-    out_file = out_dir / "discovered_features.json"
+    out_file = out_dir / "discovered_image_features.json"
     assert out_file.exists()
     saved = json.loads(out_file.read_text(encoding="utf-8"))
     assert isinstance(saved, list) and len(saved) == 1
@@ -104,7 +104,7 @@ def test_images_from_list_per_image_returns_list_and_saves(tmp_images_dir: Path,
     assert all("proposed_features" in r for r in result)
 
     # File saved
-    out_file = out_dir / "discovered_features.json"
+    out_file = out_dir / "discovered_image_features.json"
     assert out_file.exists()
     saved = json.loads(out_file.read_text(encoding="utf-8"))
     assert isinstance(saved, list)
@@ -155,8 +155,8 @@ def test_custom_output_filename(tmp_images_dir: Path, tmp_path: Path):
 # Video discovery tests
 # ------------------------------
 
-def test_video_discovery_single_file_saves_with_derived_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """For a single video file, output name should be derived as features_<stem>.json.
+def test_video_discovery_single_file_saves_with_default_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """For a single video file, the default output name should be used.
 
     We monkeypatch frame extraction and transcription to avoid heavy deps.
     """
@@ -174,15 +174,18 @@ def test_video_discovery_single_file_saves_with_derived_name(tmp_path: Path, mon
         # Return a few base64-like placeholders
         return ["b64frame1", "b64frame2"]
 
-    def fake_transcribe_video(_vp: str):
-        return "this is a transcript with enough length to be included"
+    def fake_extract_audio_track(_vp: str):
+        audio_path = tmp_path / "sample.wav"
+        audio_path.write_bytes(b"fake-audio")
+        return str(audio_path)
 
-    from LLM_feature_gen import discover as discover_mod
+    from llm_feature_gen import discover as discover_mod
 
     monkeypatch.setattr(discover_mod, "extract_key_frames", fake_extract_key_frames)
-    monkeypatch.setattr(discover_mod, "transcribe_video", fake_transcribe_video)
+    monkeypatch.setattr(discover_mod, "extract_audio_track", fake_extract_audio_track)
 
     provider = FakeProvider()
+    provider.transcribe_audio = lambda _path: "this is a transcript with enough length to be included"  # type: ignore[attr-defined]
     out_dir = tmp_path / "out"
 
     result = discover_features_from_videos(
@@ -194,7 +197,7 @@ def test_video_discovery_single_file_saves_with_derived_name(tmp_path: Path, mon
     assert result.get("count") == 2
     assert result.get("has_context") is True
 
-    expected_name = out_dir / "features_sample.json"
+    expected_name = out_dir / "discovered_video_features.json"
     assert expected_name.exists()
 
 
@@ -212,7 +215,7 @@ def test_video_discovery_folder_sampling_and_no_audio(tmp_path: Path, monkeypatc
     def fake_extract_key_frames(_vp: str, frame_limit: int = 5):
         return ["f1", "f2", "f3"]
 
-    from LLM_feature_gen import discover as discover_mod
+    from llm_feature_gen import discover as discover_mod
     monkeypatch.setattr(discover_mod, "extract_key_frames", fake_extract_key_frames)
 
     provider = FakeProvider()
@@ -228,7 +231,7 @@ def test_video_discovery_folder_sampling_and_no_audio(tmp_path: Path, monkeypatc
     assert result.get("has_context") is False
 
     # Output filename derived from folder name
-    expected_name = out_dir / "features_videos.json"
+    expected_name = out_dir / "discovered_video_features.json"
     assert expected_name.exists()
 
 
@@ -255,7 +258,7 @@ def test_video_discovery_raises_when_no_frames_extracted(tmp_path: Path, monkeyp
     def fake_extract_key_frames(_vp: str, frame_limit: int = 5):
         return []  # simulate failure to extract frames
 
-    from LLM_feature_gen import discover as discover_mod
+    from llm_feature_gen import discover as discover_mod
     monkeypatch.setattr(discover_mod, "extract_key_frames", fake_extract_key_frames)
 
     with pytest.raises(ValueError):

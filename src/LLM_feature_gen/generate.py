@@ -1,4 +1,4 @@
-# src/LLM_feature_gen/generate.py
+# src/llm_feature_gen/generate.py
 from __future__ import annotations
 from .utils.video import extract_key_frames, extract_audio_track
 import os

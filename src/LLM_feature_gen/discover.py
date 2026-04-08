@@ -1,4 +1,6 @@
-# src/LLM_feature_gen/discover.py
+from __future__ import annotations
+
+# src/llm_feature_gen/discover.py
 import random
 from typing import List, Dict, Any, Optional
 from pathlib import Path

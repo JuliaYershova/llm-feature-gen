@@ -1,4 +1,4 @@
-# src/LLM_feature_gen/utils/image.py
+# src/llm_feature_gen/utils/image.py
 import base64, io
 from PIL import Image
 import numpy as np

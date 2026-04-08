@@ -1,4 +1,4 @@
-# src/LLM_feature_gen/providers/local_provider.py
+# src/llm_feature_gen/providers/local_provider.py
 from __future__ import annotations
 
 import os

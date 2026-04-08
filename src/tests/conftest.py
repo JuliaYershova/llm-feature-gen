@@ -2,7 +2,7 @@
 
 Ensures the project package is importable when running tests directly from the
 repository root without installing the package. We prepend the `src` directory
-to `sys.path` so that `import LLM_feature_gen` works reliably.
+to `sys.path` so that `import llm_feature_gen` works reliably.
 """
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ def _install_test_stubs() -> None:
     if 'ffmpeg' not in sys.modules:
         sys.modules['ffmpeg'] = ModuleType('ffmpeg')
 
-    # Stub for LLM_feature_gen.utils.video to avoid importing real ffmpeg
-    pkg_name = 'LLM_feature_gen.utils.video'
+    # Stub for llm_feature_gen.utils.video to avoid importing real ffmpeg
+    pkg_name = 'llm_feature_gen.utils.video'
     if pkg_name not in sys.modules:
         mod = ModuleType(pkg_name)
 
@@ -38,11 +38,15 @@ def _install_test_stubs() -> None:
             # Return an empty list by default; tests will monkeypatch as needed
             return []
 
-        def transcribe_video(video_path: str):
-            return ""
+        def extract_audio_track(video_path: str):
+            return None
+
+        def downsample_batch(b64_list, target_count: int = 15):
+            return b64_list[:target_count]
 
         mod.extract_key_frames = extract_key_frames  # type: ignore[attr-defined]
-        mod.transcribe_video = transcribe_video      # type: ignore[attr-defined]
+        mod.extract_audio_track = extract_audio_track  # type: ignore[attr-defined]
+        mod.downsample_batch = downsample_batch        # type: ignore[attr-defined]
         sys.modules[pkg_name] = mod
 
 

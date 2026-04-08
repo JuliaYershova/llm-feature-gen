@@ -1,4 +1,4 @@
-# src/LLM_feature_gen/providers/openai_provider.py
+# src/llm_feature_gen/providers/openai_provider.py
 from __future__ import annotations
 
 import os
@@ -309,4 +309,3 @@ class OpenAIProvider:
 
         except Exception as e:
             return f"(Transcription Error: {str(e)})"
-

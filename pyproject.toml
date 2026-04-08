@@ -4,7 +4,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llm_feature_gen"
+name = "llm-feature-gen"
 version = "0.1.8"
 description = "Feature discovery and generation utilities"
 readme = "README.md"
@@ -27,7 +27,7 @@ where = ["src"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-"LLM_feature_gen" = ["prompts/*.txt"]
+"llm_feature_gen" = ["prompts/*.txt"]
 
 # Belt-and-suspenders: don't bundle any non-code files from these folders
 [tool.setuptools.exclude-package-data]

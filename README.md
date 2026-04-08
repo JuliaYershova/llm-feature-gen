@@ -1,4 +1,4 @@
-# LLM_feature_gen
+# llm-feature-gen
 
 
 
@@ -33,9 +33,9 @@ Given a folder of images and a prompt, the library:
 
 ## 📂 Project Structure
 ```text
-LLM_feature_gen/
+llm-feature-gen/
 ├─ src/
-│  └─ LLM_feature_gen/
+│  └─ llm_feature_gen/
 │     ├─ __init__.py
 │     ├─ discover.py                # High-level orchestration for feature discovery
 │     ├─ generate.py                # Feature value generation
@@ -66,6 +66,12 @@ Clone or download the repository, then install in editable mode:
 
 ```bash
 pip install -e .
+```
+
+Install from PyPI:
+
+```bash
+pip install llm-feature-gen
 ```
 
 ## 🧪 Running Tests
@@ -110,7 +116,7 @@ Create a .env file in the project root
 
 ##  Example: Discover Features from Images
 ```python
-from LLM_feature_gen.discover import discover_features_from_images
+from llm_feature_gen.discover import discover_features_from_images
 # Folder with your example images
 image_folder = "discover_images"
 
@@ -148,7 +154,7 @@ Example saved JSON:
 
 ##  Example: Discover Features from Texts
 ```python
-from LLM_feature_gen.discover import discover_features_from_texts
+from llm_feature_gen.discover import discover_features_from_texts
 
 # Folder with text documents (txt, pdf, docx, md, html)
 text_folder = "discover_texts"
@@ -199,7 +205,7 @@ Example saved JSON:
 
 ##  Example: Discover Features from Tabular Data
 ```python
-from LLM_feature_gen.discover import discover_features_from_tabular
+from llm_feature_gen.discover import discover_features_from_tabular
 
 # Folder with tabular files (.csv, .xlsx, .parquet, .json)
 tabular_folder = "discover_tabular"

@@ -1,4 +1,4 @@
-# src/LLM_feature_gen/utils/video.py
+# src/llm_feature_gen/utils/video.py
 import os
 import time
 import ffmpeg
