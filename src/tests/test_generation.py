@@ -427,12 +427,54 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         "outputs/discovered_tabular_features.json",
         "outputs/discovered_text_features.json",
         "outputs/discovered_image_features.json",
-        "outputs/discovered_videos_features.json",
+        "outputs/discovered_video_features.json",
         "custom_tab.json",
         "custom_text.json",
         "custom_image.json",
         "custom_video.json",
     ]
+
+
+def test_video_discovery_and_generation_wrapper_defaults_line_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from llm_feature_gen import discover as disc
+
+    monkeypatch.chdir(tmp_path)
+    videos_root = tmp_path / "videos"
+    class_dir = videos_root / "classA"
+    class_dir.mkdir(parents=True)
+    video_file = class_dir / "sample.mp4"
+    video_file.write_bytes(b"video")
+
+    monkeypatch.setattr(disc, "extract_key_frames", lambda path, frame_limit=5: ["discover-frame"])
+    monkeypatch.setattr(disc, "extract_audio_track", lambda path: None)
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: (["gen-frame"], None))
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class SmokeProvider:
+        def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+            if prompt and "DISOVERED_FEATURES_SPEC" in prompt:
+                return [{"features": {"shape": "round"}}]
+            return [{"proposed_features": [{"feature": "shape"}]}]
+
+    provider = SmokeProvider()
+
+    discovered = disc.discover_features_from_videos(
+        videos_or_folder=str(class_dir),
+        provider=provider,
+        use_audio=False,
+    )
+    assert discovered["proposed_features"][0]["feature"] == "shape"
+    assert (tmp_path / "outputs" / "discovered_video_features.json").exists()
+
+    result = gen.generate_features_from_videos(
+        root_folder=videos_root,
+        provider=provider,
+        use_audio=False,
+    )
+    generated_csv = Path(result["classA"])
+    assert generated_csv.exists()
+    df = pd.read_csv(generated_csv)
+    assert list(df["shape"]) == ["round"]
 
 
 def test_generate_module_can_fall_back_without_tqdm(monkeypatch: pytest.MonkeyPatch):
