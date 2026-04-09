@@ -29,6 +29,21 @@ load_dotenv()
 
 DiscoveryPayload = Dict[str, Any]
 DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
+SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".html"}
+
+
+def _looks_like_text_path(value: str) -> bool:
+    """Heuristically distinguish raw text from a missing filesystem path."""
+    candidate = Path(value)
+    return (
+        "\n" not in value
+        and (
+            value.startswith(("~", ".", "/"))
+            or "\\" in value
+            or "/" in value
+            or candidate.suffix.lower() in SUPPORTED_TEXT_SUFFIXES
+        )
+    )
 
 
 def discover_features_from_images(
@@ -150,7 +165,8 @@ def discover_features_from_videos(
         output_filename: Optional[str] = None,
         use_audio: bool = True,
         max_videos_to_sample: int = 5,
-        max_total_frames_payload: int = 15
+        max_total_frames_payload: int = 15,
+        random_seed: Optional[int] = None,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -165,8 +181,10 @@ def discover_features_from_videos(
         provider: Optional provider instance implementing ``image_features``
             and, when ``use_audio=True``, optionally ``transcribe_audio``.
         as_set: When ``True``, all extracted frames are analyzed together to
-            produce one shared schema. When ``False``, frames are analyzed in
-            per-item mode.
+            produce one shared schema. When ``False``, all extracted frames are
+            pooled together and analyzed individually, so the returned list has
+            one entry per extracted frame rather than one entry per source
+            video.
         num_frames: Target number of key frames to extract per video before
             downsampling across the batch.
         output_dir: Directory where the JSON artifact should be written.
@@ -175,13 +193,18 @@ def discover_features_from_videos(
         use_audio: Whether to extract an audio track and include a transcript
             as extra context when the provider supports transcription.
         max_videos_to_sample: Upper bound on how many videos are sampled from a
-            folder input to control cost and payload size.
+            folder input to control cost and payload size. When a folder
+            contains more than this many videos, a subset is sampled before
+            frame extraction.
         max_total_frames_payload: Upper bound on the total number of frames sent
             to the provider across the batch.
+        random_seed: Optional seed used when folder inputs need to sample a
+            subset of videos. Pass a value here to make the sampled subset
+            reproducible across runs.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
-        per-item mode.
+        pooled per-frame mode.
 
     Raises:
         FileNotFoundError: If the input path is missing or a folder contains no
@@ -206,17 +229,22 @@ def discover_features_from_videos(
         if path_obj.is_dir():
             valid_exts = {".mp4", ".mov", ".avi", ".mkv"}
 
-            video_paths = [
-                p for p in path_obj.iterdir()
-                if p.suffix.lower() in valid_exts
-            ]
+            video_paths = sorted(
+                [
+                    p for p in path_obj.iterdir()
+                    if p.suffix.lower() in valid_exts
+                ]
+            )
 
             if not video_paths:
                 raise FileNotFoundError(f"No videos found in folder: {path_obj}")
 
-            # optional sampling (same logic as before)
             if len(video_paths) > max_videos_to_sample:
-                video_paths = random.sample(video_paths, max_videos_to_sample)
+                sampler = random.Random(random_seed) if random_seed is not None else random
+                sampled_indices = sorted(
+                    sampler.sample(range(len(video_paths)), max_videos_to_sample)
+                )
+                video_paths = [video_paths[index] for index in sampled_indices]
 
         else:
             video_paths = [path_obj]
@@ -331,8 +359,10 @@ def discover_features_from_texts(
     """Discover features from text strings, files, or folders of documents.
 
     Args:
-        texts_or_file: Either raw text strings, a single supported document
-            path, or a directory containing supported text documents.
+        texts_or_file: Either a raw text string, a list of raw text strings, a
+            single supported document path, or a directory containing supported
+            text documents. String inputs are treated as paths only when they
+            already exist on disk or look path-like, such as ``notes/file.txt``.
         prompt: Prompt passed through to the provider.
         provider: Optional provider instance. Defaults to
             [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
@@ -348,7 +378,7 @@ def discover_features_from_texts(
         per-text mode.
 
     Raises:
-        FileNotFoundError: If the provided path does not exist.
+        FileNotFoundError: If a path-like input does not exist.
         ValueError: If the path is invalid or no supported text input can be
             extracted.
     """
@@ -361,7 +391,7 @@ def discover_features_from_texts(
     # -------------------------------------------------
     texts: List[str] = []
 
-    if isinstance(texts_or_file, (str, Path)):
+    if isinstance(texts_or_file, Path):
         path = Path(texts_or_file)
 
         if not path.exists():
@@ -383,8 +413,27 @@ def discover_features_from_texts(
         else:
             raise ValueError("Invalid path provided.")
 
+    elif isinstance(texts_or_file, str):
+        path = Path(texts_or_file)
+
+        if path.exists():
+            if path.is_file():
+                texts = extract_text_from_file(path)
+            elif path.is_dir():
+                for file in sorted(path.iterdir()):
+                    if file.is_file():
+                        try:
+                            texts.extend(extract_text_from_file(file))
+                        except ValueError:
+                            pass
+            else:
+                raise ValueError("Invalid path provided.")
+        elif _looks_like_text_path(texts_or_file):
+            raise FileNotFoundError(f"Path not found: {path}")
+        else:
+            texts = [texts_or_file]
+
     else:
-        # list of raw text strings
         texts = list(texts_or_file)
 
     if not texts:

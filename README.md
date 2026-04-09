@@ -208,7 +208,8 @@ For local video transcription, install `faster-whisper` if you want audio suppor
 
 ### Discovery inputs
 
-- Each `discover_features_from_*` helper accepts a single file, a folder, or a list of raw inputs.
+- `discover_features_from_texts` accepts a raw string, a list of raw strings, a single file, or a folder of supported text documents.
+- The other `discover_features_from_*` helpers accept a single file, a folder, or a list of raw file paths.
 - Discovery defaults to `as_set=True`, so folder-based discovery compares the full batch together and usually writes one shared feature schema JSON file.
 - The default discovery outputs are:
   - `outputs/discovered_image_features.json`
@@ -279,6 +280,15 @@ print(result)
 
 This loads all supported text documents in `discover_texts/`, extracts raw text, and saves the result to `outputs/discovered_text_features.json`.
 
+If you already have text in memory, you can also pass it directly:
+
+```python
+result = discover_features_from_texts(
+    "The dish was smoky, rich, and served family-style.",
+    as_set=True,
+)
+```
+
 ### Discover Features from Tabular Data
 
 ```python
@@ -324,12 +334,15 @@ result = discover_features_from_videos(
     as_set=True,
     num_frames=5,
     use_audio=True,
+    random_seed=7,
 )
 
 print(result)
 ```
 
 This extracts key frames, optionally transcribes audio, and saves the result to `outputs/discovered_video_features.json`.
+
+When a folder contains more than `max_videos_to_sample` videos, the helper samples a subset before frame extraction. Pass `random_seed` if you want that subset to be reproducible. With `as_set=False`, the return value contains one result per extracted frame after pooling frames across all sampled videos.
 
 ## Generation Example
 

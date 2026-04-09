@@ -72,10 +72,39 @@ def test_discover_texts_from_file_and_directory(tmp_path: Path, monkeypatch: pyt
     )
     assert (tmp_path / "out3" / "custom_text.json").exists()
 
+    raw_text_result = discover_mod.discover_features_from_texts(
+        "fresh basil, bright acidity, and chewy crust",
+        provider=provider,
+        as_set=False,
+        output_dir=tmp_path / "out4",
+    )
+    assert isinstance(raw_text_result, list)
+    assert provider.calls[-1]["texts"] == ["fresh basil, bright acidity, and chewy crust"]
+
+    file_result = discover_mod.discover_features_from_texts(
+        str(custom_file),
+        provider=provider,
+        as_set=True,
+        output_dir=tmp_path / "out5",
+    )
+    assert "proposed_features" in file_result
+
+    monkeypatch.setattr(discover_mod, "extract_text_from_file", fake_extract)
+    folder_result = discover_mod.discover_features_from_texts(
+        str(folder),
+        provider=provider,
+        as_set=False,
+        output_dir=tmp_path / "out6",
+    )
+    assert isinstance(folder_result, list)
+
 
 def test_discover_texts_error_paths_and_invalid_special_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(FileNotFoundError):
         discover_mod.discover_features_from_texts(tmp_path / "missing.txt", provider=TextProvider())
+
+    with pytest.raises(FileNotFoundError):
+        discover_mod.discover_features_from_texts("missing.txt", provider=TextProvider())
 
     with pytest.raises(ValueError):
         discover_mod.discover_features_from_texts([], provider=TextProvider())
@@ -98,7 +127,11 @@ def test_discover_texts_error_paths_and_invalid_special_path(tmp_path: Path, mon
 
     monkeypatch.setattr(discover_mod, "Path", FakePath)
     with pytest.raises(ValueError):
-        discover_mod.discover_features_from_texts("weird", provider=TextProvider())
+        discover_mod.discover_features_from_texts(FakePath("weird.txt"), provider=TextProvider())
+
+    monkeypatch.setattr(discover_mod, "Path", FakePath)
+    with pytest.raises(ValueError):
+        discover_mod.discover_features_from_texts("./weird.txt", provider=TextProvider())
 
 
 def test_discover_images_single_file_and_video_edge_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -206,6 +239,45 @@ def test_discover_videos_warns_when_provider_has_no_transcriber(tmp_path: Path, 
         output_dir=tmp_path / "warnout",
     )
     assert "proposed_features" in result
+
+
+def test_discover_videos_seeded_sampling_is_reproducible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    video_dir = tmp_path / "seeded_videos"
+    video_dir.mkdir()
+    for name in ["a.mp4", "b.mp4", "c.mp4", "d.mp4", "e.mp4", "f.mp4"]:
+        (video_dir / name).write_bytes(b"video")
+
+    monkeypatch.setattr(
+        discover_mod,
+        "extract_key_frames",
+        lambda path, frame_limit=5: [Path(path).stem],
+    )
+
+    provider_one = ImageProvider()
+    provider_two = ImageProvider()
+
+    discover_mod.discover_features_from_videos(
+        video_dir,
+        provider=provider_one,
+        as_set=False,
+        use_audio=False,
+        max_videos_to_sample=3,
+        max_total_frames_payload=10,
+        random_seed=11,
+        output_dir=tmp_path / "seeded_out1",
+    )
+    discover_mod.discover_features_from_videos(
+        video_dir,
+        provider=provider_two,
+        as_set=False,
+        use_audio=False,
+        max_videos_to_sample=3,
+        max_total_frames_payload=10,
+        random_seed=11,
+        output_dir=tmp_path / "seeded_out2",
+    )
+
+    assert provider_one.calls[0]["images"] == provider_two.calls[0]["images"]
 
 
 def test_discover_videos_handles_frame_errors_and_short_transcripts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

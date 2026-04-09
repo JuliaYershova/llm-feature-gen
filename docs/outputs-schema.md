@@ -41,6 +41,8 @@ Notes:
 - The package expects a `proposed_features` collection when loading a schema for generation.
 - Each feature entry is provider-defined. Common keys are `feature`, `name`, `type`, and `description`.
 - Per-item discovery writes one list entry per input item instead of a single shared schema.
+- For video discovery with `as_set=False`, the package pools frames across all input videos and writes one result per extracted frame, not one result per video.
+- Folder-based video discovery samples at most `max_videos_to_sample` videos before extraction; pass `random_seed` to make that subset reproducible.
 
 ## Generation CSV
 
