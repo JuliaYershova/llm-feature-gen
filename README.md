@@ -8,6 +8,43 @@ It helps you:
 - generate feature values from raw multimodal inputs for downstream models
 - export per-class CSVs that are ready for analysis or modeling
 
+## Quickstart
+
+The README quickstart should get you from install to a first output with as little setup as possible. If you are working in this repository, install the local package and use the bundled sample folders:
+
+```bash
+pip install -e .
+```
+
+Create a `.env` file in the project root:
+
+```env
+OPENAI_API_KEY=your_api_key
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_AUDIO_MODEL=whisper-1
+```
+
+```bash
+python3 - <<'PY'
+from llm_feature_gen.discover import discover_features_from_texts
+from llm_feature_gen.generate import generate_features_from_texts
+
+discovered = discover_features_from_texts("discover_texts")
+csv_paths = generate_features_from_texts(
+    root_folder="texts",
+    discovered_features_path="outputs/discovered_text_features.json",
+    merge_to_single_csv=True,
+)
+
+print(discovered)
+print(csv_paths)
+PY
+```
+
+This creates `outputs/discovered_text_features.json`, one CSV per class folder, and `outputs/all_feature_values.csv`.
+
+If you want the fuller walkthrough, including provider switching and other modalities, see [`tutorial.ipynb`](tutorial.ipynb).
+
 ## How It Works
 
 The library supports a two-step workflow:
@@ -72,6 +109,7 @@ llm-feature-gen/
 │     └─ test_utils_and_prompts.py
 ├─ outputs/
 ├─ pyproject.toml
+├─ tutorial.ipynb
 └─ README.md
 ```
 
@@ -120,6 +158,58 @@ AZURE_OPENAI_WHISPER_DEPLOYMENT=your_audio_deployment
 ```
 
 If `AZURE_OPENAI_ENDPOINT` is set, the provider automatically uses Azure OpenAI. Otherwise it falls back to the standard OpenAI API.
+
+### LocalProvider
+
+`LocalProvider` supports OpenAI-compatible local servers such as Ollama, vLLM, and LM Studio.
+
+```env
+LOCAL_OPENAI_BASE_URL=http://localhost:11434/v1
+LOCAL_OPENAI_API_KEY=ollama
+LOCAL_MODEL_TEXT=llama3
+LOCAL_MODEL_VISION=llava
+LOCAL_WHISPER_MODEL_SIZE=base
+LOCAL_WHISPER_DEVICE=cpu
+```
+
+Use it by passing an explicit provider instance:
+
+```python
+from llm_feature_gen.discover import discover_features_from_texts
+from llm_feature_gen.providers.local_provider import LocalProvider
+
+provider = LocalProvider()
+result = discover_features_from_texts(
+    texts_or_file="discover_texts",
+    provider=provider,
+)
+```
+
+For local video transcription, install `faster-whisper` if you want audio support. Otherwise set `use_audio=False` in video discovery or generation.
+
+## Input Layout and Outputs
+
+### Discovery inputs
+
+- Each `discover_features_from_*` helper accepts a single file, a folder, or a list of raw inputs.
+- Discovery defaults to `as_set=True`, so folder-based discovery compares the full batch together and usually writes one shared feature schema JSON file.
+- The default discovery outputs are:
+  - `outputs/discovered_image_features.json`
+  - `outputs/discovered_text_features.json`
+  - `outputs/discovered_tabular_features.json`
+  - `outputs/discovered_video_features.json`
+
+### Generation inputs
+
+- Generation expects a root folder with one subfolder per class, such as `images/hotpot/` and `images/vase/`.
+- If you do not pass `classes=...`, class names are inferred from those subfolder names.
+- Tabular generation reads one row at a time from `text_column` and can optionally use `label_column` to override the class written to the CSV.
+
+### Generation outputs
+
+- Generation writes one CSV per class to `outputs/`.
+- If `merge_to_single_csv=True`, it also writes `outputs/all_feature_values.csv`.
+- Each generated CSV includes `File`, `Class`, one column per discovered feature, and `raw_llm_output` so you can inspect the original provider response.
 
 ## Discovery Examples
 
