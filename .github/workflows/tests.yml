@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-      id-token: write
     env:
       PYTHONPATH: src
     strategy:
@@ -44,4 +43,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
-          use_oidc: true
+          token: ${{ secrets.CODECOV_TOKEN }}
