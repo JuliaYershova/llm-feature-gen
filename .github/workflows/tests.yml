@@ -6,7 +6,8 @@ on:
 
 jobs:
   pytest:
-    runs-on: ubuntu-22.04
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     env:
@@ -14,7 +15,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.11", "3.13"]
+        include:
+          # Keep full interpreter coverage on Linux while smoke-testing
+          # the supported non-Linux runners for platform breadth.
+          - os: ubuntu-latest
+            python-version: "3.9"
+            upload-coverage: false
+          - os: ubuntu-latest
+            python-version: "3.11"
+            upload-coverage: true
+          - os: ubuntu-latest
+            python-version: "3.13"
+            upload-coverage: false
+          - os: macos-latest
+            python-version: "3.11"
+            upload-coverage: false
+          - os: windows-latest
+            python-version: "3.11"
+            upload-coverage: false
 
     steps:
       - name: Checkout code
@@ -39,7 +57,7 @@ jobs:
         run: python -m pytest
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+        if: matrix.upload-coverage
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
