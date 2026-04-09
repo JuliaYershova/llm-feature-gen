@@ -1,8 +1,15 @@
+"""Public discovery helpers for multimodal feature schema generation.
+
+The functions in this module accept raw inputs or folders on disk, delegate the
+actual reasoning to a provider, and persist the discovered schema as JSON in an
+output directory. Discovery is intentionally folder-oriented so the same API can
+be used from notebooks, scripts, and batch pipelines.
+"""
+
 from __future__ import annotations
 
-# src/llm_feature_gen/discover.py
 import random
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 from PIL import Image
 import numpy as np
@@ -20,6 +27,9 @@ from .prompts import image_discovery_prompt, text_discovery_prompt
 # Load environment variables automatically
 load_dotenv()
 
+DiscoveryPayload = Dict[str, Any]
+DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
+
 
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
@@ -28,10 +38,32 @@ def discover_features_from_images(
         as_set: bool = True,  # <- default TRUE for discovery
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    High-level helper: takes a list of image file paths OR a folder path,
-    converts images to base64, calls the provider, and saves the JSON result.
+) -> DiscoveryResult:
+    """Discover features from image files and persist the provider response.
+
+    Args:
+        image_paths_or_folder: A single image path, a folder containing images,
+            or a list of image file paths.
+        prompt: System-style prompt passed through to the provider.
+        provider: Optional provider instance. When omitted, an
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider] is
+            created from environment variables.
+        as_set: When ``True``, all images are analyzed together and a single
+            shared feature schema is produced. When ``False``, each image is
+            sent independently and the result contains one entry per image.
+        output_dir: Directory where the JSON artifact should be written.
+        output_filename: Custom filename for the saved artifact. Defaults to
+            ``discovered_image_features.json``.
+
+    Returns:
+        A single discovery payload in joint mode or a list of payloads in
+        per-image mode. The on-disk JSON always preserves the raw provider
+        result list.
+
+    Raises:
+        FileNotFoundError: If the provided path does not exist.
+        ValueError: If no supported image files are found.
+        RuntimeError: If image decoding fails for every candidate input.
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
@@ -119,15 +151,42 @@ def discover_features_from_videos(
         use_audio: bool = True,
         max_videos_to_sample: int = 5,
         max_total_frames_payload: int = 15
-) -> Dict[str, Any]:
-    """
-    High-level helper: takes a video file path, list of paths OR a folder path,
-    extracts key frames (+ optional transcript),
-    calls the provider for feature discovery,
-    and saves the JSON result.
+) -> DiscoveryResult:
+    """Discover features from one or more videos.
 
-    - as_set=True  → joint discovery (ALL videos together)
-    - as_set=False → per-frame discovery
+    Each video is converted into representative frames and, optionally, an
+    audio transcript. The resulting multimodal payload is sent to the provider
+    and the raw response is written to JSON.
+
+    Args:
+        videos_or_folder: A single video path, a folder containing videos, or a
+            list of video file paths.
+        prompt: Prompt passed through to the provider.
+        provider: Optional provider instance implementing ``image_features``
+            and, when ``use_audio=True``, optionally ``transcribe_audio``.
+        as_set: When ``True``, all extracted frames are analyzed together to
+            produce one shared schema. When ``False``, frames are analyzed in
+            per-item mode.
+        num_frames: Target number of key frames to extract per video before
+            downsampling across the batch.
+        output_dir: Directory where the JSON artifact should be written.
+        output_filename: Custom filename for the saved artifact. Defaults to
+            ``discovered_video_features.json``.
+        use_audio: Whether to extract an audio track and include a transcript
+            as extra context when the provider supports transcription.
+        max_videos_to_sample: Upper bound on how many videos are sampled from a
+            folder input to control cost and payload size.
+        max_total_frames_payload: Upper bound on the total number of frames sent
+            to the provider across the batch.
+
+    Returns:
+        A single discovery payload in joint mode or a list of payloads in
+        per-item mode.
+
+    Raises:
+        FileNotFoundError: If the input path is missing or a folder contains no
+            supported video files.
+        ValueError: If no frames can be extracted from the provided videos.
     """
 
     # -------------------------------------------------
@@ -268,12 +327,30 @@ def discover_features_from_texts(
         as_set: bool = True,  # same semantics as image version
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Feature discovery / description for texts.
+) -> DiscoveryResult:
+    """Discover features from text strings, files, or folders of documents.
 
-    - as_set=True  → joint feature discovery (ALL texts together)
-    - as_set=False → per-text description (texts sent separately)
+    Args:
+        texts_or_file: Either raw text strings, a single supported document
+            path, or a directory containing supported text documents.
+        prompt: Prompt passed through to the provider.
+        provider: Optional provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        as_set: When ``True``, all extracted text is combined into a single
+            request so the provider can discover a shared schema. When
+            ``False``, each text chunk is processed independently.
+        output_dir: Directory where the JSON artifact should be written.
+        output_filename: Custom filename for the saved artifact. Defaults to
+            ``discovered_text_features.json``.
+
+    Returns:
+        A single discovery payload in joint mode or a list of payloads in
+        per-text mode.
+
+    Raises:
+        FileNotFoundError: If the provided path does not exist.
+        ValueError: If the path is invalid or no supported text input can be
+            extracted.
     """
 
     # 1) init provider
@@ -364,7 +441,37 @@ def discover_features_from_tabular(
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         max_rows: Optional[int] = None,
-        ):
+        ) -> DiscoveryResult:
+    """Discover features from tabular datasets by projecting a text column.
+
+    Supported files are loaded into a single DataFrame, the selected text
+    column is extracted, and the resulting list of strings is delegated to
+    [discover_features_from_texts][llm_feature_gen.discover.discover_features_from_texts].
+
+    Args:
+        file_or_folder: A single tabular file or a directory containing
+            supported tabular files.
+        text_column: Column name whose values should be used as textual input
+            for discovery.
+        provider: Optional provider instance.
+        prompt: Prompt passed through to the provider.
+        as_set: Whether to discover one shared schema across all sampled rows or
+            process rows independently.
+        output_dir: Directory where the JSON artifact should be written.
+        output_filename: Custom filename for the saved artifact. Defaults to
+            ``discovered_tabular_features.json``.
+        max_rows: Optional cap on how many rows are used from the concatenated
+            dataset.
+
+    Returns:
+        The same return shape as
+        [discover_features_from_texts][llm_feature_gen.discover.discover_features_from_texts].
+
+    Raises:
+        FileNotFoundError: If the provided path does not exist.
+        ValueError: If no supported tabular files are found or ``text_column``
+            is missing.
+    """
     import pandas as pd
     provider = provider or OpenAIProvider()
     path = Path(file_or_folder)

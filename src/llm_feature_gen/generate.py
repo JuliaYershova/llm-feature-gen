@@ -1,4 +1,10 @@
-# src/llm_feature_gen/generate.py
+"""Feature value generation helpers built on top of discovered schemas.
+
+The functions in this module take discovery artifacts produced by
+``llm_feature_gen.discover`` and apply them to class-organized folders of raw
+inputs, producing CSV files that are ready for downstream analysis.
+"""
+
 from __future__ import annotations
 from .utils.video import extract_key_frames, extract_audio_track
 import os
@@ -29,14 +35,21 @@ def _prepare_tabular_inputs(
         text_column: str,
         label_column: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Load tabular file and extract row-level inputs.
+    """Load a tabular file and normalize rows into text-generation inputs.
 
-    Returns a list of dicts:
-        [
-            {"text": "...", "label": "..."},
-            ...
-        ]
+    Args:
+        file_path: Source CSV, Excel, Parquet, or JSON file.
+        text_column: Column containing the free-form text to send to the LLM.
+        label_column: Optional column whose values should override the class
+            label in the generated output rows.
+
+    Returns:
+        A list of dictionaries with at least a ``text`` key and, when
+        available, a ``label`` key.
+
+    Raises:
+        ValueError: If the file extension is unsupported or ``text_column`` is
+            missing from the dataset.
     """
 
     suffix = file_path.suffix.lower()
@@ -78,10 +91,7 @@ def _prepare_tabular_inputs(
 
 
 def _prepare_text_inputs(file_path: Path) -> List[str]:
-    """
-    Load text from a file (txt, pdf, docx, etc.)
-    Returns a list of text chunks.
-    """
+    """Extract text chunks from a supported document file."""
     from .utils.text import extract_text_from_file
     return extract_text_from_file(file_path)
 
@@ -91,12 +101,16 @@ def _prepare_video_inputs(
         use_audio: bool,
         provider: Any
 ) -> Tuple[List[str], Optional[str]]:
-    """
-    Prepare multimodal inputs for a video file.
+    """Convert a video file into frame payloads plus optional transcript text.
+
+    Args:
+        file_path: Video file to process.
+        use_audio: Whether to extract audio and request transcription.
+        provider: Provider instance that may optionally implement
+            ``transcribe_audio``.
 
     Returns:
-        - list of base64 frames
-        - optional transcript string (or None)
+        A tuple of ``(base64_frames, transcript_context)``.
     """
 
     transcript_context = None
@@ -135,12 +149,19 @@ def _prepare_video_inputs(
 
 
 def _prepare_image_inputs(file_path: Path) -> Tuple[List[str], Optional[str]]:
+    """Convert a single image file into a one-item base64 payload."""
     img = Image.open(file_path).convert("RGB")
     b64_list = [image_to_base64(np.array(img))]
     return b64_list, None
 
 
 def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
+    """Load and normalize a discovered-features JSON artifact.
+
+    The helper accepts both the list-oriented structure written by the
+    discovery functions and a direct dictionary payload. It normalizes both into
+    a dictionary with a ``proposed_features`` key.
+    """
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Discovered features file not found: {path}")
@@ -159,6 +180,7 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
 
 
 def parse_json_from_markdown(text: str) -> Dict[str, Any]:
+    """Parse JSON content that may be wrapped in a fenced Markdown block."""
     if not text:
         return {}
     txt = text.strip()
@@ -175,6 +197,7 @@ def parse_json_from_markdown(text: str) -> Dict[str, Any]:
 
 
 def _build_prompt_for_generation(base_prompt: str, discovered_features: Dict[str, Any]) -> str:
+    """Append the discovered schema to a base generation prompt."""
     return (
             base_prompt.rstrip()
             + "\n\nDISOVERED_FEATURES_SPEC:\n"
@@ -183,6 +206,7 @@ def _build_prompt_for_generation(base_prompt: str, discovered_features: Dict[str
 
 
 def _ensure_output_dir(path: Union[str, Path]) -> Path:
+    """Create an output directory if needed and return it as a ``Path``."""
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -245,6 +269,29 @@ def assign_feature_values_from_folder(
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
 ) -> Path:
+    """Generate feature values for every supported file in one class folder.
+
+    Args:
+        folder_path: Root dataset folder containing one subdirectory per class.
+        class_name: Name of the class subdirectory to process.
+        discovered_features: Discovery payload containing the feature schema.
+        provider: Provider instance used to generate values. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        output_dir: Directory where the per-class CSV should be written.
+        use_audio: Whether video files should include audio transcription
+            context when supported by the provider.
+        text_column: Required when processing tabular files. Identifies the
+            column sent to the LLM.
+        label_column: Optional tabular column whose values override the class
+            label for row-level outputs.
+
+    Returns:
+        The path to the generated per-class CSV file.
+
+    Raises:
+        FileNotFoundError: If the requested class folder does not exist.
+        ValueError: If tabular generation is attempted without ``text_column``.
+    """
     provider = provider or OpenAIProvider()
     folder_path = Path(folder_path)
     class_folder = folder_path / class_name
@@ -425,6 +472,28 @@ def generate_features(
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
 ) -> Dict[str, str]:
+    """Run the full feature-generation pipeline for a class-organized dataset.
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class.
+        discovered_features_path: Path to a JSON artifact produced by one of
+            the discovery helpers.
+        output_dir: Directory where CSV outputs should be written.
+        classes: Optional subset of class-folder names to process. When omitted,
+            all immediate subdirectories are used.
+        provider: Provider instance used to generate values.
+        merge_to_single_csv: Whether to concatenate per-class CSVs into one
+            additional file.
+        merged_csv_name: Filename to use for the merged CSV artifact.
+        use_audio: Whether video generation should include transcript context.
+        text_column: Required for tabular generation.
+        label_column: Optional row-level label override for tabular generation.
+
+    Returns:
+        A mapping from class name to generated CSV path. When
+        ``merge_to_single_csv`` is enabled, the merged output is returned under
+        the ``"__merged__"`` key.
+    """
     root_folder = Path(root_folder)
     provider = provider or OpenAIProvider()
     discovered_features = load_discovered_features(discovered_features_path)
@@ -463,24 +532,28 @@ def generate_features(
 # modality-specific wrappers
 # ----------------------------
 def generate_features_from_tabular(*args, **kwargs) -> Dict[str, str]:
+    """Generate features using ``outputs/discovered_tabular_features.json`` by default."""
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_tabular_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_texts(*args, **kwargs) -> Dict[str, str]:
+    """Generate features using ``outputs/discovered_text_features.json`` by default."""
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_text_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_images(*args, **kwargs) -> Dict[str, str]:
+    """Generate features using ``outputs/discovered_image_features.json`` by default."""
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_image_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
+    """Generate features using ``outputs/discovered_video_features.json`` by default."""
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_video_features.json"
 

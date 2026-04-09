@@ -1,0 +1,47 @@
+site_name: LLM Feature Gen
+site_description: API and usage documentation for llm-feature-gen.
+repo_url: https://github.com/JuliaYershova/LLM-feature-gen
+repo_name: JuliaYershova/LLM-feature-gen
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences
+  - tables
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            docstring_section_style: list
+            heading_level: 1
+            merge_init_into_class: true
+            parameter_headings: true
+            show_root_full_path: false
+            show_root_heading: true
+            show_root_toc_entry: false
+            show_signature_annotations: true
+            show_source: false
+            summary: true
+nav:
+  - Overview: index.md
+  - Install Guide: install.md
+  - Quickstart: quickstart.md
+  - Provider Configuration: provider-configuration.md
+  - Outputs and Schema: outputs-schema.md
+  - API Reference:
+      - Discover: api/discover.md
+      - Generate: api/generate.md
+      - Providers: api/providers.md
+      - Utils: api/utils.md
