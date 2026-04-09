@@ -12,13 +12,13 @@ It helps you:
 
 ## Quickstart
 
-The README quickstart should get you from install to a first output with as little setup as possible. If you are working in this repository, install the local package and use the bundled sample folders:
+The README quickstart should get you from install to a first output with as little setup as possible:
 
 ```bash
-pip install -e .
+pip install llm-feature-gen
 ```
 
-Create a `.env` file in the project root:
+Create a `.env` file in your working directory:
 
 ```env
 OPENAI_API_KEY=your_api_key
@@ -28,13 +28,26 @@ OPENAI_AUDIO_MODEL=whisper-1
 
 ```bash
 python3 - <<'PY'
+from pathlib import Path
+
 from llm_feature_gen.discover import discover_features_from_texts
 from llm_feature_gen.generate import generate_features_from_texts
 
-discovered = discover_features_from_texts("discover_texts")
+samples = {
+    "demo_discover_texts/sample1.txt": "The dish was rich, spicy, and served in a deep bowl.",
+    "demo_discover_texts/sample2.txt": "The dessert was light, creamy, and topped with fresh fruit.",
+    "demo_texts/positive/review1.txt": "The meal was vibrant, aromatic, and beautifully plated.",
+    "demo_texts/negative/review1.txt": "The service was slow and the food arrived cold.",
+}
+
+for file_name, text in samples.items():
+    path = Path(file_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+discovered = discover_features_from_texts("demo_discover_texts")
 csv_paths = generate_features_from_texts(
-    root_folder="texts",
-    discovered_features_path="outputs/discovered_text_features.json",
+    root_folder="demo_texts",
     merge_to_single_csv=True,
 )
 
@@ -45,7 +58,7 @@ PY
 
 This creates `outputs/discovered_text_features.json`, one CSV per class folder, and `outputs/all_feature_values.csv`.
 
-If you want the fuller walkthrough, including provider switching and other modalities, see [`tutorial.ipynb`](tutorial.ipynb).
+If you want the fuller walkthrough, including provider switching and other modalities, see [the tutorial notebook](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/tutorial.ipynb). If you are working from a repository checkout and want to use editable installs or the bundled sample folders, see the development setup below.
 
 ## How It Works
 
@@ -123,7 +136,9 @@ Install from PyPI:
 pip install llm-feature-gen
 ```
 
-For local development:
+### Development
+
+If you are working in this repository, use an editable install:
 
 ```bash
 python -m venv .venv
@@ -139,7 +154,7 @@ pip install pypdf python-docx beautifulsoup4 openpyxl xlrd pyarrow
 
 ## Environment Setup
 
-Create a `.env` file in the project root.
+Create a `.env` file in the directory where you run the library.
 
 ### OpenAI API
 
@@ -377,6 +392,6 @@ Tests use fake providers and temporary directories, so they do not require OpenA
 
 If you want to contribute or need project maintenance details, start here:
 
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) for local setup, test workflow, pull request expectations, and issue-reporting guidance
-- [`CHANGELOG.md`](CHANGELOG.md) for user-visible changes and the current release history
+- [CONTRIBUTING.md](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/CONTRIBUTING.md) for local setup, test workflow, pull request expectations, and issue-reporting guidance
+- [CHANGELOG.md](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/CHANGELOG.md) for user-visible changes and the current release history
 - GitHub issue templates under `.github/ISSUE_TEMPLATE/` for bug reports and feature requests
