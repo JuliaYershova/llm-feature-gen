@@ -208,15 +208,18 @@ def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
 
     client, _ = make_chat_client([DummyBadRequestError("other")])
     provider.client = client
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"error": "other"}
+    with pytest.raises(DummyBadRequestError, match="other"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
 
     client, _ = make_chat_client([DummyRateLimitError(), DummyRateLimitError()])
     provider.client = client
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"error": "Rate limit exceeded."}
+    with pytest.raises(DummyRateLimitError):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     client, _ = make_chat_client([RuntimeError("boom")])
     provider.client = client
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"error": "boom"}
+    with pytest.raises(RuntimeError, match="boom"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     client, _ = make_chat_client(["plain words"])
     provider.client = client
@@ -227,8 +230,8 @@ def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"a": 1}
 
     provider.max_retries = 0
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"error": "Unknown failure"}
-
+    with pytest.raises(RuntimeError, match="Unknown failure"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
 def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(local_mod, "OpenAI", lambda **kwargs: "client")
@@ -255,7 +258,8 @@ def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.Mon
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
 
     monkeypatch.setattr(local_mod, "HAS_LOCAL_WHISPER", False)
-    assert "not installed" in provider.transcribe_audio("audio.wav")
+    with pytest.raises(ImportError, match="not installed"):
+        provider.transcribe_audio("audio.wav")
 
     monkeypatch.setattr(local_mod, "HAS_LOCAL_WHISPER", True)
 
@@ -265,7 +269,8 @@ def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(local_mod, "WhisperModel", BrokenWhisper, raising=False)
     provider._whisper_model = None
-    assert "init failed" in provider.transcribe_audio("audio.wav")
+    with pytest.raises(RuntimeError, match="init failed"):
+        provider.transcribe_audio("audio.wav")
 
     class Segment:
         def __init__(self, text):
@@ -287,7 +292,8 @@ def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.Mon
             raise RuntimeError("oops")
 
     provider._whisper_model = FailingWhisper()
-    assert "oops" in provider.transcribe_audio("audio.wav")
+    with pytest.raises(RuntimeError, match="oops"):
+        provider.transcribe_audio("audio.wav")
 
 
 def test_local_provider_module_can_import_with_fake_faster_whisper(monkeypatch: pytest.MonkeyPatch):
