@@ -225,6 +225,12 @@ def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"features": "plain words"}
 
+    client, _ = make_chat_client(["plain words"])
+    provider.client = client
+    with pytest.raises(ValueError, match="Invalid JSON response"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
+
+
     client, _ = make_chat_client(["prefix {\"a\": 1} suffix"])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"a": 1}
