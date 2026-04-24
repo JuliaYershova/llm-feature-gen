@@ -355,6 +355,7 @@ def discover_features_from_texts(
         as_set: bool = True,  # same semantics as image version
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
+        num_classes: Optional[int] = None,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -385,6 +386,18 @@ def discover_features_from_texts(
 
     # 1) init provider
     provider = provider or OpenAIProvider()
+    # Adjust prompt for num_classes if specified
+    if num_classes is not None and num_classes != 2:
+        prompt = prompt.replace(
+            "two hidden text categories",
+            f"{num_classes} hidden text categories"
+        ).replace(
+            "two unknown categories (two classes)",
+            f"{num_classes} unknown categories ({num_classes} classes)"
+        ).replace(
+            "distinguish two distinct categories",
+            f"distinguish {num_classes} distinct categories"
+        )
 
     # -------------------------------------------------
     # 2) collect texts
