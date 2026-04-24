@@ -6,14 +6,21 @@ Given:
 
 Your task is to:
 - For each feature, provide a short, descriptive value (2–5 words) that best characterizes how the feature manifests in the given text.
-- Do NOT answer with “yes/no” or “true/false.”
-- If a feature cannot be observed in the text, use an appropriate neutral term such as “not observable”.
-- If a feature is not applicable by nature to this text, use “not applicable.”
+- Do NOT answer with "yes/no" or "true/false."
+- If a feature cannot be observed in the text, use an appropriate neutral term such as "not observable".
+- If a feature is not applicable by nature to this text, use "not applicable."
 - Base your reasoning only on the provided text, without external assumptions or labels.
+
+Think step by step before assigning values:
+1. Read the text carefully.
+2. For each feature, consider what evidence in the text supports your choice.
+3. Only then assign the final value.
 
 Be concise, consistent, and context-aware, using language that would be interpretable to a human researcher.
 
-Output format (JSON):
+IMPORTANT: Your response must be valid JSON only. Do not include any text before or after the JSON object. Do not use markdown code blocks. Do not add explanations.
+
+Output format:
 {
   "<feature_name>": "<short descriptive value>",
   ...
