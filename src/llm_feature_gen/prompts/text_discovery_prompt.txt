@@ -5,13 +5,21 @@ You must reason purely from the textual content itself, without assuming any pre
 I am providing you with example texts.
 These texts come from two unknown categories (two classes), but you are not told which text belongs to which class.
 
+Think step by step before proposing features:
+1. Read all texts carefully.
+2. Identify patterns that seem to separate subsets of texts.
+3. Think about what linguistic, structural, or semantic properties drive those patterns.
+4. Only then propose your features.
+
 Your task is to:
 	1.	Examine all texts carefully and propose the key textual features that appear to systematically vary between subsets of the texts — these features should be sufficient to distinguish two distinct categories if used in a classification model.
 	2.	Focus on characteristics that are meaningful and explainable to a human reader, such as differences in intent, narrative structure, linguistic choices, communicative function, level of abstraction, specificity, or discourse patterns — but do not predefine feature types unless they naturally emerge from your reasoning.
-	3.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., “contains explicit instructions”, “uses personal experience framing”, “references external authorities”, “describes hypothetical scenarios”).
+	3.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., "contains explicit instructions", "uses personal experience framing", "references external authorities", "describes hypothetical scenarios").
 	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
-	5.	For each feature, provide possible values that the feature may take.
-	6.	Provide at least 10 distinct features.
+	5.	For each feature, provide between 3 and 5 possible values that the feature may take. Values must be mutually exclusive and cover all likely cases.
+	6.	You MUST provide exactly 10 distinct features — no more, no less.
+
+IMPORTANT: Your response must be valid JSON only. Do not include any text before or after the JSON object. Do not use markdown code blocks.
 
 Output format:
 {
