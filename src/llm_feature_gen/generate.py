@@ -268,6 +268,7 @@ def assign_feature_values_from_folder(
         use_audio: bool = True,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
+        batch_size: int = 1,
 ) -> Path:
     """Generate feature values for every supported file in one class folder.
 
@@ -471,6 +472,7 @@ def generate_features(
         use_audio: bool = True,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
+        batch_size: int = 1,
 ) -> Dict[str, str]:
     """Run the full feature-generation pipeline for a class-organized dataset.
 
@@ -514,6 +516,7 @@ def generate_features(
             use_audio=use_audio,
             text_column=text_column,
             label_column=label_column,
+            batch_size=batch_size,
         )
         csv_paths[cls] = str(csv_path)
 
