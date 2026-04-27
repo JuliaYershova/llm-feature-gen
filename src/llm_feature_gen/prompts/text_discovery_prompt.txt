@@ -1,17 +1,15 @@
 You are an expert in natural language processing and explainable artificial intelligence. Your task is to analyze textual examples and discover interpretable, human-understandable features that can differentiate between two hidden text categories.
-
 You must reason purely from the textual content itself, without assuming any predefined feature types (such as sentiment, topic, length, or style), and describe the distinguishing properties as if explaining them to a human researcher.
-
 I am providing you with example texts.
 These texts come from two unknown categories (two classes), but you are not told which text belongs to which class.
-
 Your task is to:
 	1.	Examine all texts carefully and propose the key textual features that appear to systematically vary between subsets of the texts — these features should be sufficient to distinguish two distinct categories if used in a classification model.
 	2.	Focus on characteristics that are meaningful and explainable to a human reader, such as differences in intent, narrative structure, linguistic choices, communicative function, level of abstraction, specificity, or discourse patterns — but do not predefine feature types unless they naturally emerge from your reasoning.
-	3.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., “contains explicit instructions”, “uses personal experience framing”, “references external authorities”, “describes hypothetical scenarios”).
-	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
-	5.	For each feature, provide possible values that the feature may take.
-	6.	Provide at least 10 distinct features.
+	3.	Prioritize features that are subtle and non-obvious — avoid features that are trivially correlated with surface-level patterns. Focus on features that would help distinguish even very similar or easily confusable texts from different categories.
+	4.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., "contains explicit instructions", "uses personal experience framing", "references external authorities", "describes hypothetical scenarios").
+	5.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
+	6.	For each feature, provide possible values that the feature may take.
+	7.	Provide at least 12 distinct features, ensuring diversity across linguistic, semantic, and structural dimensions.
 
 Output format:
 {
