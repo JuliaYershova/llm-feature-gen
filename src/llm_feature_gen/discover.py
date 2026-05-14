@@ -403,7 +403,7 @@ def discover_features_from_texts(
 
         elif path.is_dir():
             # folder with mixed document types
-            for file in sorted(path.iterdir()):
+            for file in sorted(path.rglob("*")):
                 if file.is_file():
                     try:
                         texts.extend(extract_text_from_file(file))
@@ -420,7 +420,7 @@ def discover_features_from_texts(
             if path.is_file():
                 texts = extract_text_from_file(path)
             elif path.is_dir():
-                for file in sorted(path.iterdir()):
+                for file in sorted(path.rglob("*")):
                     if file.is_file():
                         try:
                             texts.extend(extract_text_from_file(file))
