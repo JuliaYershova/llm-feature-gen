@@ -157,6 +157,33 @@ def test_prepare_image_inputs_and_helper_functions(tmp_path: Path):
     assert gen._infer_feature_names_from_llm("nope") == []
 
 
+def test_generation_prompts_enumeration_and_raw_json_instructions():
+    """Shipped generation prompts constrain enums and forbid markdown-wrapped JSON."""
+    for body in (gen.text_generation_prompt, gen.image_generation_prompt):
+        assert "DISCOVERED_FEATURES_SPEC" in body
+        assert "`possible_values`" in body or "possible_values" in body
+        assert "`allowed_values`" in body or "allowed_values" in body
+        assert "markdown code fences" in body.lower()
+        assert "exactly one string from that array" in body.lower()
+
+
+def test_build_generation_prompt_embeds_enum_lists_in_spec():
+    spec = {
+        "proposed_features": [
+            {
+                "feature": "risk",
+                "possible_values": ["low", "high"],
+                "allowed_values": ["approved", "denied"],
+            }
+        ]
+    }
+    built = gen._build_prompt_for_generation(gen.text_generation_prompt, spec)
+    assert "DISOVERED_FEATURES_SPEC" in built
+    assert '"possible_values"' in built
+    assert '"allowed_values"' in built
+    assert "low" in built and "approved" in built
+
+
 def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "root"
     class_dir = root / "classA"
