@@ -172,9 +172,9 @@ class OpenAIProvider:
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                return {"error": "Rate limit exceeded. Please try again later."}
-            except Exception as e:
-                return {"error": str(e)}
+                raise
+            except Exception:
+                raise
 
     # -----------------------
     # Public APIs
@@ -293,7 +293,7 @@ class OpenAIProvider:
         """
 
         if not os.path.exists(audio_path):
-            return f"(Error: Audio file not found at {audio_path})"
+            raise FileNotFoundError(f"Audio file not found at {audio_path}")
 
         try:
             with open(audio_path, "rb") as audio_file:
@@ -305,7 +305,8 @@ class OpenAIProvider:
             return transcript.text
 
         except openai.RateLimitError:
-            return "(Transcription Error: Rate limit exceeded.)"
+            raise
 
         except Exception as e:
-            return f"(Transcription Error: {str(e)})"
+            raise RuntimeError(f"Transcription failed: {str(e)}") from e
+

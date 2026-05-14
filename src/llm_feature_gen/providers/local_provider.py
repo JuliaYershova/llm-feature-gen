@@ -216,17 +216,17 @@ class LocalProvider:
                     json_mode = False
                     kwargs.pop("response_format", None)
                     continue
-                raise e
+                raise
 
-            except openai.RateLimitError as e:
+            except openai.RateLimitError:
                 if attempt < self.max_retries - 1:
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                raise e
+                raise
 
-            except Exception as e:
-                raise e
+            except Exception:
+                raise
 
         raise RuntimeError("Unknown failure: unable to get response.")
 
