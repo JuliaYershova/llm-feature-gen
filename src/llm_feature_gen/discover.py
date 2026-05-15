@@ -131,6 +131,12 @@ def discover_features_from_images(
             as_set=False,
         )
 
+    # validate before saving
+    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
+        raise ValueError(
+            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
+        )
+
     # - joint mode: result_list is like: [ { "proposed_features": [...] } ]
     # - per-image mode: result_list is list of dicts
 
@@ -323,6 +329,12 @@ def discover_features_from_videos(
             extra_context=final_context,
         )
 
+    # validate before saving
+    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
+        raise ValueError(
+            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
+        )
+
     # -------------------------------------------------
     # 5) save results
     # -------------------------------------------------
@@ -467,6 +479,12 @@ def discover_features_from_texts(
         result_list = provider.text_features(
             texts,  # MANY requests
             prompt=prompt,
+        )
+
+    # validate before saving
+    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
+        raise ValueError(
+            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
         )
 
     # -------------------------------------------------

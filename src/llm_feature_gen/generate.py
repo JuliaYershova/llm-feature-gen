@@ -155,6 +155,56 @@ def _prepare_image_inputs(file_path: Path) -> Tuple[List[str], Optional[str]]:
     return b64_list, None
 
 
+def _validate_discovered_schema(data: Any) -> None:
+    """
+    Raises ValueError if the discovery artifact is not a usable schema.
+    Catches error payloads, missing proposed_features, and empty feature lists.
+    """
+    # error payload from provider
+    if isinstance(data, dict) and "error" in data:
+        raise ValueError(
+            f"Discovery artifact contains a provider error instead of a schema: "
+            f"{data['error']}"
+        )
+
+    if isinstance(data, list):
+        if len(data) == 1 and isinstance(data[0], dict) and "error" in data[0]:
+            raise ValueError(
+                f"Discovery artifact contains a provider error instead of a schema: "
+                f"{data[0]['error']}"
+            )
+        # normalize for further checks
+        if len(data) == 1 and isinstance(data[0], dict) and "proposed_features" in data[0]:
+            data = data[0]
+        else:
+            data = {"proposed_features": data}
+
+    proposed = data.get("proposed_features") if isinstance(data, dict) else None
+
+    if not proposed:
+        raise ValueError(
+            "Discovery artifact has no 'proposed_features'. "
+            "Discovery likely failed. Check your provider and try again."
+        )
+
+    if not isinstance(proposed, list):
+        raise ValueError(
+            f"'proposed_features' must be a list, got {type(proposed).__name__}."
+        )
+
+    valid = [
+        f for f in proposed
+        if (isinstance(f, dict) and f.get("feature"))
+        or (isinstance(f, str) and f)
+    ]
+
+    if not valid:
+        raise ValueError(
+            "Discovery artifact has 'proposed_features' but no valid entries. "
+            "Each entry must have a non-empty 'feature' key."
+        )
+
+
 def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
     """Load and normalize a discovered-features JSON artifact.
 
@@ -168,6 +218,8 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
 
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
+
+    _validate_discovered_schema(data)
 
     # normalize
     if isinstance(data, list):
@@ -302,6 +354,11 @@ def assign_feature_values_from_folder(
     raw_names = _extract_feature_names(discovered_features)
     feature_names = list(dict.fromkeys(raw_names))
 
+    if not feature_names:
+        raise ValueError(
+            "No feature names could be extracted from the discovery schema. "
+        )
+
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
     text_exts = {".txt", ".pdf", ".docx", ".md", ".html"}
@@ -432,9 +489,6 @@ def assign_feature_values_from_folder(
         if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
             parsed = {"features": parse_json_from_markdown(parsed["features"])}
 
-        if not feature_names:
-            feature_names = _infer_feature_names_from_llm(parsed)
-
         inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
 
         row = {
@@ -559,3 +613,5 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
+
+
