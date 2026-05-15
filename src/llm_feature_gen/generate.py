@@ -19,6 +19,8 @@ import numpy as np
 from .providers.openai_provider import OpenAIProvider
 from .utils.image import image_to_base64
 from .prompts import image_generation_prompt, text_generation_prompt
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 try:
     from tqdm import tqdm
@@ -269,29 +271,7 @@ def assign_feature_values_from_folder(
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
 ) -> Path:
-    """Generate feature values for every supported file in one class folder.
-
-    Args:
-        folder_path: Root dataset folder containing one subdirectory per class.
-        class_name: Name of the class subdirectory to process.
-        discovered_features: Discovery payload containing the feature schema.
-        provider: Provider instance used to generate values. Defaults to
-            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
-        output_dir: Directory where the per-class CSV should be written.
-        use_audio: Whether video files should include audio transcription
-            context when supported by the provider.
-        text_column: Required when processing tabular files. Identifies the
-            column sent to the LLM.
-        label_column: Optional tabular column whose values override the class
-            label for row-level outputs.
-
-    Returns:
-        The path to the generated per-class CSV file.
-
-    Raises:
-        FileNotFoundError: If the requested class folder does not exist.
-        ValueError: If tabular generation is attempted without ``text_column``.
-    """
+    """Generate feature values for every supported file in one class folder using Batch Processing."""
     provider = provider or OpenAIProvider()
     folder_path = Path(folder_path)
     class_folder = folder_path / class_name
@@ -317,14 +297,15 @@ def assign_feature_values_from_folder(
     output_dir = _ensure_output_dir(output_dir)
     csv_path = output_dir / f"{class_name}_feature_values.csv"
 
-    iterator = tqdm(files, desc=class_name, unit="file") if tqdm else files
-
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
     if not csv_path.exists():
         pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
 
-    for filename in iterator:
+    # Zámek pro bezpečný zápis do CSV z více vláken najednou
+    csv_lock = threading.Lock()
+
+    def process_single_file(filename):
         file_path = class_folder / filename
         ext = file_path.suffix.lower()
 
@@ -333,30 +314,15 @@ def assign_feature_values_from_folder(
             # TABULAR HANDLING (row-level processing)
             # =========================================================
             if ext in tabular_exts:
-
                 if not text_column:
                     raise ValueError("For tabular generation, text_column must be provided.")
 
-                rows = _prepare_tabular_inputs(
-                    file_path=file_path,
-                    text_column=text_column,
-                    label_column=label_column,
-                )
-
-                full_prompt = _build_prompt_for_generation(
-                    text_generation_prompt,
-                    discovered_features
-                )
+                rows = _prepare_tabular_inputs(file_path=file_path, text_column=text_column, label_column=label_column)
+                full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
 
                 for idx, row_data in enumerate(rows):
-
                     text_value = row_data["text"]
-
-                    llm_resp = provider.text_features(
-                        [text_value],
-                        prompt=full_prompt,
-                    )
-
+                    llm_resp = provider.text_features([text_value], prompt=full_prompt)
                     parsed = llm_resp[0]
 
                     if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
@@ -374,57 +340,41 @@ def assign_feature_values_from_folder(
                         value = inner.get(feat, "not given by LLM")
                         row_dict[feat] = value
 
-                    df_out = pd.DataFrame([row_dict], columns=all_columns)
-                    df_out.to_csv(csv_path, mode="a", header=False, index=False)
+                    # Bezpečný zápis do sdíleného souboru
+                    with csv_lock:
+                        pd.DataFrame([row_dict], columns=all_columns).to_csv(csv_path, mode="a", header=False, index=False)
 
-                continue  # skip default file-level logic
+                return  # Zpracováno jako tabulka
 
             # =========================================================
             # STANDARD FILE-LEVEL HANDLING
             # =========================================================
             if ext in video_exts:
                 full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
-                b64_list, transcript_context = _prepare_video_inputs(
-                    file_path,
-                    use_audio,
-                    provider
-                )
-
+                b64_list, transcript_context = _prepare_video_inputs(file_path, use_audio, provider)
                 if not b64_list:
-                    continue
-
-                llm_resp = provider.image_features(
-                    image_base64_list=b64_list,
-                    prompt=full_prompt,
-                    as_set=True,
-                    extra_context=transcript_context,
-                )
+                    return
+                llm_resp = provider.image_features(image_base64_list=b64_list, prompt=full_prompt, as_set=True, extra_context=transcript_context)
 
             elif ext in image_exts:
                 full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
                 b64_list, _ = _prepare_image_inputs(file_path)
-                llm_resp = provider.image_features(
-                    image_base64_list=b64_list,
-                    prompt=full_prompt,
-                )
+                llm_resp = provider.image_features(image_base64_list=b64_list, prompt=full_prompt)
 
             elif ext in text_exts:
                 full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
                 texts = _prepare_text_inputs(file_path)
                 combined_text = "\n\n---\n\n".join(texts)
-                llm_resp = provider.text_features(
-                    [combined_text],
-                    prompt=full_prompt,
-                )
+                llm_resp = provider.text_features([combined_text], prompt=full_prompt)
 
             else:
-                continue
+                return
 
             parsed = llm_resp[0]
 
         except Exception as e:
             print(f"Error processing {filename}: {e}")
-            continue
+            return
 
         # =========================================================
         # FILE-LEVEL RESULT WRITING
@@ -432,9 +382,7 @@ def assign_feature_values_from_folder(
         if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
             parsed = {"features": parse_json_from_markdown(parsed["features"])}
 
-        if not feature_names:
-            feature_names = _infer_feature_names_from_llm(parsed)
-
+        current_feature_names = feature_names if feature_names else _infer_feature_names_from_llm(parsed)
         inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
 
         row = {
@@ -443,16 +391,23 @@ def assign_feature_values_from_folder(
             "raw_llm_output": json.dumps(parsed, ensure_ascii=False),
         }
 
-        for feat in feature_names:
+        for feat in current_feature_names:
             value = inner.get(feat, "not given by LLM")
             row[feat] = value
 
-        pd.DataFrame([row], columns=all_columns).to_csv(
-            csv_path,
-            mode="a",
-            header=False,
-            index=False
-        )
+        # Bezpečný zápis do sdíleného souboru
+        with csv_lock:
+            pd.DataFrame([row], columns=all_columns).to_csv(csv_path, mode="a", header=False, index=False)
+
+    # =========================================================
+    # PARALELNÍ ZPRACOVÁNÍ SOUBORŮ
+    # =========================================================
+    max_workers = min(10, len(files)) if files else 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        if tqdm:
+            list(tqdm(executor.map(process_single_file, files), total=len(files), desc=class_name, unit="file"))
+        else:
+            list(executor.map(process_single_file, files))
 
     return csv_path
 

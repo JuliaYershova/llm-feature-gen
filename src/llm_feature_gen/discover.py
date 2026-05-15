@@ -355,6 +355,7 @@ def discover_features_from_texts(
         as_set: bool = True,  # same semantics as image version
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
+        classes: Optional[List[str]] = None,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -441,6 +442,16 @@ def discover_features_from_texts(
     # -------------------------------------------------
     # 3) CALL PROVIDER
     # -------------------------------------------------
+    if classes and len(classes) >= 2:
+        if len(classes) == 2:
+            classes_str = f"'{classes[0]}' and '{classes[1]}'"
+        else:
+            classes_str = ", ".join(f"'{c}'" for c in classes[:-1]) + f", and '{classes[-1]}'"
+
+        prompt += (
+            f"\n\nCRITICAL TASK: The provided text contains mixed examples from the following distinct classes: {classes_str}. "
+            "Your primary goal is to discover abstract semantic features that help distinguish ALL these classes from one another."
+        )
     if as_set:
         #  JOINT DISCOVERY MODE
         combined_text = "\n\n---\n\n".join(texts)

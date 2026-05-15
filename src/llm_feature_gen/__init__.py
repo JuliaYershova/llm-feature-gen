@@ -42,3 +42,5 @@ __all__ = [
     "load_discovered_features",
     "parse_json_from_markdown",
 ]
+
+from .sklearn import LLMFeatureExtractor
