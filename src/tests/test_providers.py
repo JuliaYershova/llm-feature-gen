@@ -105,15 +105,18 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
 
     client, _ = make_chat_client([DummyRateLimitError(), DummyRateLimitError()])
     provider.client = client
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}])["error"].startswith("Rate limit")
+    with pytest.raises(DummyRateLimitError):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     client, _ = make_chat_client([RuntimeError("boom")])
     provider.client = client
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"error": "boom"}
+    with pytest.raises(RuntimeError, match="boom"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
-    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) is None
+    with pytest.raises(RuntimeError, match="Unknown failure"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
 
     captured = []
     provider._chat_json = lambda deployment, system_prompt, user_content, json_mode=False: captured.append(
@@ -142,8 +145,8 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
     assert captured[0]["system_prompt"] == "plain"
 
-    missing = provider.transcribe_audio(str(tmp_path / "missing.wav"))
-    assert "not found" in missing
+    with pytest.raises(FileNotFoundError, match="not found"):
+        provider.transcribe_audio(str(tmp_path / "missing.wav"))
 
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
@@ -163,7 +166,8 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
             )
         )
     )
-    assert "Rate limit" in provider.transcribe_audio(str(audio_path))
+    with pytest.raises(DummyRateLimitError):
+        provider.transcribe_audio(str(audio_path))
 
     provider.client = SimpleNamespace(
         audio=SimpleNamespace(
@@ -172,7 +176,8 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
             )
         )
     )
-    assert "bad" in provider.transcribe_audio(str(audio_path))
+    with pytest.raises(RuntimeError, match="bad"):
+        provider.transcribe_audio(str(audio_path))
 
 
 def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):

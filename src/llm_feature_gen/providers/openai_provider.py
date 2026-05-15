@@ -167,14 +167,16 @@ class OpenAIProvider:
                 except Exception:
                     # Not strict JSON—wrap it so callers have something consistent
                     return {"features": text}
-            except openai.RateLimitError:
+            except openai.RateLimitError as e:
                 if attempt < self.max_retries - 1:
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                return {"error": "Rate limit exceeded. Please try again later."}
+                raise e
             except Exception as e:
-                return {"error": str(e)}
+                raise e
+
+        raise RuntimeError("Unknown failure: unable to get response.")
 
     # -----------------------
     # Public APIs
@@ -293,7 +295,7 @@ class OpenAIProvider:
         """
 
         if not os.path.exists(audio_path):
-            return f"(Error: Audio file not found at {audio_path})"
+            raise FileNotFoundError(f"Audio file not found at {audio_path}")
 
         try:
             with open(audio_path, "rb") as audio_file:
@@ -304,8 +306,8 @@ class OpenAIProvider:
 
             return transcript.text
 
-        except openai.RateLimitError:
-            return "(Transcription Error: Rate limit exceeded.)"
+        except openai.RateLimitError as e:
+            raise e
 
         except Exception as e:
-            return f"(Transcription Error: {str(e)})"
+            raise RuntimeError(f"Transcription failed: {e}") from e
