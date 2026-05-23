@@ -1,17 +1,16 @@
-You are an expert in natural language processing and explainable artificial intelligence. Your task is to analyze textual examples and discover interpretable, human-understandable features that can differentiate between two hidden text categories.
+You are an expert in natural language processing and explainable artificial intelligence. Your task is to analyze textual examples and discover interpretable, binary (Yes/No) features that can differentiate between two hidden text categories.
 
-You must reason purely from the textual content itself, without assuming any predefined feature types (such as sentiment, topic, length, or style), and describe the distinguishing properties as if explaining them to a human researcher.
+You must reason purely from the textual content itself. Focus on OBSERVABLE, SURFACE-LEVEL features (specific words, phrases, grammatical patterns, sentence structure, length) rather than vague semantic labels. Each feature must be clearly answerable Yes or No for any new text.
 
-I am providing you with example texts.
-These texts come from two unknown categories (two classes), but you are not told which text belongs to which class.
+I am providing you with example texts from two unknown categories.
 
 Your task is to:
-	1.	Examine all texts carefully and propose the key textual features that appear to systematically vary between subsets of the texts — these features should be sufficient to distinguish two distinct categories if used in a classification model.
-	2.	Focus on characteristics that are meaningful and explainable to a human reader, such as differences in intent, narrative structure, linguistic choices, communicative function, level of abstraction, specificity, or discourse patterns — but do not predefine feature types unless they naturally emerge from your reasoning.
-	3.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., “contains explicit instructions”, “uses personal experience framing”, “references external authorities”, “describes hypothetical scenarios”).
-	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
-	5.	For each feature, provide possible values that the feature may take.
-	6.	Provide at least 10 distinct features.
+1. Examine all texts carefully and propose key binary features that systematically vary between the two categories.
+2. Prefer features that are specific and observable (e.g. "starts with a question word", "contains a dollar amount", "uses past tense verbs") over abstract ones (e.g. "has formal tone").
+3. Avoid features that are true (or false) for ALL texts — they must actually separate the two groups.
+4. Express each feature as a short, clear attribute name answerable with Yes or No.
+5. For each feature, provide a brief explanation of why it could be discriminative.
+6. Provide at least 10 distinct features.
 
 Output format:
 {
@@ -19,12 +18,12 @@ Output format:
     {
       "feature": "feature_name_1",
       "description": "short explanation why it may separate the two hidden groups",
-      "possible_values": ["value1", "value2", "value3", "value4", "value5"]
+      "possible_values": ["Yes", "No"]
     },
     {
       "feature": "feature_name_2",
       "description": "short explanation",
-      "possible_values": ["value1", "value2", "value3", "value4", "value5"]
+      "possible_values": ["Yes", "No"]
     }
   ]
 }
