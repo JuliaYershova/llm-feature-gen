@@ -64,6 +64,11 @@ def _looks_like_text_path(value: str) -> bool:
     )
 
 
+def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
+    """Return text chunks that contain non-whitespace content."""
+    return [chunk for chunk in chunks if chunk.strip()]
+
+
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
         prompt: str = image_discovery_prompt,
@@ -432,6 +437,15 @@ def discover_features_from_texts(
     # 2) collect texts
     # -------------------------------------------------
     texts: List[str] = []
+    empty_inputs: List[str] = []
+
+    def add_text_chunks(chunks: List[str], label: str) -> None:
+        nonlocal texts
+        nonempty_chunks = _nonempty_text_chunks(chunks)
+        if nonempty_chunks:
+            texts.extend(nonempty_chunks)
+        else:
+            empty_inputs.append(label)
 
     if isinstance(texts_or_file, Path):
         path = Path(texts_or_file)
@@ -441,14 +455,14 @@ def discover_features_from_texts(
 
         if path.is_file():
             # single file of ANY supported text type
-            texts = extract_text_from_file(path)
+            add_text_chunks(extract_text_from_file(path), path.name)
 
         elif path.is_dir():
             # folder with mixed document types
             for file in sorted(path.iterdir()):
                 if file.is_file():
                     try:
-                        texts.extend(extract_text_from_file(file))
+                        add_text_chunks(extract_text_from_file(file), file.name)
                     except ValueError:
                         pass  # skip unsupported files silently
 
@@ -460,12 +474,12 @@ def discover_features_from_texts(
 
         if path.exists():
             if path.is_file():
-                texts = extract_text_from_file(path)
+                add_text_chunks(extract_text_from_file(path), path.name)
             elif path.is_dir():
                 for file in sorted(path.iterdir()):
                     if file.is_file():
                         try:
-                            texts.extend(extract_text_from_file(file))
+                            add_text_chunks(extract_text_from_file(file), file.name)
                         except ValueError:
                             pass
             else:
@@ -473,10 +487,23 @@ def discover_features_from_texts(
         elif _looks_like_text_path(texts_or_file):
             raise FileNotFoundError(f"Path not found: {path}")
         else:
-            texts = [texts_or_file]
+            add_text_chunks([texts_or_file], "text input")
 
     else:
-        texts = list(texts_or_file)
+        for index, text in enumerate(texts_or_file):
+            add_text_chunks([text], f"text input at index {index}")
+
+    if empty_inputs:
+        if len(empty_inputs) == 1:
+            raise ValueError(
+                f"File or input '{empty_inputs[0]}' is empty or contains only whitespace. "
+                "Please remove or fill all input files."
+            )
+        formatted_inputs = ", ".join(f"'{item}'" for item in empty_inputs)
+        raise ValueError(
+            f"Files or inputs {formatted_inputs} are empty or contain only whitespace. "
+            "Please remove or fill all input files."
+        )
 
     if not texts:
         raise ValueError("No text inputs found to process.")

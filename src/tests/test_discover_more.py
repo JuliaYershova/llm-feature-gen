@@ -121,6 +121,67 @@ def test_discover_texts_allows_custom_min_features(tmp_path: Path):
         )
 
 
+def test_discover_texts_rejects_empty_file_with_name(tmp_path: Path):
+    provider = TextProvider()
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="empty.txt.*empty or contains only whitespace"):
+        discover_mod.discover_features_from_texts(
+            empty_file,
+            provider=provider,
+            output_dir=tmp_path / "out",
+        )
+
+    assert provider.calls == []
+
+
+def test_discover_texts_rejects_whitespace_only_file_in_folder(tmp_path: Path):
+    provider = TextProvider()
+    folder = tmp_path / "texts"
+    folder.mkdir()
+    (folder / "valid.txt").write_text("useful content", encoding="utf-8")
+    (folder / "blank.txt").write_text(" \n\t ", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="blank.txt.*empty or contain"):
+        discover_mod.discover_features_from_texts(
+            folder,
+            provider=provider,
+            output_dir=tmp_path / "out",
+        )
+
+    assert provider.calls == []
+
+
+def test_discover_texts_rejects_whitespace_only_raw_input(tmp_path: Path):
+    provider = TextProvider()
+
+    with pytest.raises(ValueError, match="text input.*empty or contains only whitespace"):
+        discover_mod.discover_features_from_texts(
+            " \n\t ",
+            provider=provider,
+            output_dir=tmp_path / "out",
+        )
+
+    assert provider.calls == []
+
+
+def test_discover_texts_filters_blank_chunks_from_supported_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    provider = TextProvider()
+    text_file = tmp_path / "doc.txt"
+    text_file.write_text("ignored", encoding="utf-8")
+    monkeypatch.setattr(discover_mod, "extract_text_from_file", lambda path: ["", "kept", " \n"])
+
+    discover_mod.discover_features_from_texts(
+        text_file,
+        provider=provider,
+        as_set=False,
+        output_dir=tmp_path / "out",
+    )
+
+    assert provider.calls[0]["texts"] == ["kept"]
+
+
 def test_discover_texts_error_paths_and_invalid_special_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(FileNotFoundError):
         discover_mod.discover_features_from_texts(tmp_path / "missing.txt", provider=TextProvider())
