@@ -318,6 +318,16 @@ def test_assign_feature_values_circuit_breaker_handles_image_provider_exception(
             failure_threshold=1,
         )
 
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classImages",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=RaisingProvider(),
+        output_dir=tmp_path / "out_disabled",
+        failure_threshold=0,
+    )
+    assert pd.read_csv(csv_path).empty
+
 
 def test_assign_feature_values_circuit_breaker_handles_video_provider_exception(
     tmp_path: Path,
@@ -344,6 +354,16 @@ def test_assign_feature_values_circuit_breaker_handles_video_provider_exception(
             output_dir=tmp_path / "out",
             failure_threshold=1,
         )
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classVideos",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=RaisingProvider(),
+        output_dir=tmp_path / "out_disabled",
+        failure_threshold=0,
+    )
+    assert pd.read_csv(csv_path).empty
 
 
 def test_assign_feature_values_circuit_breaker_handles_empty_provider_output(
