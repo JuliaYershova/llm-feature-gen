@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Cross-platform CI coverage for Linux, macOS, and Windows, with Python 3.9, 3.11, and 3.13 exercised in GitHub Actions.
 - Explicit support documentation via `SUPPORT.md`, a docs support matrix, and PyPI classifiers for supported operating systems and Python versions.
 - Lightweight offline integration and smoke tests covering discovery output artifacts, generation CSV output, local-provider compatibility, and optional parser behavior.
+- Configurable `min_features` discovery parameter for text, tabular, image, and video workflows.
 
 ### Changed
 
