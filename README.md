@@ -143,6 +143,17 @@ Install from PyPI:
 pip install llm-feature-gen
 ```
 
+If you install from inside a Jupyter notebook, run the install command in its
+own cell and restart the kernel before importing `llm_feature_gen`. On hosted
+Jupyter environments where `%pip` points at the wrong interpreter, install with
+the active kernel executable:
+
+```python
+import sys
+
+!{sys.executable} -m pip install -U llm-feature-gen
+```
+
 Supported Python versions and operating systems are documented in [SUPPORT.md](SUPPORT.md).
 
 ### Development

@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Improved offline test coverage for higher-level workflows so support claims are backed by end-to-end checks, not only unit tests.
+- Documented the required Jupyter kernel restart after notebook installs to avoid immediate `ModuleNotFoundError` imports.
 
 ## [0.1.8]
 
