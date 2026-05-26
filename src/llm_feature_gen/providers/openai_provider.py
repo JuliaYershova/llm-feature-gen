@@ -6,6 +6,7 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
+from ..contracts import ProviderResponseError
 
 # OpenAI SDK (Azure)
 import openai
@@ -172,9 +173,9 @@ class OpenAIProvider:
                     time.sleep(backoff)
                     backoff *= 2
                     continue
-                return {"error": "Rate limit exceeded. Please try again later."}
+                raise ProviderResponseError("Rate limit exceeded. Please try again later.")
             except Exception as e:
-                return {"error": str(e)}
+                raise ProviderResponseError(str(e)) from e
 
     # -----------------------
     # Public APIs

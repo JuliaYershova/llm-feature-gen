@@ -19,6 +19,7 @@ import numpy as np
 from .providers.openai_provider import OpenAIProvider
 from .utils.image import image_to_base64
 from .prompts import image_generation_prompt, text_generation_prompt
+from .contracts import ProviderResponseError, normalize_feature_values_response, parse_json_object_from_markdown
 
 try:
     from tqdm import tqdm
@@ -181,18 +182,9 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
 
 def parse_json_from_markdown(text: str) -> Dict[str, Any]:
     """Parse JSON content that may be wrapped in a fenced Markdown block."""
-    if not text:
-        return {}
-    txt = text.strip()
-    if txt.startswith("```"):
-        lines = txt.splitlines()
-        lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        txt = "\n".join(lines).strip()
     try:
-        return json.loads(txt)
-    except Exception:
+        return parse_json_object_from_markdown(text)
+    except ProviderResponseError:
         return {}
 
 
@@ -254,6 +246,12 @@ def _infer_feature_names_from_llm(parsed: Any) -> List[str]:
         return list(parsed.keys())
 
     return []
+
+
+def _normalize_provider_payload(raw: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Return the normalized raw payload and the feature-value dictionary."""
+    normalized = normalize_feature_values_response(raw)
+    return normalized, normalized["features"]
 
 
 # ----------------------------
@@ -357,12 +355,7 @@ def assign_feature_values_from_folder(
                         prompt=full_prompt,
                     )
 
-                    parsed = llm_resp[0]
-
-                    if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
-                        parsed = {"features": parse_json_from_markdown(parsed["features"])}
-
-                    inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
+                    parsed, inner = _normalize_provider_payload(llm_resp[0])
 
                     row_dict: Dict[str, Any] = {
                         "File": f"{filename}__row_{idx}",
@@ -429,13 +422,14 @@ def assign_feature_values_from_folder(
         # =========================================================
         # FILE-LEVEL RESULT WRITING
         # =========================================================
-        if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
-            parsed = {"features": parse_json_from_markdown(parsed["features"])}
+        try:
+            parsed, inner = _normalize_provider_payload(parsed)
+        except ProviderResponseError as e:
+            print(f"Error processing {filename}: {e}")
+            continue
 
         if not feature_names:
             feature_names = _infer_feature_names_from_llm(parsed)
-
-        inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
 
         row = {
             "File": filename,

@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - README contributor guidance now points to the contributing guide, changelog, and issue templates.
 - Project metadata now makes platform and interpreter support claims explicit for publication and review.
 - Optional text-parser failures now raise clearer dependency guidance for PDF, DOCX, and HTML inputs.
+- Provider response handling now uses a shared feature-value contract so generation rejects error and invalid payloads consistently.
 
 ### Fixed
 
