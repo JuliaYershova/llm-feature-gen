@@ -166,6 +166,19 @@ def test_discover_texts_rejects_whitespace_only_raw_input(tmp_path: Path):
     assert provider.calls == []
 
 
+def test_discover_texts_reports_multiple_empty_inputs(tmp_path: Path):
+    provider = TextProvider()
+
+    with pytest.raises(ValueError, match="index 0.*index 1.*empty or contain"):
+        discover_mod.discover_features_from_texts(
+            ["", " \n\t"],
+            provider=provider,
+            output_dir=tmp_path / "out",
+        )
+
+    assert provider.calls == []
+
+
 def test_discover_texts_filters_blank_chunks_from_supported_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     provider = TextProvider()
     text_file = tmp_path / "doc.txt"
