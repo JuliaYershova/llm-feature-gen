@@ -55,25 +55,25 @@ def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[st
     """
     provider_error = _provider_error_from_payload(payload)
     if provider_error:
-        raise ValueError(provider_error)
+        raise ValueError(f"provider_error: {provider_error}")
 
     if isinstance(payload, dict) and "features" in payload and isinstance(payload["features"], str):
         parsed_features = parse_json_from_markdown(payload["features"])
         if not parsed_features:
-            raise ValueError("Invalid or empty JSON in provider 'features' output")
+            raise ValueError("invalid_output: invalid or empty JSON in provider 'features' output")
         payload = {"features": parsed_features}
 
     if not isinstance(payload, dict) or not payload:
-        raise ValueError("Empty or invalid provider output")
+        raise ValueError("empty_output: empty or invalid provider output")
 
     inner = payload.get("features", payload)
     if not isinstance(inner, dict) or not inner:
-        raise ValueError("Provider output did not contain feature values")
+        raise ValueError("invalid_output: provider output did not contain feature values")
 
     return payload, inner
 
 
-def _raise_if_circuit_open(
+def _check_failure_threshold(
         failure_count: int,
         failure_threshold: Optional[int],
         last_failure: str,
@@ -288,29 +288,6 @@ def _extract_feature_names(discovered_features: Any) -> List[str]:
     return names
 
 
-def _infer_feature_names_from_llm(parsed: Any) -> List[str]:
-    """
-    Your LLM sometimes returns:
-        [ { "presence of liquid broth": "...", ... } ]
-    or
-        { "features": { ... } }
-    This tries to infer feature names from that.
-    """
-    # case: list with single dict
-    if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
-        return list(parsed[0].keys())
-
-    # case: {"features": {...}}
-    if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], dict):
-        return list(parsed["features"].keys())
-
-    # case: flat dict
-    if isinstance(parsed, dict):
-        return list(parsed.keys())
-
-    return []
-
-
 # ----------------------------
 # per-class generation
 # ----------------------------
@@ -359,6 +336,8 @@ def assign_feature_values_from_folder(
 
     raw_names = _extract_feature_names(discovered_features)
     feature_names = list(dict.fromkeys(raw_names))
+    if not feature_names:
+        raise ValueError("discovered_features must include at least one feature name")
 
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
@@ -439,7 +418,7 @@ def assign_feature_values_from_folder(
                         row_source = f"{filename}__row_{idx}"
                         last_failure = _format_generation_failure(row_source, str(e))
                         print(f"Error processing {last_failure}")
-                        _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+                        _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
                         continue
 
                 continue  # skip default file-level logic
@@ -469,7 +448,7 @@ def assign_feature_values_from_folder(
                     consecutive_failures += 1
                     last_failure = _format_generation_failure(filename, str(e))
                     print(f"Error processing {last_failure}")
-                    _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
                     continue
 
             elif ext in image_exts:
@@ -484,7 +463,7 @@ def assign_feature_values_from_folder(
                     consecutive_failures += 1
                     last_failure = _format_generation_failure(filename, str(e))
                     print(f"Error processing {last_failure}")
-                    _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
                     continue
 
             elif ext in text_exts:
@@ -500,7 +479,7 @@ def assign_feature_values_from_folder(
                     consecutive_failures += 1
                     last_failure = _format_generation_failure(filename, str(e))
                     print(f"Error processing {last_failure}")
-                    _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
                     continue
 
             else:
@@ -510,15 +489,18 @@ def assign_feature_values_from_folder(
                 parsed = llm_resp[0]
             except Exception:
                 consecutive_failures += 1
-                last_failure = _format_generation_failure(filename, "Provider returned no output")
+                last_failure = _format_generation_failure(filename, "empty_output: provider returned no output")
                 print(f"Error processing {last_failure}")
-                _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+                _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
                 continue
 
         except GenerationCircuitBreakerError:
             raise
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
+            consecutive_failures += 1
+            last_failure = _format_generation_failure(filename, f"input_preparation_error: {e}")
+            print(f"Error processing {last_failure}")
+            _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
             continue
 
         # =========================================================
@@ -530,13 +512,8 @@ def assign_feature_values_from_folder(
             consecutive_failures += 1
             last_failure = _format_generation_failure(filename, str(e))
             print(f"Error processing {last_failure}")
-            _raise_if_circuit_open(consecutive_failures, failure_threshold, last_failure)
+            _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
             continue
-
-        if not feature_names:
-            feature_names = _infer_feature_names_from_llm(parsed)
-            all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
-            pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
 
         row = {
             "File": filename,

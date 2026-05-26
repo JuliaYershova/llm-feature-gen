@@ -151,10 +151,6 @@ def test_prepare_image_inputs_and_helper_functions(tmp_path: Path):
 
     assert gen._extract_feature_names({"proposed_features": [{"feature": "a"}, "b", {"ignored": "x"}]}) == ["a", "b"]
     assert gen._extract_feature_names([{"feature": "a"}]) == ["a"]
-    assert gen._infer_feature_names_from_llm([{"a": 1, "b": 2}]) == ["a", "b"]
-    assert gen._infer_feature_names_from_llm({"features": {"x": 1}}) == ["x"]
-    assert gen._infer_feature_names_from_llm({"y": 2}) == ["y"]
-    assert gen._infer_feature_names_from_llm("nope") == []
 
 
 def test_generation_prompts_enumeration_and_raw_json_instructions():
@@ -282,14 +278,17 @@ def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exception
 
 
 def test_generation_payload_validation_rejects_invalid_shapes():
-    with pytest.raises(ValueError, match="Invalid or empty JSON"):
+    with pytest.raises(ValueError, match="invalid_output: invalid or empty JSON"):
         gen._normalize_generation_payload({"features": "not json"})
 
-    with pytest.raises(ValueError, match="Empty or invalid provider output"):
+    with pytest.raises(ValueError, match="empty_output: empty or invalid provider output"):
         gen._normalize_generation_payload(None)
 
-    with pytest.raises(ValueError, match="feature values"):
+    with pytest.raises(ValueError, match="invalid_output: provider output did not contain feature values"):
         gen._normalize_generation_payload({"features": []})
+
+    with pytest.raises(ValueError, match="provider_error: rate limit"):
+        gen._normalize_generation_payload({"error": "rate limit"})
 
 
 def test_assign_feature_values_circuit_breaker_handles_image_provider_exception(
@@ -382,7 +381,7 @@ def test_assign_feature_values_circuit_breaker_handles_empty_provider_output(
         def text_features(self, text_list, prompt=None):
             return []
 
-    with pytest.raises(gen.GenerationCircuitBreakerError, match="Provider returned no output"):
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="empty_output: provider returned no output"):
         gen.assign_feature_values_from_folder(
             folder_path=root,
             class_name="classEmpty",
@@ -420,7 +419,7 @@ def test_assign_feature_values_circuit_breaker_treats_error_payload_as_failure(
         def text_features(self, text_list, prompt=None):
             return [{"error": "rate limit"}]
 
-    with pytest.raises(gen.GenerationCircuitBreakerError, match="rate limit"):
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="provider_error: rate limit"):
         gen.assign_feature_values_from_folder(
             folder_path=root,
             class_name="classErrors",
@@ -488,7 +487,35 @@ def test_assign_feature_values_tabular_rows_count_repeated_provider_failures(
         )
 
 
-def test_assign_feature_values_from_folder_missing_class_and_feature_inference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_assign_feature_values_counts_input_preparation_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classPrep"
+    class_dir.mkdir(parents=True)
+    for name in ["a.txt", "b.txt"]:
+        (class_dir / name).write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(
+        gen,
+        "_prepare_text_inputs",
+        lambda path: (_ for _ in ()).throw(RuntimeError("broken parse")),
+    )
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="input_preparation_error: broken parse"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classPrep",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=FakeProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=2,
+        )
+
+
+def test_assign_feature_values_from_folder_missing_class_and_feature_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(FileNotFoundError):
         gen.assign_feature_values_from_folder(
             folder_path=tmp_path,
@@ -501,21 +528,17 @@ def test_assign_feature_values_from_folder_missing_class_and_feature_inference(t
     class_dir = root / "classC"
     class_dir.mkdir(parents=True)
     (class_dir / "img.jpg").write_bytes(b"x")
-    monkeypatch.setattr(gen, "_prepare_image_inputs", lambda path: (["image-b64"], None))
 
-    class InferringProvider(FakeProvider):
-        def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
-            return [{"features": {"inferred": "yes"}}]
+    with pytest.raises(ValueError, match="at least one feature name"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classC",
+            discovered_features={},
+            provider=FakeProvider(),
+            output_dir=tmp_path / "out",
+        )
 
-    csv_path = gen.assign_feature_values_from_folder(
-        folder_path=root,
-        class_name="classC",
-        discovered_features={},
-        provider=InferringProvider(),
-        output_dir=tmp_path / "out",
-    )
-    df = pd.read_csv(csv_path)
-    assert list(df["File"]) == ["img.jpg"]
+    assert not (tmp_path / "out" / "classC_feature_values.csv").exists()
 
 
 def test_assign_feature_values_from_folder_covers_remaining_branches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
