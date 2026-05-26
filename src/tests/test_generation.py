@@ -253,6 +253,221 @@ def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: P
     assert set(df["feat1"]) == {"img", "txt"}
 
 
+def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exceptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classBreaker"
+    class_dir.mkdir(parents=True)
+    for name in ["a.txt", "b.txt", "c.txt"]:
+        (class_dir / name).write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class RaisingProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            raise RuntimeError("upstream timeout")
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="2 consecutive provider/output failures"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classBreaker",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=RaisingProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=2,
+        )
+
+
+def test_generation_payload_validation_rejects_invalid_shapes():
+    with pytest.raises(ValueError, match="Invalid or empty JSON"):
+        gen._normalize_generation_payload({"features": "not json"})
+
+    with pytest.raises(ValueError, match="Empty or invalid provider output"):
+        gen._normalize_generation_payload(None)
+
+    with pytest.raises(ValueError, match="feature values"):
+        gen._normalize_generation_payload({"features": []})
+
+
+def test_assign_feature_values_circuit_breaker_handles_image_provider_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classImages"
+    class_dir.mkdir(parents=True)
+    (class_dir / "img.jpg").write_bytes(b"x")
+
+    monkeypatch.setattr(gen, "_prepare_image_inputs", lambda path: (["image-b64"], None))
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class RaisingProvider(FakeProvider):
+        def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+            raise RuntimeError("vision backend down")
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="vision backend down"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classImages",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=RaisingProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
+
+
+def test_assign_feature_values_circuit_breaker_handles_video_provider_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classVideos"
+    class_dir.mkdir(parents=True)
+    (class_dir / "clip.mp4").write_bytes(b"x")
+
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: (["video-b64"], None))
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class RaisingProvider(FakeProvider):
+        def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+            raise RuntimeError("video backend down")
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="video backend down"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classVideos",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=RaisingProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
+
+
+def test_assign_feature_values_circuit_breaker_handles_empty_provider_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classEmpty"
+    class_dir.mkdir(parents=True)
+    (class_dir / "empty.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class EmptyProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            return []
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="Provider returned no output"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classEmpty",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=EmptyProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classEmpty",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=EmptyProvider(),
+        output_dir=tmp_path / "out_disabled",
+        failure_threshold=0,
+    )
+    assert pd.read_csv(csv_path).empty
+
+
+def test_assign_feature_values_circuit_breaker_treats_error_payload_as_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classErrors"
+    class_dir.mkdir(parents=True)
+    for name in ["a.txt", "b.txt", "c.txt"]:
+        (class_dir / name).write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class ErrorPayloadProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            return [{"error": "rate limit"}]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="rate limit"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classErrors",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=ErrorPayloadProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=2,
+        )
+
+
+def test_assign_feature_values_circuit_breaker_can_be_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classDisabled"
+    class_dir.mkdir(parents=True)
+    for name in ["a.txt", "b.txt"]:
+        (class_dir / name).write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class ErrorPayloadProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            return [{"error": "rate limit"}]
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classDisabled",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=ErrorPayloadProvider(),
+        output_dir=tmp_path / "out",
+        failure_threshold=0,
+    )
+
+    df = pd.read_csv(csv_path)
+    assert df.empty
+
+
+def test_assign_feature_values_tabular_rows_count_repeated_provider_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classRows"
+    class_dir.mkdir(parents=True)
+    (class_dir / "rows.csv").write_text("text\none\ntwo\nthree\n", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class ErrorPayloadProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            return [{"error": "invalid output"}]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="rows.csv__row_1"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classRows",
+            discovered_features={"proposed_features": [{"feature": "feat1"}]},
+            provider=ErrorPayloadProvider(),
+            output_dir=tmp_path / "out",
+            text_column="text",
+            failure_threshold=2,
+        )
+
+
 def test_assign_feature_values_from_folder_missing_class_and_feature_inference(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(FileNotFoundError):
         gen.assign_feature_values_from_folder(
@@ -396,7 +611,17 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         assert str(path).endswith(".json")
         return {"proposed_features": [{"feature": "feat1"}]}
 
-    def fake_assign(folder_path, class_name, discovered_features, provider, output_dir, use_audio, text_column, label_column):
+    def fake_assign(
+        folder_path,
+        class_name,
+        discovered_features,
+        provider,
+        output_dir,
+        use_audio,
+        text_column,
+        label_column,
+        failure_threshold,
+    ):
         csv_path = Path(output_dir) / f"{class_name}.csv"
         pd.DataFrame([{"File": f"{class_name}.txt", "Class": class_name, "feat1": "x", "raw_llm_output": "{}"}]).to_csv(
             csv_path,
@@ -406,6 +631,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
             "use_audio": use_audio,
             "text_column": text_column,
             "label_column": label_column,
+            "failure_threshold": failure_threshold,
         }
         return csv_path
 
@@ -425,6 +651,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
     assert set(result) == {"c1", "c2", "__merged__"}
     assert Path(result["__merged__"]).exists()
     assert generated["c1"]["text_column"] == "body"
+    assert generated["c1"]["failure_threshold"] == 3
 
     result = gen.generate_features(
         root_folder=root,
@@ -432,8 +659,10 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         output_dir=output_dir,
         classes=["c1"],
         merge_to_single_csv=False,
+        failure_threshold=5,
     )
     assert set(result) == {"c1"}
+    assert generated["c1"]["failure_threshold"] == 5
 
     captured = []
 
