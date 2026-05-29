@@ -270,7 +270,7 @@ def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[st
         raise ValueError(str(exc)) from exc
 
     return normalized, normalized["features"]
-  
+
 # ----------------------------
 # per-class generation
 # ----------------------------

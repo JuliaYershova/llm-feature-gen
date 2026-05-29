@@ -304,13 +304,13 @@ def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exception
 
 
 def test_generation_payload_validation_rejects_invalid_shapes():
-    with pytest.raises(ValueError, match="invalid_output: invalid or empty JSON"):
+    with pytest.raises(ValueError, match="Invalid JSON response"):
         gen._normalize_generation_payload({"features": "not json"})
 
-    with pytest.raises(ValueError, match="empty_output: empty or invalid provider output"):
+    with pytest.raises(ValueError, match="Feature response must be a non-empty object"):
         gen._normalize_generation_payload(None)
 
-    with pytest.raises(ValueError, match="invalid_output: provider output did not contain feature values"):
+    with pytest.raises(ValueError, match="Feature response must contain a non-empty feature object"):
         gen._normalize_generation_payload({"features": []})
 
     with pytest.raises(ValueError, match="provider_error: rate limit"):
