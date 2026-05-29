@@ -15,6 +15,7 @@ from PIL import Image
 import numpy as np
 import os
 import json
+import warnings
 from datetime import datetime
 
 from .utils.image import image_to_base64
@@ -437,7 +438,6 @@ def discover_features_from_texts(
     # 2) collect texts
     # -------------------------------------------------
     texts: List[str] = []
-    empty_inputs: List[str] = []
 
     def add_text_chunks(chunks: List[str], label: str) -> None:
         nonlocal texts
@@ -445,7 +445,11 @@ def discover_features_from_texts(
         if nonempty_chunks:
             texts.extend(nonempty_chunks)
         else:
-            empty_inputs.append(label)
+            warnings.warn(
+                f"Skipping '{label}' because it is empty or contains only whitespace.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     if isinstance(texts_or_file, Path):
         path = Path(texts_or_file)
@@ -493,20 +497,8 @@ def discover_features_from_texts(
         for index, text in enumerate(texts_or_file):
             add_text_chunks([text], f"text input at index {index}")
 
-    if empty_inputs:
-        if len(empty_inputs) == 1:
-            raise ValueError(
-                f"File or input '{empty_inputs[0]}' is empty or contains only whitespace. "
-                "Please remove or fill all input files."
-            )
-        formatted_inputs = ", ".join(f"'{item}'" for item in empty_inputs)
-        raise ValueError(
-            f"Files or inputs {formatted_inputs} are empty or contain only whitespace. "
-            "Please remove or fill all input files."
-        )
-
     if not texts:
-        raise ValueError("No text inputs found to process.")
+        raise ValueError("No non-empty text inputs found to process.")
     # -------------------------------------------------
     # 3) CALL PROVIDER
     # -------------------------------------------------

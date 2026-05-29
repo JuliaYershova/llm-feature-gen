@@ -121,61 +121,68 @@ def test_discover_texts_allows_custom_min_features(tmp_path: Path):
         )
 
 
-def test_discover_texts_rejects_empty_file_with_name(tmp_path: Path):
+def test_discover_texts_warns_and_errors_when_only_file_is_empty(tmp_path: Path):
     provider = TextProvider()
     empty_file = tmp_path / "empty.txt"
     empty_file.write_text("", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="empty.txt.*empty or contains only whitespace"):
-        discover_mod.discover_features_from_texts(
-            empty_file,
-            provider=provider,
-            output_dir=tmp_path / "out",
-        )
+    with pytest.warns(UserWarning, match="empty.txt.*empty or contains only whitespace"):
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                empty_file,
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
 
     assert provider.calls == []
 
 
-def test_discover_texts_rejects_whitespace_only_file_in_folder(tmp_path: Path):
+def test_discover_texts_warns_and_skips_whitespace_only_file_in_folder(tmp_path: Path):
     provider = TextProvider()
     folder = tmp_path / "texts"
     folder.mkdir()
     (folder / "valid.txt").write_text("useful content", encoding="utf-8")
     (folder / "blank.txt").write_text(" \n\t ", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="blank.txt.*empty or contain"):
+    with pytest.warns(UserWarning, match="blank.txt.*empty or contains only whitespace"):
         discover_mod.discover_features_from_texts(
             folder,
             provider=provider,
+            as_set=False,
             output_dir=tmp_path / "out",
         )
+
+    assert provider.calls[0]["texts"] == ["useful content"]
+
+
+def test_discover_texts_warns_and_errors_when_raw_input_is_whitespace_only(tmp_path: Path):
+    provider = TextProvider()
+
+    with pytest.warns(UserWarning, match="text input.*empty or contains only whitespace"):
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                " \n\t ",
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
 
     assert provider.calls == []
 
 
-def test_discover_texts_rejects_whitespace_only_raw_input(tmp_path: Path):
+def test_discover_texts_warns_and_errors_when_multiple_inputs_are_empty(tmp_path: Path):
     provider = TextProvider()
 
-    with pytest.raises(ValueError, match="text input.*empty or contains only whitespace"):
-        discover_mod.discover_features_from_texts(
-            " \n\t ",
-            provider=provider,
-            output_dir=tmp_path / "out",
-        )
+    with pytest.warns(UserWarning) as warnings:
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                ["", " \n\t"],
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
 
-    assert provider.calls == []
-
-
-def test_discover_texts_reports_multiple_empty_inputs(tmp_path: Path):
-    provider = TextProvider()
-
-    with pytest.raises(ValueError, match="index 0.*index 1.*empty or contain"):
-        discover_mod.discover_features_from_texts(
-            ["", " \n\t"],
-            provider=provider,
-            output_dir=tmp_path / "out",
-        )
-
+    warning_messages = [str(warning.message) for warning in warnings]
+    assert any("text input at index 0" in message for message in warning_messages)
+    assert any("text input at index 1" in message for message in warning_messages)
     assert provider.calls == []
 
 
