@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Union
+from tempfile import TemporaryDirectory
+from typing import Optional, Union
 
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
 
 from .discover import discover_features_from_texts
 from .generate import generate_features_from_texts
@@ -22,7 +25,8 @@ class LLMFeatureTransformer(BaseEstimator, TransformerMixin):
 
     Args:
         provider: LLM provider instance. Defaults to OpenAIProvider.
-        classes: List of class names for generation.
+        classes: Optional list of class names. The first class name is used as
+            the temporary class folder/label during transformation.
         output_dir: Directory to store intermediate files.
         n_discovery_samples: Number of samples to use for feature discovery.
 
@@ -36,80 +40,80 @@ class LLMFeatureTransformer(BaseEstimator, TransformerMixin):
     def __init__(
         self,
         provider=None,
-        classes: Optional[List[str]] = None,
+        classes: Optional[list[str]] = None,
         output_dir: Union[str, Path] = "outputs",
         n_discovery_samples: int = 10,
     ):
         self.provider = provider
         self.classes = classes
-        self.output_dir = Path(output_dir)
+        self.output_dir = output_dir
         self.n_discovery_samples = n_discovery_samples
-        self.discovered_features_path_: Optional[Path] = None
 
-    def fit(self, X: List[str], y=None):
+    def fit(self, X, y=None):
         """Discover features from training texts.
 
         Args:
-            X: List of raw text strings.
+            X: Iterable of raw text strings.
             y: Ignored. Present for scikit-learn compatibility.
 
         Returns:
             self
         """
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = Path(self.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         provider = self.provider or OpenAIProvider()
 
-        # Sample texts for discovery
-        samples = X[: self.n_discovery_samples]
+        samples = self._as_text_list(X)[: self.n_discovery_samples]
 
-        discovered = discover_features_from_texts(
+        discover_features_from_texts(
             texts_or_file=samples,
             provider=provider,
             as_set=True,
-            output_dir=self.output_dir,
+            output_dir=output_dir,
             output_filename="discovered_text_features.json",
         )
 
-        self.discovered_features_path_ = self.output_dir / "discovered_text_features.json"
+        self.discovered_features_path_ = output_dir / "discovered_text_features.json"
         return self
 
-    def transform(self, X: List[str], y=None) -> pd.DataFrame:
+    def transform(self, X, y=None) -> pd.DataFrame:
         """Generate feature values for input texts.
 
         Args:
-            X: List of raw text strings.
+            X: Iterable of raw text strings.
             y: Ignored. Present for scikit-learn compatibility.
 
         Returns:
             DataFrame with one row per text and one column per feature.
 
         Raises:
-            RuntimeError: If fit() has not been called yet.
+            NotFittedError: If fit() has not been called yet.
         """
-        if self.discovered_features_path_ is None:
-            raise RuntimeError("Call fit() before transform().")
+        try:
+            check_is_fitted(self, "discovered_features_path_")
+        except NotFittedError as exc:
+            raise NotFittedError("Call fit() before transform().") from exc
 
         provider = self.provider or OpenAIProvider()
+        texts = self._as_text_list(X)
+        class_name = self._transform_class_name()
+        output_dir = Path(self.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Write texts to temp files
-        import tempfile
-        import shutil
-
-        tmp_dir = Path(tempfile.mkdtemp())
-        tmp_class_dir = tmp_dir / "texts"
-        tmp_class_dir.mkdir()
-
-        try:
-            for i, text in enumerate(X):
-                (tmp_class_dir / f"text_{i:05d}.txt").write_text(text, encoding="utf-8")
+        with TemporaryDirectory() as tmp_root, TemporaryDirectory(dir=output_dir) as tmp_output:
+            tmp_dir = Path(tmp_root)
+            tmp_class_dir = tmp_dir / class_name
+            tmp_class_dir.mkdir()
+            for i, text in enumerate(texts):
+                (tmp_class_dir / f"text_{i:05d}.txt").write_text(str(text), encoding="utf-8")
 
             csv_paths = generate_features_from_texts(
                 root_folder=tmp_dir,
                 discovered_features_path=self.discovered_features_path_,
                 provider=provider,
-                classes=["texts"],
-                output_dir=self.output_dir / "transformed",
+                classes=[class_name],
+                output_dir=tmp_output,
                 merge_to_single_csv=True,
                 merged_csv_name="transformed_features.csv",
             )
@@ -120,5 +124,18 @@ class LLMFeatureTransformer(BaseEstimator, TransformerMixin):
             drop_cols = [c for c in ["File", "Class", "raw_llm_output"] if c in df.columns]
             return df.drop(columns=drop_cols)
 
-        finally:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+    def _transform_class_name(self) -> str:
+        if not self.classes:
+            return "texts"
+        if isinstance(self.classes, str):
+            return self.classes
+        return self.classes[0]
+
+    @staticmethod
+    def _as_text_list(X) -> list:
+        if isinstance(X, str):
+            return [X]
+        return list(X)
+
+    def _more_tags(self):
+        return {"X_types": ["string"], "requires_y": False}

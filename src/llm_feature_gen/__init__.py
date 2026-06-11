@@ -19,6 +19,7 @@ from .generate import (
     parse_json_from_markdown,
 )
 from .providers import LocalProvider, OpenAIProvider
+from .sklearn_transformer import LLMFeatureTransformer
 
 try:
     __version__ = version("llm-feature-gen")
@@ -27,6 +28,7 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "LocalProvider",
+    "LLMFeatureTransformer",
     "OpenAIProvider",
     "__version__",
     "assign_feature_values_from_folder",
