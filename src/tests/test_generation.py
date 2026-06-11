@@ -833,3 +833,54 @@ def test_generate_module_can_fall_back_without_tqdm(monkeypatch: pytest.MonkeyPa
     assert reloaded.tqdm is None
     monkeypatch.setattr(builtins, "__import__", real_import)
     importlib.reload(gen)
+
+        
+def test_validate_discovered_schema():
+    with pytest.raises(ValueError, match="provider error"):
+        gen._validate_discovered_schema({"error": "connection refused"})
+
+    with pytest.raises(ValueError, match="provider error"):
+        gen._validate_discovered_schema([{"error": "500"}])
+
+    with pytest.raises(ValueError, match="no 'proposed_features'"):
+        gen._validate_discovered_schema({})
+
+    with pytest.raises(ValueError, match="no 'proposed_features'"):
+        gen._validate_discovered_schema({"proposed_features": []})
+
+    with pytest.raises(ValueError, match="must be a list"):
+        gen._validate_discovered_schema({"proposed_features": "not a list"})
+
+    with pytest.raises(ValueError, match="no valid entries"):
+        gen._validate_discovered_schema({"proposed_features": [{"name": "x"}]})
+
+    gen._validate_discovered_schema({"proposed_features": [{"feature": "sentiment"}]})
+    gen._validate_discovered_schema({"proposed_features": ["sentiment", "length"]})
+
+
+def test_load_discovered_features_rejects_error_payload(tmp_path: Path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps([{"error": "llama runner crashed"}]), encoding="utf-8")
+    with pytest.raises(ValueError, match="provider error"):
+        gen.load_discovered_features(bad)
+
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"proposed_features": []}), encoding="utf-8")
+    with pytest.raises(ValueError, match="no 'proposed_features'"):
+        gen.load_discovered_features(empty)
+
+
+def test_assign_feature_values_raises_on_empty_schema(tmp_path: Path):
+    root = tmp_path / "root"
+    class_dir = root / "cls"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("hello", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="at least one feature name"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="cls",
+            discovered_features={"proposed_features": [{"description": "no feature key"}]},
+            provider=FakeProvider(),
+            output_dir=tmp_path / "out",
+        )
