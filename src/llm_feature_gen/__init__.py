@@ -18,6 +18,13 @@ from .generate import (
     load_discovered_features,
     parse_json_from_markdown,
 )
+from .batch import BatchTextCache, generate_features_batch, generate_features_from_texts_cached
+from .multiclass import (
+    MultiClassDiscoveryPromptBuilder,
+    discover_features_multiclass,
+    generate_features_multiclass,
+    run_multiclass_pipeline,
+)
 from .providers import LocalProvider, OpenAIProvider
 from .sklearn_transformer import LLMFeatureTransformer
 
@@ -29,18 +36,25 @@ except PackageNotFoundError:  # pragma: no cover
 __all__ = [
     "LocalProvider",
     "LLMFeatureTransformer",
+    "MultiClassDiscoveryPromptBuilder",
     "OpenAIProvider",
     "__version__",
     "assign_feature_values_from_folder",
+    "BatchTextCache",
     "discover_features_from_images",
+    "discover_features_multiclass",
     "discover_features_from_tabular",
     "discover_features_from_texts",
     "discover_features_from_videos",
     "generate_features",
+    "generate_features_batch",
     "generate_features_from_images",
     "generate_features_from_tabular",
+    "generate_features_from_texts_cached",
     "generate_features_from_texts",
     "generate_features_from_videos",
+    "generate_features_multiclass",
     "load_discovered_features",
     "parse_json_from_markdown",
+    "run_multiclass_pipeline",
 ]
