@@ -99,6 +99,109 @@ def test_discover_texts_from_file_and_directory(tmp_path: Path, monkeypatch: pyt
     assert isinstance(folder_result, list)
 
 
+def test_discover_texts_allows_custom_min_features(tmp_path: Path):
+    provider = TextProvider()
+
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        provider=provider,
+        min_features=3,
+        output_dir=tmp_path / "out",
+    )
+
+    assert "Provide at least 3 distinct features." in provider.calls[0]["prompt"]
+    assert "Provide at least 10 distinct features." not in provider.calls[0]["prompt"]
+
+    with pytest.raises(ValueError, match="min_features"):
+        discover_mod.discover_features_from_texts(
+            "raw text",
+            provider=provider,
+            min_features=0,
+            output_dir=tmp_path / "bad",
+        )
+
+
+def test_discover_texts_warns_and_errors_when_only_file_is_empty(tmp_path: Path):
+    provider = TextProvider()
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("", encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="empty.txt.*empty or contains only whitespace"):
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                empty_file,
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
+
+    assert provider.calls == []
+
+
+def test_discover_texts_warns_and_skips_whitespace_only_file_in_folder(tmp_path: Path):
+    provider = TextProvider()
+    folder = tmp_path / "texts"
+    folder.mkdir()
+    (folder / "valid.txt").write_text("useful content", encoding="utf-8")
+    (folder / "blank.txt").write_text(" \n\t ", encoding="utf-8")
+
+    with pytest.warns(UserWarning, match="blank.txt.*empty or contains only whitespace"):
+        discover_mod.discover_features_from_texts(
+            folder,
+            provider=provider,
+            as_set=False,
+            output_dir=tmp_path / "out",
+        )
+
+    assert provider.calls[0]["texts"] == ["useful content"]
+
+
+def test_discover_texts_warns_and_errors_when_raw_input_is_whitespace_only(tmp_path: Path):
+    provider = TextProvider()
+
+    with pytest.warns(UserWarning, match="text input.*empty or contains only whitespace"):
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                " \n\t ",
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
+
+    assert provider.calls == []
+
+
+def test_discover_texts_warns_and_errors_when_multiple_inputs_are_empty(tmp_path: Path):
+    provider = TextProvider()
+
+    with pytest.warns(UserWarning) as warnings:
+        with pytest.raises(ValueError, match="No non-empty text inputs"):
+            discover_mod.discover_features_from_texts(
+                ["", " \n\t"],
+                provider=provider,
+                output_dir=tmp_path / "out",
+            )
+
+    warning_messages = [str(warning.message) for warning in warnings]
+    assert any("text input at index 0" in message for message in warning_messages)
+    assert any("text input at index 1" in message for message in warning_messages)
+    assert provider.calls == []
+
+
+def test_discover_texts_filters_blank_chunks_from_supported_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    provider = TextProvider()
+    text_file = tmp_path / "doc.txt"
+    text_file.write_text("ignored", encoding="utf-8")
+    monkeypatch.setattr(discover_mod, "extract_text_from_file", lambda path: ["", "kept", " \n"])
+
+    discover_mod.discover_features_from_texts(
+        text_file,
+        provider=provider,
+        as_set=False,
+        output_dir=tmp_path / "out",
+    )
+
+    assert provider.calls[0]["texts"] == ["kept"]
+
+
 def test_discover_texts_error_paths_and_invalid_special_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(FileNotFoundError):
         discover_mod.discover_features_from_texts(tmp_path / "missing.txt", provider=TextProvider())
@@ -140,9 +243,24 @@ def test_discover_images_single_file_and_video_edge_branches(tmp_path: Path, mon
     Image.new("RGB", (8, 8), color=(10, 20, 30)).save(img_path)
 
     image_provider = ImageProvider()
-    result = discover_mod.discover_features_from_images(img_path, provider=image_provider, as_set=True, output_dir=tmp_path / "imgout")
+    result = discover_mod.discover_features_from_images(
+        img_path,
+        provider=image_provider,
+        as_set=True,
+        output_dir=tmp_path / "imgout",
+        min_features=4,
+    )
     assert "proposed_features" in result
     assert len(image_provider.calls[0]["images"]) == 1
+    assert "Provide at least 4 features." in image_provider.calls[0]["prompt"]
+
+    with pytest.raises(ValueError, match="min_features"):
+        discover_mod.discover_features_from_images(
+            img_path,
+            provider=image_provider,
+            output_dir=tmp_path / "badimgout",
+            min_features=0,
+        )
 
     default_text_provider = TextProvider()
     monkeypatch.setattr(discover_mod, "OpenAIProvider", lambda: default_text_provider)
@@ -187,10 +305,12 @@ def test_discover_images_single_file_and_video_edge_branches(tmp_path: Path, mon
         output_dir=tmp_path / "vidout",
         max_videos_to_sample=2,
         max_total_frames_payload=2,
+        min_features=6,
     )
     assert isinstance(result, list)
     assert video_provider.calls[0]["as_set"] is False
     assert downsample_calls
+    assert "Provide at least 6 features." in video_provider.calls[0]["prompt"]
 
     list_provider = ImageProvider()
     monkeypatch.setattr(discover_mod, "OpenAIProvider", lambda: list_provider)
@@ -365,9 +485,11 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
 
     captured = {}
 
-    def fake_discover_texts(texts_or_file, prompt, provider, as_set, output_dir, output_filename):
+    def fake_discover_texts(texts_or_file, prompt, provider, as_set, output_dir, output_filename, min_features):
         captured["texts"] = texts_or_file
         captured["output_filename"] = output_filename
+        captured["min_features"] = min_features
+        captured["prompt"] = prompt
         return {"ok": True}
 
     monkeypatch.setattr(discover_mod, "discover_features_from_texts", fake_discover_texts)
@@ -377,10 +499,12 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
         text_column="text",
         provider=TextProvider(),
         max_rows=3,
+        min_features=7,
     )
     assert result == {"ok": True}
     assert captured["texts"] == ["c1", "c2", "x1"]
     assert captured["output_filename"] == "discovered_tabular_features.json"
+    assert captured["min_features"] == 7
     assert calls == [("csv", ","), ("csv", ";")]
 
     subdir = folder / "subdir"
