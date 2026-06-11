@@ -263,3 +263,42 @@ def test_video_discovery_raises_when_no_frames_extracted(tmp_path: Path, monkeyp
 
     with pytest.raises(ValueError):
         discover_features_from_videos(str(video_path), provider=FakeProvider())
+
+def test_discovery_raises_on_error_payload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from llm_feature_gen import discover as disc
+
+    class ErrorProvider:
+        def text_features(self, text_list, prompt=None):
+            return [{"error": "llama runner crashed"}]
+
+        def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+            return [{"error": "connection refused"}]
+
+    with pytest.raises(ValueError, match="Provider returned an error"):
+        disc.discover_features_from_texts(
+            "some raw text",
+            provider=ErrorProvider(),
+            output_dir=tmp_path / "out",
+        )
+
+    d = tmp_path / "imgs"
+    d.mkdir()
+    _make_image(d / "a.png")
+    with pytest.raises(ValueError, match="Provider returned an error"):
+        discover_features_from_images(
+            str(d),
+            provider=ErrorProvider(),
+            output_dir=tmp_path / "out",
+        )
+
+    monkeypatch.setattr(disc, "extract_key_frames", lambda path, frame_limit=5: ["f1"])
+    monkeypatch.setattr(disc, "extract_audio_track", lambda path: None)
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"fake")
+    with pytest.raises(ValueError, match="Provider returned an error"):
+        disc.discover_features_from_videos(
+            str(video),
+            provider=ErrorProvider(),
+            output_dir=tmp_path / "out2",
+            use_audio=False,
+        )

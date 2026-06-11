@@ -19,6 +19,7 @@ import numpy as np
 from .providers.openai_provider import OpenAIProvider
 from .utils.image import image_to_base64
 from .prompts import image_generation_prompt, text_generation_prompt
+from .contracts import ProviderResponseError, normalize_feature_values_response, parse_json_object_from_markdown
 
 try:
     from tqdm import tqdm
@@ -29,6 +30,34 @@ except ImportError:  # pragma: no cover
 # ----------------------------
 # helpers
 # ----------------------------
+
+class GenerationCircuitBreakerError(RuntimeError):
+    """Raised when repeated provider/output failures make a run unlikely to recover."""
+
+
+def _format_generation_failure(source: str, reason: str) -> str:
+    """Build a compact, user-facing failure message."""
+    return f"{source}: {reason}"
+
+
+def _provider_error_from_payload(payload: Any) -> Optional[str]:
+    """Return a provider error message from a returned payload, if present."""
+    if isinstance(payload, dict) and payload.get("error"):
+        return str(payload["error"])
+    return None
+
+
+def _check_failure_threshold(
+        failure_count: int,
+        failure_threshold: Optional[int],
+        last_failure: str,
+) -> None:
+    """Raise when the configured consecutive failure threshold is reached."""
+    if failure_threshold is not None and failure_threshold > 0 and failure_count >= failure_threshold:
+        raise GenerationCircuitBreakerError(
+            f"Stopping generation after {failure_count} consecutive provider/output "
+            f"failures. Last failure: {last_failure}"
+        )
 
 def _prepare_tabular_inputs(
         file_path: Path,
@@ -155,6 +184,56 @@ def _prepare_image_inputs(file_path: Path) -> Tuple[List[str], Optional[str]]:
     return b64_list, None
 
 
+def _validate_discovered_schema(data: Any) -> None:
+    """
+    Raises ValueError if the discovery artifact is not a usable schema.
+    Catches error payloads, missing proposed_features, and empty feature lists.
+    """
+    # error payload from provider
+    if isinstance(data, dict) and "error" in data:
+        raise ValueError(
+            f"Discovery artifact contains a provider error instead of a schema: "
+            f"{data['error']}"
+        )
+
+    if isinstance(data, list):
+        if len(data) == 1 and isinstance(data[0], dict) and "error" in data[0]:
+            raise ValueError(
+                f"Discovery artifact contains a provider error instead of a schema: "
+                f"{data[0]['error']}"
+            )
+        # normalize for further checks
+        if len(data) == 1 and isinstance(data[0], dict) and "proposed_features" in data[0]:
+            data = data[0]
+        else:
+            data = {"proposed_features": data}
+
+    proposed = data.get("proposed_features") if isinstance(data, dict) else None
+
+    if not proposed:
+        raise ValueError(
+            "Discovery artifact has no 'proposed_features'. "
+            "Discovery likely failed. Check your provider and try again."
+        )
+
+    if not isinstance(proposed, list):
+        raise ValueError(
+            f"'proposed_features' must be a list, got {type(proposed).__name__}."
+        )
+
+    valid = [
+        f for f in proposed
+        if (isinstance(f, dict) and f.get("feature"))
+        or (isinstance(f, str) and f)
+    ]
+
+    if not valid:
+        raise ValueError(
+            "Discovery artifact has 'proposed_features' but no valid entries. "
+            "Each entry must have a non-empty 'feature' key."
+        )
+
+
 def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
     """Load and normalize a discovered-features JSON artifact.
 
@@ -169,6 +248,8 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
 
+    _validate_discovered_schema(data)
+
     # normalize
     if isinstance(data, list):
         if len(data) == 1 and isinstance(data[0], dict) and "proposed_features" in data[0]:
@@ -181,18 +262,9 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
 
 def parse_json_from_markdown(text: str) -> Dict[str, Any]:
     """Parse JSON content that may be wrapped in a fenced Markdown block."""
-    if not text:
-        return {}
-    txt = text.strip()
-    if txt.startswith("```"):
-        lines = txt.splitlines()
-        lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        txt = "\n".join(lines).strip()
     try:
-        return json.loads(txt)
-    except Exception:
+        return parse_json_object_from_markdown(text)
+    except ProviderResponseError:
         return {}
 
 
@@ -233,28 +305,23 @@ def _extract_feature_names(discovered_features: Any) -> List[str]:
     return names
 
 
-def _infer_feature_names_from_llm(parsed: Any) -> List[str]:
+def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Normalize a provider response and validate that it has feature values.
+
+    Returns the normalized raw payload and the inner feature dictionary used for
+    CSV columns. Provider errors, empty responses, and invalid feature payloads
+    raise ``ValueError`` so the generation circuit breaker can count them.
     """
-    Your LLM sometimes returns:
-        [ { "presence of liquid broth": "...", ... } ]
-    or
-        { "features": { ... } }
-    This tries to infer feature names from that.
-    """
-    # case: list with single dict
-    if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
-        return list(parsed[0].keys())
+    provider_error = _provider_error_from_payload(payload)
+    if provider_error:
+        raise ValueError(f"provider_error: {provider_error}")
 
-    # case: {"features": {...}}
-    if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], dict):
-        return list(parsed["features"].keys())
+    try:
+        normalized = normalize_feature_values_response(payload)
+    except ProviderResponseError as exc:
+        raise ValueError(str(exc)) from exc
 
-    # case: flat dict
-    if isinstance(parsed, dict):
-        return list(parsed.keys())
-
-    return []
-
+    return normalized, normalized["features"]
 
 # ----------------------------
 # per-class generation
@@ -268,6 +335,7 @@ def assign_feature_values_from_folder(
         use_audio: bool = True,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
+        failure_threshold: Optional[int] = 3,
 ) -> Path:
     """Generate feature values for every supported file in one class folder.
 
@@ -284,6 +352,8 @@ def assign_feature_values_from_folder(
             column sent to the LLM.
         label_column: Optional tabular column whose values override the class
             label for row-level outputs.
+        failure_threshold: Number of consecutive provider/output failures after
+            which generation aborts. Pass ``None`` or ``0`` to disable.
 
     Returns:
         The path to the generated per-class CSV file.
@@ -301,6 +371,8 @@ def assign_feature_values_from_folder(
 
     raw_names = _extract_feature_names(discovered_features)
     feature_names = list(dict.fromkeys(raw_names))
+    if not feature_names:
+        raise ValueError("discovered_features must include at least one feature name")
 
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
@@ -323,6 +395,8 @@ def assign_feature_values_from_folder(
 
     if not csv_path.exists():
         pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
+
+    consecutive_failures = 0
 
     for filename in iterator:
         file_path = class_folder / filename
@@ -352,30 +426,35 @@ def assign_feature_values_from_folder(
 
                     text_value = row_data["text"]
 
-                    llm_resp = provider.text_features(
-                        [text_value],
-                        prompt=full_prompt,
-                    )
+                    try:
+                        llm_resp = provider.text_features(
+                            [text_value],
+                            prompt=full_prompt,
+                        )
 
-                    parsed = llm_resp[0]
+                        parsed, inner = _normalize_generation_payload(llm_resp[0])
 
-                    if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
-                        parsed = {"features": parse_json_from_markdown(parsed["features"])}
+                        row_dict: Dict[str, Any] = {
+                            "File": f"{filename}__row_{idx}",
+                            "Class": row_data.get("label", class_name),
+                            "raw_llm_output": json.dumps(parsed, ensure_ascii=False),
+                        }
 
-                    inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
+                        for feat in feature_names:
+                            value = inner.get(feat, "not given by LLM")
+                            row_dict[feat] = value
+                            
+                        df_out = pd.DataFrame([row_dict], columns=all_columns)
+                        df_out.to_csv(csv_path, mode="a", header=False, index=False)
+                        consecutive_failures = 0
 
-                    row_dict: Dict[str, Any] = {
-                        "File": f"{filename}__row_{idx}",
-                        "Class": row_data.get("label", class_name),
-                        "raw_llm_output": json.dumps(parsed, ensure_ascii=False),
-                    }
-
-                    for feat in feature_names:
-                        value = inner.get(feat, "not given by LLM")
-                        row_dict[feat] = value
-
-                    df_out = pd.DataFrame([row_dict], columns=all_columns)
-                    df_out.to_csv(csv_path, mode="a", header=False, index=False)
+                    except Exception as e:
+                        consecutive_failures += 1
+                        row_source = f"{filename}__row_{idx}"
+                        last_failure = _format_generation_failure(row_source, str(e))
+                        print(f"Error processing {last_failure}")
+                        _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+                        continue
 
                 continue  # skip default file-level logic
 
@@ -393,50 +472,84 @@ def assign_feature_values_from_folder(
                 if not b64_list:
                     continue
 
-                llm_resp = provider.image_features(
-                    image_base64_list=b64_list,
-                    prompt=full_prompt,
-                    as_set=True,
-                    extra_context=transcript_context,
-                )
+                try:
+                    llm_resp = provider.image_features(
+                        image_base64_list=b64_list,
+                        prompt=full_prompt,
+                        as_set=True,
+                        extra_context=transcript_context,
+                    )
+                except Exception as e:
+                    consecutive_failures += 1
+                    last_failure = _format_generation_failure(filename, str(e))
+                    print(f"Error processing {last_failure}")
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+                    continue
 
             elif ext in image_exts:
                 full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
                 b64_list, _ = _prepare_image_inputs(file_path)
-                llm_resp = provider.image_features(
-                    image_base64_list=b64_list,
-                    prompt=full_prompt,
-                )
+                try:
+                    llm_resp = provider.image_features(
+                        image_base64_list=b64_list,
+                        prompt=full_prompt,
+                    )
+                except Exception as e:
+                    consecutive_failures += 1
+                    last_failure = _format_generation_failure(filename, str(e))
+                    print(f"Error processing {last_failure}")
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+                    continue
 
             elif ext in text_exts:
                 full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
                 texts = _prepare_text_inputs(file_path)
                 combined_text = "\n\n---\n\n".join(texts)
-                llm_resp = provider.text_features(
-                    [combined_text],
-                    prompt=full_prompt,
-                )
+                try:
+                    llm_resp = provider.text_features(
+                        [combined_text],
+                        prompt=full_prompt,
+                    )
+                except Exception as e:
+                    consecutive_failures += 1
+                    last_failure = _format_generation_failure(filename, str(e))
+                    print(f"Error processing {last_failure}")
+                    _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+                    continue
 
             else:
                 continue
 
-            parsed = llm_resp[0]
+            try:
+                parsed = llm_resp[0]
+            except Exception:
+                consecutive_failures += 1
+                last_failure = _format_generation_failure(filename, "empty_output: provider returned no output")
+                print(f"Error processing {last_failure}")
+                _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+                continue
 
+        except GenerationCircuitBreakerError:
+            raise
         except Exception as e:
-            print(f"Error processing {filename}: {e}")
+            consecutive_failures += 1
+            last_failure = _format_generation_failure(filename, f"input_preparation_error: {e}")
+            print(f"Error processing {last_failure}")
+            _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
             continue
 
         # =========================================================
         # FILE-LEVEL RESULT WRITING
         # =========================================================
-        if isinstance(parsed, dict) and "features" in parsed and isinstance(parsed["features"], str):
-            parsed = {"features": parse_json_from_markdown(parsed["features"])}
-
-        if not feature_names:
-            feature_names = _infer_feature_names_from_llm(parsed)
-
-        inner = parsed.get("features", parsed) if isinstance(parsed, dict) else {}
-
+        try:
+            parsed, inner = _normalize_generation_payload(parsed)
+        except Exception as e:
+            consecutive_failures += 1
+            last_failure = _format_generation_failure(filename, str(e))
+            print(f"Error processing {last_failure}")
+            _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
+            continue
+            
         row = {
             "File": filename,
             "Class": class_name,
@@ -453,6 +566,7 @@ def assign_feature_values_from_folder(
             header=False,
             index=False
         )
+        consecutive_failures = 0
 
     return csv_path
 
@@ -471,6 +585,7 @@ def generate_features(
         use_audio: bool = True,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
+        failure_threshold: Optional[int] = 3,
 ) -> Dict[str, str]:
     """Run the full feature-generation pipeline for a class-organized dataset.
 
@@ -488,6 +603,8 @@ def generate_features(
         use_audio: Whether video generation should include transcript context.
         text_column: Required for tabular generation.
         label_column: Optional row-level label override for tabular generation.
+        failure_threshold: Number of consecutive provider/output failures after
+            which generation aborts. Pass ``None`` or ``0`` to disable.
 
     Returns:
         A mapping from class name to generated CSV path. When
@@ -514,6 +631,7 @@ def generate_features(
             use_audio=use_audio,
             text_column=text_column,
             label_column=label_column,
+            failure_threshold=failure_threshold,
         )
         csv_paths[cls] = str(csv_path)
 
@@ -559,3 +677,5 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
+
+
