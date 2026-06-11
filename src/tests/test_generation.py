@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 from PIL import Image
 
+from llm_feature_gen.contracts import ProviderResponseError, normalize_feature_values_response
 from llm_feature_gen import generate as gen
 from llm_feature_gen.utils import text as text_utils
 
@@ -153,6 +154,31 @@ def test_prepare_image_inputs_and_helper_functions(tmp_path: Path):
     assert gen._extract_feature_names([{"feature": "a"}]) == ["a"]
 
 
+def test_feature_values_contract_accepts_legacy_valid_shapes():
+    assert normalize_feature_values_response({"features": {"a": 1}}) == {"features": {"a": 1}}
+    assert normalize_feature_values_response({"features": '{"a": 1}'}) == {"features": {"a": 1}}
+    assert normalize_feature_values_response({"features": "```json\n{\"a\": 1}\n```"}) == {"features": {"a": 1}}
+    assert normalize_feature_values_response({"a": 1}) == {"features": {"a": 1}}
+    assert normalize_feature_values_response([{"a": 1}]) == {"features": {"a": 1}}
+
+
+def test_feature_values_contract_rejects_invalid_shapes():
+    invalid_payloads = [
+        {"error": "rate limit"},
+        {"features": "plain text"},
+        {"features": "[1, 2]"},
+        {"features": []},
+        {},
+        [],
+        [{"a": 1}, {"b": 2}],
+        "plain text",
+    ]
+
+    for payload in invalid_payloads:
+        with pytest.raises(ProviderResponseError):
+            normalize_feature_values_response(payload)
+
+
 def test_generation_prompts_enumeration_and_raw_json_instructions():
     """Shipped generation prompts constrain enums and forbid markdown-wrapped JSON."""
     for body in (gen.text_generation_prompt, gen.image_generation_prompt):
@@ -278,13 +304,13 @@ def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exception
 
 
 def test_generation_payload_validation_rejects_invalid_shapes():
-    with pytest.raises(ValueError, match="invalid_output: invalid or empty JSON"):
+    with pytest.raises(ValueError, match="Invalid JSON response"):
         gen._normalize_generation_payload({"features": "not json"})
 
-    with pytest.raises(ValueError, match="empty_output: empty or invalid provider output"):
+    with pytest.raises(ValueError, match="Feature response must be a non-empty object"):
         gen._normalize_generation_payload(None)
 
-    with pytest.raises(ValueError, match="invalid_output: provider output did not contain feature values"):
+    with pytest.raises(ValueError, match="Feature response must contain a non-empty feature object"):
         gen._normalize_generation_payload({"features": []})
 
     with pytest.raises(ValueError, match="provider_error: rate limit"):
@@ -577,6 +603,21 @@ def test_assign_feature_values_from_folder_covers_remaining_branches(tmp_path: P
     )
     df = pd.read_csv(csv_path)
     assert list(df["feat1"]) == ["from-string", "from-string"]
+
+    class InvalidStringProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None):
+            return [{"features": "not json"}]
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classD",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=InvalidStringProvider(),
+        output_dir=tmp_path / "out_invalid",
+        text_column="text",
+    )
+    df = pd.read_csv(csv_path)
+    assert df.empty
 
     class DictProvider(FakeProvider):
         def text_features(self, text_list, prompt=None):

@@ -19,6 +19,7 @@ import numpy as np
 from .providers.openai_provider import OpenAIProvider
 from .utils.image import image_to_base64
 from .prompts import image_generation_prompt, text_generation_prompt
+from .contracts import ProviderResponseError, normalize_feature_values_response, parse_json_object_from_markdown
 
 try:
     from tqdm import tqdm
@@ -44,33 +45,6 @@ def _provider_error_from_payload(payload: Any) -> Optional[str]:
     if isinstance(payload, dict) and payload.get("error"):
         return str(payload["error"])
     return None
-
-
-def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Normalize a provider response and validate that it has feature values.
-
-    Returns the normalized raw payload and the inner feature dictionary used for
-    CSV columns. Provider errors, empty responses, and invalid feature payloads
-    raise ``ValueError`` so the generation circuit breaker can count them.
-    """
-    provider_error = _provider_error_from_payload(payload)
-    if provider_error:
-        raise ValueError(f"provider_error: {provider_error}")
-
-    if isinstance(payload, dict) and "features" in payload and isinstance(payload["features"], str):
-        parsed_features = parse_json_from_markdown(payload["features"])
-        if not parsed_features:
-            raise ValueError("invalid_output: invalid or empty JSON in provider 'features' output")
-        payload = {"features": parsed_features}
-
-    if not isinstance(payload, dict) or not payload:
-        raise ValueError("empty_output: empty or invalid provider output")
-
-    inner = payload.get("features", payload)
-    if not isinstance(inner, dict) or not inner:
-        raise ValueError("invalid_output: provider output did not contain feature values")
-
-    return payload, inner
 
 
 def _check_failure_threshold(
@@ -236,18 +210,9 @@ def load_discovered_features(path: Union[str, Path]) -> Dict[str, Any]:
 
 def parse_json_from_markdown(text: str) -> Dict[str, Any]:
     """Parse JSON content that may be wrapped in a fenced Markdown block."""
-    if not text:
-        return {}
-    txt = text.strip()
-    if txt.startswith("```"):
-        lines = txt.splitlines()
-        lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        txt = "\n".join(lines).strip()
     try:
-        return json.loads(txt)
-    except Exception:
+        return parse_json_object_from_markdown(text)
+    except ProviderResponseError:
         return {}
 
 
@@ -287,6 +252,24 @@ def _extract_feature_names(discovered_features: Any) -> List[str]:
             names.append(f)
     return names
 
+
+def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Normalize a provider response and validate that it has feature values.
+
+    Returns the normalized raw payload and the inner feature dictionary used for
+    CSV columns. Provider errors, empty responses, and invalid feature payloads
+    raise ``ValueError`` so the generation circuit breaker can count them.
+    """
+    provider_error = _provider_error_from_payload(payload)
+    if provider_error:
+        raise ValueError(f"provider_error: {provider_error}")
+
+    try:
+        normalized = normalize_feature_values_response(payload)
+    except ProviderResponseError as exc:
+        raise ValueError(str(exc)) from exc
+
+    return normalized, normalized["features"]
 
 # ----------------------------
 # per-class generation
@@ -408,7 +391,7 @@ def assign_feature_values_from_folder(
                         for feat in feature_names:
                             value = inner.get(feat, "not given by LLM")
                             row_dict[feat] = value
-
+                            
                         df_out = pd.DataFrame([row_dict], columns=all_columns)
                         df_out.to_csv(csv_path, mode="a", header=False, index=False)
                         consecutive_failures = 0
@@ -514,7 +497,7 @@ def assign_feature_values_from_folder(
             print(f"Error processing {last_failure}")
             _check_failure_threshold(consecutive_failures, failure_threshold, last_failure)
             continue
-
+            
         row = {
             "File": filename,
             "Class": class_name,

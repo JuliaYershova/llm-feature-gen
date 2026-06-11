@@ -10,6 +10,7 @@ import pytest
 
 from llm_feature_gen.providers import local_provider as local_mod
 from llm_feature_gen.providers import openai_provider as openai_mod
+from llm_feature_gen.contracts import ProviderResponseError
 
 
 class DummyRateLimitError(Exception):
@@ -105,17 +106,17 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
 
     client, _ = make_chat_client([DummyRateLimitError(), DummyRateLimitError()])
     provider.client = client
-    with pytest.raises(DummyRateLimitError):
+    with pytest.raises(ProviderResponseError, match="Rate limit"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     client, _ = make_chat_client([RuntimeError("boom")])
     provider.client = client
-    with pytest.raises(RuntimeError, match="boom"):
+    with pytest.raises(ProviderResponseError, match="boom"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
-    with pytest.raises(RuntimeError, match="Unknown failure"):
+    with pytest.raises(ProviderResponseError, match="Unknown failure"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
 
     captured = []
