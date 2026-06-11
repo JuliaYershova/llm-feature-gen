@@ -15,6 +15,7 @@ from PIL import Image
 import numpy as np
 import os
 import json
+import warnings
 from datetime import datetime
 
 from .utils.image import image_to_base64
@@ -32,6 +33,24 @@ DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".html"}
 
 
+def _validate_min_features(min_features: int) -> None:
+    """Validate the requested minimum number of discovered features."""
+    if not isinstance(min_features, int) or min_features < 1:
+        raise ValueError("min_features must be a positive integer.")
+
+
+def _apply_min_features_to_prompt(prompt: str, min_features: int, *, distinct: bool) -> str:
+    """Replace the default feature-count instruction in a discovery prompt."""
+    _validate_min_features(min_features)
+    noun = "distinct features" if distinct else "features"
+    replacement = f"Provide at least {min_features} {noun}."
+    return (
+        prompt
+        .replace("Provide at least 10 distinct features.", replacement)
+        .replace("Provide at least 10 features.", replacement)
+    )
+
+
 def _looks_like_text_path(value: str) -> bool:
     """Heuristically distinguish raw text from a missing filesystem path."""
     candidate = Path(value)
@@ -46,6 +65,11 @@ def _looks_like_text_path(value: str) -> bool:
     )
 
 
+def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
+    """Return text chunks that contain non-whitespace content."""
+    return [chunk for chunk in chunks if chunk.strip()]
+
+
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
         prompt: str = image_discovery_prompt,
@@ -53,6 +77,7 @@ def discover_features_from_images(
         as_set: bool = True,  # <- default TRUE for discovery
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
+        min_features: int = 10,
 ) -> DiscoveryResult:
     """Discover features from image files and persist the provider response.
 
@@ -69,6 +94,7 @@ def discover_features_from_images(
         output_dir: Directory where the JSON artifact should be written.
         output_filename: Custom filename for the saved artifact. Defaults to
             ``discovered_image_features.json``.
+        min_features: Minimum number of features to request from the provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -82,6 +108,7 @@ def discover_features_from_images(
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
+    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=False)
 
     # 2) collect image paths
     if isinstance(image_paths_or_folder, (str, Path)):
@@ -173,6 +200,7 @@ def discover_features_from_videos(
         max_videos_to_sample: int = 5,
         max_total_frames_payload: int = 15,
         random_seed: Optional[int] = None,
+        min_features: int = 10,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -207,6 +235,7 @@ def discover_features_from_videos(
         random_seed: Optional seed used when folder inputs need to sample a
             subset of videos. Pass a value here to make the sampled subset
             reproducible across runs.
+        min_features: Minimum number of features to request from the provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -222,6 +251,7 @@ def discover_features_from_videos(
     # 1) init provider
     # -------------------------------------------------
     provider = provider or OpenAIProvider()
+    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=False)
 
     # -------------------------------------------------
     # 2) collect video paths
@@ -368,6 +398,7 @@ def discover_features_from_texts(
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         num_classes: Optional[int] = None,
+        min_features: int = 10,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -385,6 +416,9 @@ def discover_features_from_texts(
         output_dir: Directory where the JSON artifact should be written.
         output_filename: Custom filename for the saved artifact. Defaults to
             ``discovered_text_features.json``.
+        num_classes: Optional number of hidden classes reflected in the prompt.
+        min_features: Minimum number of distinct features to request from the
+            provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -398,6 +432,7 @@ def discover_features_from_texts(
 
     # 1) init provider
     provider = provider or OpenAIProvider()
+    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=True)
     # Adjust prompt for num_classes if specified
     if num_classes is not None and num_classes != 2:
         prompt = prompt.replace(
@@ -416,6 +451,18 @@ def discover_features_from_texts(
     # -------------------------------------------------
     texts: List[str] = []
 
+    def add_text_chunks(chunks: List[str], label: str) -> None:
+        nonlocal texts
+        nonempty_chunks = _nonempty_text_chunks(chunks)
+        if nonempty_chunks:
+            texts.extend(nonempty_chunks)
+        else:
+            warnings.warn(
+                f"Skipping '{label}' because it is empty or contains only whitespace.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     if isinstance(texts_or_file, Path):
         path = Path(texts_or_file)
 
@@ -424,14 +471,14 @@ def discover_features_from_texts(
 
         if path.is_file():
             # single file of ANY supported text type
-            texts = extract_text_from_file(path)
+            add_text_chunks(extract_text_from_file(path), path.name)
 
         elif path.is_dir():
             # folder with mixed document types
-            for file in sorted(path.iterdir()):
+            for file in sorted(path.rglob("*")):
                 if file.is_file():
                     try:
-                        texts.extend(extract_text_from_file(file))
+                        add_text_chunks(extract_text_from_file(file), file.name)
                     except ValueError:
                         pass  # skip unsupported files silently
 
@@ -443,12 +490,12 @@ def discover_features_from_texts(
 
         if path.exists():
             if path.is_file():
-                texts = extract_text_from_file(path)
+                add_text_chunks(extract_text_from_file(path), path.name)
             elif path.is_dir():
-                for file in sorted(path.iterdir()):
+                for file in sorted(path.rglob("*")):
                     if file.is_file():
                         try:
-                            texts.extend(extract_text_from_file(file))
+                            add_text_chunks(extract_text_from_file(file), file.name)
                         except ValueError:
                             pass
             else:
@@ -456,13 +503,14 @@ def discover_features_from_texts(
         elif _looks_like_text_path(texts_or_file):
             raise FileNotFoundError(f"Path not found: {path}")
         else:
-            texts = [texts_or_file]
+            add_text_chunks([texts_or_file], "text input")
 
     else:
-        texts = list(texts_or_file)
+        for index, text in enumerate(texts_or_file):
+            add_text_chunks([text], f"text input at index {index}")
 
     if not texts:
-        raise ValueError("No text inputs found to process.")
+        raise ValueError("No non-empty text inputs found to process.")
     # -------------------------------------------------
     # 3) CALL PROVIDER
     # -------------------------------------------------
@@ -521,6 +569,7 @@ def discover_features_from_tabular(
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         max_rows: Optional[int] = None,
+        min_features: int = 10,
         ) -> DiscoveryResult:
     """Discover features from tabular datasets by projecting a text column.
 
@@ -542,6 +591,8 @@ def discover_features_from_tabular(
             ``discovered_tabular_features.json``.
         max_rows: Optional cap on how many rows are used from the concatenated
             dataset.
+        min_features: Minimum number of distinct features to request from the
+            provider.
 
     Returns:
         The same return shape as
@@ -607,4 +658,5 @@ def discover_features_from_tabular(
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename or "discovered_tabular_features.json",
+        min_features=min_features,
     )

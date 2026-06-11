@@ -8,6 +8,22 @@ Install the published package:
 pip install llm-feature-gen
 ```
 
+### Jupyter notebooks
+
+When installing from inside a notebook, run the install command in its own cell
+and restart the kernel before importing `llm_feature_gen`. Some hosted notebook
+services keep the old kernel environment active after `%pip install`, which can
+raise `ModuleNotFoundError` even after pip reports a successful install.
+
+If `%pip` installs into the wrong environment, target the current kernel
+explicitly:
+
+```python
+import sys
+
+!{sys.executable} -m pip install -U llm-feature-gen
+```
+
 Supported targets are summarized in the [platform support matrix](support.md).
 
 ## Development install
