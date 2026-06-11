@@ -139,3 +139,11 @@ class LLMFeatureTransformer(BaseEstimator, TransformerMixin):
 
     def _more_tags(self):
         return {"X_types": ["string"], "requires_y": False}
+
+    def __sklearn_tags__(self):
+        tags = super().__sklearn_tags__()
+        tags.input_tags.string = True
+        tags.input_tags.one_d_array = True
+        tags.input_tags.two_d_array = False
+        tags.target_tags.required = False
+        return tags

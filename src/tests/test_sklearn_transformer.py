@@ -157,6 +157,26 @@ def test_transformer_treats_raw_string_as_single_sample(mock_provider, tmp_path)
     assert result.shape == (1, 1)
 
 
+def test_transformer_accepts_string_class_name(mock_provider, tmp_path):
+    """Test that a string class name is accepted as a convenience."""
+    transformer = LLMFeatureTransformer(
+        provider=mock_provider,
+        classes="support_tickets",
+        output_dir=tmp_path,
+    )
+
+    with patch(
+        "llm_feature_gen.sklearn_transformer.discover_features_from_texts",
+        side_effect=_fake_discover_features_from_texts,
+    ), patch(
+        "llm_feature_gen.sklearn_transformer.generate_features_from_texts",
+        side_effect=_fake_generate_features_from_texts,
+    ) as mock_generate:
+        transformer.fit_transform(["first text"])
+
+    assert mock_generate.call_args.kwargs["classes"] == ["support_tickets"]
+
+
 def test_transformer_get_params():
     """Test that get_params returns constructor parameters without mutation."""
     classes = ["sad", "fear"]
@@ -168,6 +188,19 @@ def test_transformer_get_params():
     assert params["classes"] is classes
     assert params["output_dir"] == "outputs"
     assert params["n_discovery_samples"] == 5
+
+
+def test_transformer_tags_support_string_inputs():
+    """Test sklearn compatibility tags for current and older sklearn versions."""
+    transformer = LLMFeatureTransformer()
+
+    assert transformer._more_tags() == {"X_types": ["string"], "requires_y": False}
+
+    tags = transformer.__sklearn_tags__()
+    assert tags.input_tags.string is True
+    assert tags.input_tags.one_d_array is True
+    assert tags.input_tags.two_d_array is False
+    assert tags.target_tags.required is False
 
 
 def test_transformer_passes_sklearn_estimator_checks(tmp_path, monkeypatch):
