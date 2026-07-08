@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-feature-gen"
-version = "0.1.12"
+version = "0.1.13"
 description = "Generate interpretable feature schemas and tabular exports from text, images, tabular data, and video with LLMs"
 readme = "README.md"
 requires-python = ">=3.9"
