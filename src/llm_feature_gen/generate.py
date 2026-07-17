@@ -128,7 +128,8 @@ def _prepare_text_inputs(file_path: Path) -> List[str]:
 def _prepare_video_inputs(
         file_path: Path,
         use_audio: bool,
-        provider: Any
+        provider: Any,
+        num_frames: int = 6,
 ) -> Tuple[List[str], Optional[str]]:
     """Convert a video file into frame payloads plus optional transcript text.
 
@@ -137,6 +138,7 @@ def _prepare_video_inputs(
         use_audio: Whether to extract audio and request transcription.
         provider: Provider instance that may optionally implement
             ``transcribe_audio``.
+        num_frames: Maximum number of key frames extracted per video.
 
     Returns:
         A tuple of ``(base64_frames, transcript_context)``.
@@ -168,7 +170,7 @@ def _prepare_video_inputs(
     # -------------------------------------------------
     # 2) Visual frames
     # -------------------------------------------------
-    b64_list = extract_key_frames(str(file_path), frame_limit=6)
+    b64_list = extract_key_frames(str(file_path), frame_limit=num_frames)
 
     if not b64_list:
         print(f"Skipping video {file_path.name}: No frames extracted.")
@@ -333,6 +335,7 @@ def assign_feature_values_from_folder(
         provider: Optional[OpenAIProvider] = None,
         output_dir: Union[str, Path] = "outputs",
         use_audio: bool = True,
+        num_frames: int = 6,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
@@ -348,6 +351,7 @@ def assign_feature_values_from_folder(
         output_dir: Directory where the per-class CSV should be written.
         use_audio: Whether video files should include audio transcription
             context when supported by the provider.
+        num_frames: Maximum number of key frames extracted per video.
         text_column: Required when processing tabular files. Identifies the
             column sent to the LLM.
         label_column: Optional tabular column whose values override the class
@@ -466,7 +470,8 @@ def assign_feature_values_from_folder(
                 b64_list, transcript_context = _prepare_video_inputs(
                     file_path,
                     use_audio,
-                    provider
+                    provider,
+                    num_frames=num_frames,
                 )
 
                 if not b64_list:
@@ -583,6 +588,7 @@ def generate_features(
         merge_to_single_csv: bool = False,
         merged_csv_name: str = "all_feature_values.csv",
         use_audio: bool = True,
+        num_frames: int = 6,
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
@@ -601,6 +607,7 @@ def generate_features(
             additional file.
         merged_csv_name: Filename to use for the merged CSV artifact.
         use_audio: Whether video generation should include transcript context.
+        num_frames: Maximum number of key frames extracted per video.
         text_column: Required for tabular generation.
         label_column: Optional row-level label override for tabular generation.
         failure_threshold: Number of consecutive provider/output failures after
@@ -632,6 +639,7 @@ def generate_features(
             text_column=text_column,
             label_column=label_column,
             failure_threshold=failure_threshold,
+            num_frames=num_frames,
         )
         csv_paths[cls] = str(csv_path)
 

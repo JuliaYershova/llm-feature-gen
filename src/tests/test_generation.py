@@ -250,7 +250,7 @@ def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: P
         (class_dir / name).write_bytes(b"x")
 
     monkeypatch.setattr(gen, "_prepare_image_inputs", lambda path: (["image-b64"], None))
-    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: (["video-b64"], "transcript"))
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider, num_frames=6: (["video-b64"], "transcript"))
 
     def fake_prepare_text_inputs(path: Path):
         if path.name == "bad.md":
@@ -363,7 +363,7 @@ def test_assign_feature_values_circuit_breaker_handles_video_provider_exception(
     class_dir.mkdir(parents=True)
     (class_dir / "clip.mp4").write_bytes(b"x")
 
-    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: (["video-b64"], None))
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider, num_frames=6: (["video-b64"], None))
     monkeypatch.setattr(gen, "tqdm", None)
 
     class RaisingProvider(FakeProvider):
@@ -586,7 +586,7 @@ def test_assign_feature_values_from_folder_covers_remaining_branches(tmp_path: P
     df_missing = pd.read_csv(csv_path)
     assert list(df_missing["File"]) == ["note.txt"]
 
-    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: ([], None))
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider, num_frames=6: ([], None))
     monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
 
     class StringProvider(FakeProvider):
@@ -702,6 +702,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         provider,
         output_dir,
         use_audio,
+        num_frames,
         text_column,
         label_column,
         failure_threshold,
@@ -787,7 +788,7 @@ def test_video_discovery_and_generation_wrapper_defaults_line_up(tmp_path: Path,
 
     monkeypatch.setattr(disc, "extract_key_frames", lambda path, frame_limit=5: ["discover-frame"])
     monkeypatch.setattr(disc, "extract_audio_track", lambda path: None)
-    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider: (["gen-frame"], None))
+    monkeypatch.setattr(gen, "_prepare_video_inputs", lambda path, use_audio, provider, num_frames=6: (["gen-frame"], None))
     monkeypatch.setattr(gen, "tqdm", None)
 
     class SmokeProvider:
@@ -884,3 +885,30 @@ def test_assign_feature_values_raises_on_empty_schema(tmp_path: Path):
             provider=FakeProvider(),
             output_dir=tmp_path / "out",
         )
+
+def test_assign_feature_values_passes_num_frames(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classVid"
+    class_dir.mkdir(parents=True)
+    (class_dir / "clip.mp4").write_bytes(b"x")
+
+    captured = {}
+
+    def fake_extract(path, frame_limit=6):
+        captured["frame_limit"] = frame_limit
+        return []
+
+    monkeypatch.setattr(gen, "extract_key_frames", fake_extract)
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classVid",
+        discovered_features={"proposed_features": [{"feature": "f1"}]},
+        provider=FakeProvider(),
+        output_dir=tmp_path / "out",
+        use_audio=False,
+        num_frames=12,
+    )
+
+    assert captured["frame_limit"] == 12
