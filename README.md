@@ -81,19 +81,27 @@ LOCAL_WHISPER_MODEL_SIZE=base
 LOCAL_WHISPER_DEVICE=cpu
 ```
 
-Then pass the provider explicitly:
+Then pass the provider explicitly to both discovery and generation:
 
 ```python
-from llm_feature_gen import discover_features_from_texts
+from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
 from llm_feature_gen.providers import LocalProvider
 
 provider = LocalProvider()
-result = discover_features_from_texts(
+
+discovered = discover_features_from_texts(
     texts_or_file="discover_texts",
     provider=provider,
 )
 
-print(result)
+csv_paths = generate_features_from_texts(
+    root_folder="texts",
+    provider=provider,
+    merge_to_single_csv=True,
+)
+
+print(discovered)
+print(csv_paths)
 ```
 
 ### LM Studio or vLLM
