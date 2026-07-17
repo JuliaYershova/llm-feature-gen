@@ -5,23 +5,131 @@
 [![Docs](https://github.com/JuliaYershova/LLM-feature-gen/actions/workflows/docs.yml/badge.svg)](https://juliayershova.github.io/llm-feature-gen/)
 [![Codecov](https://codecov.io/gh/JuliaYershova/LLM-feature-gen/graph/badge.svg?token=BHLNPPOZUH)](https://codecov.io/gh/JuliaYershova/LLM-feature-gen)
 
-**LLM Feature Gen** is a Python library for discovering and generating interpretable features from unstructured data with large language models.
+`llm-feature-gen` turns text, images, tabular files, and videos into interpretable tabular features with LLMs.
 
-It helps you:
-- discover human-interpretable features from images, text, tabular data, and video
-- turn model outputs into structured JSON artifacts
-- generate feature values from raw multimodal inputs for downstream models
-- export per-class CSVs that are ready for analysis or modeling
+Use it when you have raw multimodal data and want a CSV dataset with explicit, human-readable feature columns for analysis, modeling, or inspection.
 
-## Quickstart
+## What It Does
 
-The README quickstart should get you from install to a first output with as little setup as possible:
+The package follows a two-step workflow:
+
+1. Discover a feature schema from example inputs.
+2. Generate feature values for class-organized data and save CSV files.
+
+Supported workflows include:
+
+- Text: `.txt`, `.md`, `.pdf`, `.docx`, `.html`
+- Images: `.jpg`, `.jpeg`, `.png`
+- Tabular data: `.csv`, `.xlsx`, `.xls`, `.parquet`, `.json`
+- Video: `.mp4`, `.mov`, `.avi`, `.mkv`
+
+The default provider is OpenAI or Azure OpenAI. A local OpenAI-compatible provider is also available for Ollama, vLLM, LM Studio, and similar servers.
+
+## Installation
 
 ```bash
 pip install llm-feature-gen
 ```
 
-Create a `.env` file in your working directory:
+Supported targets are CPython 3.9, 3.11, and 3.13 on Linux, macOS, and Windows. See [SUPPORT.md](SUPPORT.md) for the current support matrix.
+
+Some file formats need optional runtime dependencies:
+
+```bash
+pip install pypdf python-docx beautifulsoup4 openpyxl xlrd pyarrow
+```
+
+Video audio extraction also requires the `ffmpeg` system binary.
+
+## Configure a Provider
+
+Create a `.env` file in the directory where you run your script. For open-source-first and offline-friendly experiments, start with `LocalProvider`.
+
+## Local Provider Setup
+
+`LocalProvider` talks to any server that exposes an OpenAI-compatible chat-completions API, including Ollama, vLLM, LM Studio, and llama.cpp-compatible gateways.
+
+The provider has separate model settings for text and vision:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `LOCAL_OPENAI_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible local API endpoint |
+| `LOCAL_OPENAI_API_KEY` | `ollama` | Placeholder key required by the OpenAI SDK; many local servers ignore it |
+| `LOCAL_MODEL_TEXT` | `llama3` | Model used for text discovery and generation |
+| `LOCAL_MODEL_VISION` | `llava` | Model used for image and video-frame workflows |
+| `LOCAL_WHISPER_MODEL_SIZE` | `base` | Faster-Whisper model size for local audio transcription |
+| `LOCAL_WHISPER_DEVICE` | `cpu` | `cpu`, `cuda`, or `auto` for Faster-Whisper |
+
+### Ollama Example
+
+Install and start Ollama, then pull one text model and one vision model:
+
+```bash
+ollama pull llama3
+ollama pull llava
+ollama serve
+```
+
+Use this `.env`:
+
+```env
+LOCAL_OPENAI_BASE_URL=http://localhost:11434/v1
+LOCAL_OPENAI_API_KEY=ollama
+LOCAL_MODEL_TEXT=llama3
+LOCAL_MODEL_VISION=llava
+LOCAL_WHISPER_MODEL_SIZE=base
+LOCAL_WHISPER_DEVICE=cpu
+```
+
+Then pass the provider explicitly:
+
+```python
+from llm_feature_gen import discover_features_from_texts
+from llm_feature_gen.providers import LocalProvider
+
+provider = LocalProvider()
+result = discover_features_from_texts(
+    texts_or_file="discover_texts",
+    provider=provider,
+)
+
+print(result)
+```
+
+### LM Studio or vLLM
+
+Point `LOCAL_OPENAI_BASE_URL` at the server's OpenAI-compatible `/v1` endpoint and set the model names to the identifiers exposed by that server:
+
+```env
+LOCAL_OPENAI_BASE_URL=http://localhost:8000/v1
+LOCAL_OPENAI_API_KEY=local
+LOCAL_MODEL_TEXT=your-text-model
+LOCAL_MODEL_VISION=your-vision-model
+```
+
+### Video and Audio Locally
+
+Video workflows extract frames and use `LOCAL_MODEL_VISION` for visual analysis. If `use_audio=True`, `LocalProvider` uses `faster-whisper` for transcription.
+
+Install local transcription support only if you need audio:
+
+```bash
+pip install faster-whisper
+```
+
+If you do not need audio, or want to avoid the extra dependency, call video helpers with `use_audio=False`.
+
+### Reproducibility Notes
+
+For papers and benchmarks, report the local backend, model names, model versions or hashes, quantization, hardware, and decoding settings. The package defaults to `temperature=0.0` in both built-in providers, but local servers can still differ in tokenizer, context length, JSON-mode support, and multimodal formatting.
+
+Local models vary more than hosted APIs in their ability to return strict JSON. For best results, use instruction-tuned models with reliable JSON output and keep discovery batches small enough for the model context window.
+
+## OpenAI and Azure OpenAI Setup
+
+Use `OpenAIProvider` when you want a hosted backend. It auto-detects Azure mode when `AZURE_OPENAI_ENDPOINT` is set. Otherwise it uses the standard OpenAI API.
+
+For OpenAI:
 
 ```env
 OPENAI_API_KEY=your_api_key
@@ -29,14 +137,24 @@ OPENAI_MODEL=gpt-4.1-mini
 OPENAI_AUDIO_MODEL=whisper-1
 ```
 
-```bash
-python3 - <<'PY'
+For Azure OpenAI:
+
+```env
+AZURE_OPENAI_API_KEY=your_api_key
+AZURE_OPENAI_API_VERSION=your_api_version
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_GPT41_DEPLOYMENT_NAME=your_chat_deployment
+AZURE_OPENAI_WHISPER_DEPLOYMENT=your_audio_deployment
+```
+
+## Quickstart
+
+This example creates a tiny text dataset, discovers a shared schema, and generates feature-value CSVs.
+
+```python
 from pathlib import Path
 
-from llm_feature_gen import (
-    discover_features_from_texts,
-    generate_features_from_texts,
-)
+from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
 
 samples = {
     "demo_discover_texts/sample1.txt": "The dish was rich, spicy, and served in a deep bowl.",
@@ -58,342 +176,35 @@ csv_paths = generate_features_from_texts(
 
 print(discovered)
 print(csv_paths)
-PY
 ```
 
-This creates `outputs/discovered_text_features.json`, one CSV per class folder, and `outputs/all_feature_values.csv`.
+Expected outputs:
 
-If you want the fuller walkthrough, including provider switching and other modalities, see [the tutorial notebook](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/tutorial.ipynb). If you are working from a repository checkout and want to use editable installs or the bundled sample folders, see the development setup below.
+- `outputs/discovered_text_features.json`
+- `outputs/positive_feature_values.csv`
+- `outputs/negative_feature_values.csv`
+- `outputs/all_feature_values.csv`
 
-If you want one polished, citeable example that runs end to end from raw inputs to a downstream classifier, see [`examples/text_to_tabular_pipeline.py`](examples/text_to_tabular_pipeline.py) and the accompanying [`examples/README.md`](examples/README.md). It defaults to the real configured provider stack and also includes an offline replay mode for reproducible tests.
-
-## How It Works
-
-The library supports a two-step workflow:
-
-1. **Discover features** from a dataset and save them as JSON in `outputs/`.
-2. **Generate feature values** for each file or row using the discovered feature schema.
-
-## Supported Inputs
-
-### Discovery
-
-- Images: `.jpg`, `.jpeg`, `.png`
-- Text: `.txt`, `.md`, `.pdf`, `.docx`, `.html`
-- Tabular: `.csv`, `.xlsx`, `.xls`, `.parquet`, `.json`
-- Video: `.mp4`, `.mov`, `.avi`, `.mkv`
-
-### Generation
-
-- Images, text, tabular files, and videos are supported through the same folder-based pipeline.
-- Generation expects a root folder with one subfolder per class, for example `images/hotpot/` and `images/vase/`.
-
-### Optional Parser Dependencies
-
-The base install covers the core package, but some formats need extra packages at runtime:
-
-- `.pdf`: `pypdf`
-- `.docx`: `python-docx`
-- `.html`: `beautifulsoup4`
-- `.xlsx`: `openpyxl`
-- `.xls`: `xlrd`
-- `.parquet`: `pyarrow` or `fastparquet`
-
-For video audio extraction, you also need the `ffmpeg` system binary available on your machine.
-
-## Project Structure
+Generation expects one subfolder per class:
 
 ```text
-llm-feature-gen/
-├─ src/
-│  ├─ llm_feature_gen/
-│  │  ├─ __init__.py
-│  │  ├─ discover.py
-│  │  ├─ generate.py
-│  │  ├─ providers/
-│  │  │  ├─ local_provider.py
-│  │  │  └─ openai_provider.py
-│  │  ├─ prompts/
-│  │  │  ├─ image_discovery_prompt.txt
-│  │  │  ├─ image_generation_prompt.txt
-│  │  │  ├─ text_discovery_prompt.txt
-│  │  │  └─ text_generation_prompt.txt
-│  │  └─ utils/
-│  │     ├─ image.py
-│  │     ├─ text.py
-│  │     └─ video.py
-│  └─ tests/
-│     ├─ conftest.py
-│     ├─ test_discover_more.py
-│     ├─ test_discovery.py
-│     ├─ test_generation.py
-│     ├─ test_providers.py
-│     └─ test_utils_and_prompts.py
-├─ outputs/
-├─ pyproject.toml
-├─ tutorial.ipynb
-└─ README.md
+demo_texts/
+  positive/
+    review1.txt
+  negative/
+    review1.txt
 ```
 
-## Installation
+## Core API
 
-Install from PyPI:
-
-```bash
-pip install llm-feature-gen
-```
-
-If you install from inside a Jupyter notebook, run the install command in its
-own cell and restart the kernel before importing `llm_feature_gen`. On hosted
-Jupyter environments where `%pip` points at the wrong interpreter, install with
-the active kernel executable:
+Import the common helpers directly from `llm_feature_gen`:
 
 ```python
-import sys
-
-!{sys.executable} -m pip install -U llm-feature-gen
-```
-
-Supported Python versions and operating systems are documented in [SUPPORT.md](SUPPORT.md).
-
-### Development
-
-If you are working in this repository, use an editable install:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-```
-
-If you need non-core document or tabular formats:
-
-```bash
-pip install pypdf python-docx beautifulsoup4 openpyxl xlrd pyarrow
-```
-
-## Environment Setup
-
-Create a `.env` file in the directory where you run the library.
-
-### OpenAI API
-
-```env
-OPENAI_API_KEY=your_api_key
-OPENAI_MODEL=your_model_name
-OPENAI_AUDIO_MODEL=whisper-1
-```
-
-### Azure OpenAI
-
-```env
-AZURE_OPENAI_API_KEY=your_api_key
-AZURE_OPENAI_API_VERSION=your_api_version
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_GPT41_DEPLOYMENT_NAME=your_chat_deployment
-AZURE_OPENAI_WHISPER_DEPLOYMENT=your_audio_deployment
-```
-
-If `AZURE_OPENAI_ENDPOINT` is set, the provider automatically uses Azure OpenAI. Otherwise it falls back to the standard OpenAI API.
-
-### LocalProvider
-
-`LocalProvider` supports OpenAI-compatible local servers such as Ollama, vLLM, and LM Studio.
-
-```env
-LOCAL_OPENAI_BASE_URL=http://localhost:11434/v1
-LOCAL_OPENAI_API_KEY=ollama
-LOCAL_MODEL_TEXT=llama3
-LOCAL_MODEL_VISION=llava
-LOCAL_WHISPER_MODEL_SIZE=base
-LOCAL_WHISPER_DEVICE=cpu
-```
-
-Use it by passing an explicit provider instance:
-
-```python
-from llm_feature_gen.discover import discover_features_from_texts
-from llm_feature_gen.providers.local_provider import LocalProvider
-
-provider = LocalProvider()
-result = discover_features_from_texts(
-    texts_or_file="discover_texts",
-    provider=provider,
-)
-```
-
-For local video transcription, install `faster-whisper` if you want audio support. Otherwise set `use_audio=False` in video discovery or generation.
-
-## Input Layout and Outputs
-
-### Discovery inputs
-
-- `discover_features_from_texts` accepts a raw string, a list of raw strings, a single file, or a folder of supported text documents.
-- The other `discover_features_from_*` helpers accept a single file, a folder, or a list of raw file paths.
-- Discovery defaults to `as_set=True`, so folder-based discovery compares the full batch together and usually writes one shared feature schema JSON file.
-- The default discovery outputs are:
-  - `outputs/discovered_image_features.json`
-  - `outputs/discovered_text_features.json`
-  - `outputs/discovered_tabular_features.json`
-  - `outputs/discovered_video_features.json`
-
-### Generation inputs
-
-- Generation expects a root folder with one subfolder per class, such as `images/hotpot/` and `images/vase/`.
-- If you do not pass `classes=...`, class names are inferred from those subfolder names.
-- Tabular generation reads one row at a time from `text_column` and can optionally use `label_column` to override the class written to the CSV.
-
-### Generation outputs
-
-- Generation writes one CSV per class to `outputs/`.
-- If `merge_to_single_csv=True`, it also writes `outputs/all_feature_values.csv`.
-- Each generated CSV includes `File`, `Class`, one column per discovered feature, and `raw_llm_output` so you can inspect the original provider response.
-
-## Discovery Examples
-
-### Discover Features from Images
-
-```python
-from llm_feature_gen.discover import discover_features_from_images
-
-result = discover_features_from_images(
-    image_paths_or_folder="discover_images",
-    as_set=True,
-)
-
-print(result)
-```
-
-This reads all supported images in `discover_images/`, sends them as a joint set to the provider, and saves the result to `outputs/discovered_image_features.json`.
-
-Example output:
-
-```json
-{
-  "proposed_features": [
-    {
-      "feature": "has visible handle",
-      "description": "Some objects include handles, while others do not.",
-      "possible_values": ["present", "absent"]
-    },
-    {
-      "feature": "color tone",
-      "description": "Objects vary between metallic, earthy, and bright palettes.",
-      "possible_values": ["metallic", "earthy", "bright", "dark"]
-    }
-  ]
-}
-```
-
-### Discover Features from Text
-
-```python
-from llm_feature_gen.discover import discover_features_from_texts
-
-result = discover_features_from_texts(
-    texts_or_file="discover_texts",
-    as_set=True,
-)
-
-print(result)
-```
-
-This loads all supported text documents in `discover_texts/`, extracts raw text, and saves the result to `outputs/discovered_text_features.json`.
-
-If you already have text in memory, you can also pass it directly:
-
-```python
-result = discover_features_from_texts(
-    "The dish was smoky, rich, and served family-style.",
-    as_set=True,
-)
-```
-
-### Discover Features from Tabular Data
-
-```python
-from llm_feature_gen.discover import discover_features_from_tabular
-
-result = discover_features_from_tabular(
-    file_or_folder="discover_tabular",
-    text_column="text",
-    as_set=True,
-)
-
-print(result)
-```
-
-This loads supported tabular files, reads the `text` column, and saves the result to `outputs/discovered_tabular_features.json`.
-
-Example output:
-
-```json
-{
-  "proposed_features": [
-    {
-      "feature": "overall sentiment",
-      "description": "Rows differ in whether they express favorable or unfavorable opinions.",
-      "possible_values": ["positive", "negative", "mixed"]
-    },
-    {
-      "feature": "focus of the review",
-      "description": "Some rows focus on performance, others on plot, visuals, or general quality.",
-      "possible_values": ["performance", "plot", "visuals", "general quality"]
-    }
-  ]
-}
-```
-
-### Discover Features from Videos
-
-```python
-from llm_feature_gen.discover import discover_features_from_videos
-
-result = discover_features_from_videos(
-    videos_or_folder="discover_videos",
-    as_set=True,
-    num_frames=5,
-    use_audio=True,
-    random_seed=7,
-)
-
-print(result)
-```
-
-This extracts key frames, optionally transcribes audio, and saves the result to `outputs/discovered_video_features.json`.
-
-When a folder contains more than `max_videos_to_sample` videos, the helper samples a subset before frame extraction. Pass `random_seed` if you want that subset to be reproducible. With `as_set=False`, the return value contains one result per extracted frame after pooling frames across all sampled videos.
-
-## Generation Example
-
-After discovery, you can generate feature values for each class folder.
-
-```python
-from llm_feature_gen.generate import generate_features_from_images
-
-csv_paths = generate_features_from_images(
-    root_folder="images",
-    discovered_features_path="outputs/discovered_image_features.json",
-    merge_to_single_csv=True,
-)
-
-print(csv_paths)
-```
-
-With a folder layout like this:
-
-```text
-images/
-├─ hotpot/
-└─ vase/
-```
-
-the command writes per-class CSVs such as `outputs/hotpot_feature_values.csv` and `outputs/vase_feature_values.csv`. If `merge_to_single_csv=True`, it also creates `outputs/all_feature_values.csv`.
-
-The same workflow is available for other modalities:
-
-```python
-from llm_feature_gen.generate import (
+from llm_feature_gen import (
+    discover_features_from_images,
+    discover_features_from_tabular,
+    discover_features_from_texts,
+    discover_features_from_videos,
     generate_features_from_images,
     generate_features_from_tabular,
     generate_features_from_texts,
@@ -401,9 +212,133 @@ from llm_feature_gen.generate import (
 )
 ```
 
-## Running Tests
+Discovery helpers write JSON schemas to `outputs/` by default:
 
-From the repository root:
+| Helper | Default output |
+| --- | --- |
+| `discover_features_from_texts` | `outputs/discovered_text_features.json` |
+| `discover_features_from_images` | `outputs/discovered_image_features.json` |
+| `discover_features_from_tabular` | `outputs/discovered_tabular_features.json` |
+| `discover_features_from_videos` | `outputs/discovered_video_features.json` |
+
+Generation helpers read the matching schema by default and write one CSV per class. Set `merge_to_single_csv=True` to also create `outputs/all_feature_values.csv`.
+
+### Text
+
+```python
+from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
+
+discover_features_from_texts("discover_texts", min_features=10)
+
+generate_features_from_texts(
+    root_folder="texts",
+    merge_to_single_csv=True,
+)
+```
+
+### Images
+
+```python
+from llm_feature_gen import discover_features_from_images, generate_features_from_images
+
+discover_features_from_images("discover_images")
+
+generate_features_from_images(
+    root_folder="images",
+    merge_to_single_csv=True,
+)
+```
+
+### Tabular Data
+
+```python
+from llm_feature_gen import discover_features_from_tabular, generate_features_from_tabular
+
+discover_features_from_tabular(
+    file_or_folder="discover_tabular",
+    text_column="text",
+)
+
+generate_features_from_tabular(
+    root_folder="tabular",
+    text_column="text",
+    label_column="label",
+    merge_to_single_csv=True,
+)
+```
+
+### Video
+
+```python
+from llm_feature_gen import discover_features_from_videos, generate_features_from_videos
+
+discover_features_from_videos(
+    videos_or_folder="discover_videos",
+    num_frames=5,
+    use_audio=True,
+)
+
+generate_features_from_videos(
+    root_folder="videos",
+    use_audio=True,
+    merge_to_single_csv=True,
+)
+```
+
+Set `use_audio=False` if you only want visual frames or do not have audio transcription configured.
+
+## Batch and Multi-Class Text Workflows
+
+For larger text datasets, use batched generation with an on-disk cache:
+
+```python
+from llm_feature_gen import generate_features_from_texts_cached
+
+generate_features_from_texts_cached(
+    root_folder="texts",
+    discovered_features_path="outputs/discovered_text_features.json",
+    batch_size=8,
+)
+```
+
+For three or more classes, use the multi-class helpers:
+
+```python
+from llm_feature_gen import discover_features_multiclass, generate_features_multiclass
+
+classes = ["billing", "technical", "account"]
+
+discover_features_multiclass(
+    texts_or_file="discover_texts",
+    classes=classes,
+)
+
+generate_features_multiclass(
+    root_folder="texts",
+    discovered_features="outputs/discovered_text_features.json",
+    classes=classes,
+)
+```
+
+## End-to-End Example
+
+The repository includes a complete text-to-tabular example with checked-in expected outputs:
+
+```bash
+python examples/text_to_tabular_pipeline.py --provider auto
+```
+
+For the offline replay path used by tests:
+
+```bash
+python examples/text_to_tabular_pipeline.py --provider replay --check
+```
+
+See [examples/README.md](examples/README.md) for details.
+
+## Development
+
+From a repository checkout:
 
 ```bash
 python -m venv .venv
@@ -412,19 +347,20 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Useful commands:
+Build the documentation locally with:
 
 ```bash
-pytest -vv
-pytest src/tests/test_discovery.py
+pip install -e ".[docs]"
+mkdocs serve
 ```
 
-Tests use fake providers and temporary directories, so they do not require OpenAI or Azure credentials.
+Useful project links:
 
-## Contributing and Documentation
+- Documentation: https://juliayershova.github.io/llm-feature-gen/
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Issues: https://github.com/JuliaYershova/LLM-feature-gen/issues
 
-If you want to contribute or need project maintenance details, start here:
+## License
 
-- [CONTRIBUTING.md](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/CONTRIBUTING.md) for local setup, test workflow, pull request expectations, and issue-reporting guidance
-- [CHANGELOG.md](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/CHANGELOG.md) for user-visible changes and the current release history
-- GitHub issue templates under `.github/ISSUE_TEMPLATE/` for bug reports and feature requests
+MIT. See [LICENSE](LICENSE).
