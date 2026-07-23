@@ -211,3 +211,169 @@ def test_run_multiclass_pipeline_orchestrates_discovery_train_and_test(
     assert calls[2][0] == "generate"
     assert calls[2][1]["root_folder"] == tmp_path / "test"
     assert calls[2][1]["merged_csv_name"] == "test_feature_values.csv"
+
+    def test_multiclass_image_prompt_builder_uses_visual_template():
+        prompt = multiclass_mod.MultiClassDiscoveryPromptBuilder(
+            classes=["American_Crow", "Fish_Crow", "Common_Raven", "Shiny_Cowbird"],
+            min_features=12,
+            template=multiclass_mod.multiclass_image_discovery_prompt,
+        ).build()
+
+        assert "4 visual categories" in prompt
+        assert "  - Fish_Crow" in prompt
+        assert "at least 12 distinct features" in prompt
+        assert "{n_classes}" not in prompt
+
+    def test_discover_features_multiclass_images_delegates_with_formatted_prompt(
+            tmp_path: Path,
+            monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured = {}
+
+        def fake_discover_features_from_images(**kwargs):
+            captured.update(kwargs)
+            return {"proposed_features": [{"feature": "beak_shape"}]}
+
+        monkeypatch.setattr(
+            multiclass_mod,
+            "discover_features_from_images",
+            fake_discover_features_from_images,
+        )
+
+        result = multiclass_mod.discover_features_multiclass_images(
+            image_paths_or_folder=["a.jpg", "b.jpg"],
+            classes=["A", "B", "C"],
+            provider="provider",
+            output_dir=tmp_path,
+            output_filename="features.json",
+            as_set=False,
+            min_features=5,
+        )
+
+        assert result == {"proposed_features": [{"feature": "beak_shape"}]}
+        assert captured["image_paths_or_folder"] == ["a.jpg", "b.jpg"]
+        assert captured["output_filename"] == "features.json"
+        assert captured["as_set"] is False
+        assert "3 visual categories" in captured["prompt"]
+        assert "at least 5 distinct features" in captured["prompt"]
+
+    def test_discover_features_multiclass_videos_forwards_video_options(
+            tmp_path: Path,
+            monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured = {}
+
+        def fake_discover_features_from_videos(**kwargs):
+            captured.update(kwargs)
+            return {"proposed_features": [{"feature": "arm_stroke_pattern"}]}
+
+        monkeypatch.setattr(
+            multiclass_mod,
+            "discover_features_from_videos",
+            fake_discover_features_from_videos,
+        )
+
+        multiclass_mod.discover_features_multiclass_videos(
+            videos_or_folder=tmp_path,
+            classes=["Diving", "FrontCrawl", "BreastStroke"],
+            provider="provider",
+            output_dir=tmp_path,
+            num_frames=8,
+            use_audio=False,
+            max_videos_to_sample=4,
+            max_total_frames_payload=12,
+            random_seed=42,
+            min_features=11,
+        )
+
+        assert captured["num_frames"] == 8
+        assert captured["use_audio"] is False
+        assert captured["max_videos_to_sample"] == 4
+        assert captured["max_total_frames_payload"] == 12
+        assert captured["random_seed"] == 42
+        assert "3 visual categories" in captured["prompt"]
+        assert "at least 11 distinct features" in captured["prompt"]
+
+def test_multiclass_image_prompt_builder_uses_visual_template():
+    prompt = multiclass_mod.MultiClassDiscoveryPromptBuilder(
+        classes=["American_Crow", "Fish_Crow", "Common_Raven", "Shiny_Cowbird"],
+        min_features=12,
+        template=multiclass_mod.multiclass_image_discovery_prompt,
+    ).build()
+
+    assert "4 visual categories" in prompt
+    assert "  - Fish_Crow" in prompt
+    assert "at least 12 distinct features" in prompt
+    assert "{n_classes}" not in prompt
+
+
+def test_discover_features_multiclass_images_delegates_with_formatted_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured = {}
+
+    def fake_discover_features_from_images(**kwargs):
+        captured.update(kwargs)
+        return {"proposed_features": [{"feature": "beak_shape"}]}
+
+    monkeypatch.setattr(
+        multiclass_mod,
+        "discover_features_from_images",
+        fake_discover_features_from_images,
+    )
+
+    result = multiclass_mod.discover_features_multiclass_images(
+        image_paths_or_folder=["a.jpg", "b.jpg"],
+        classes=["A", "B", "C"],
+        provider="provider",
+        output_dir=tmp_path,
+        output_filename="features.json",
+        as_set=False,
+        min_features=5,
+    )
+
+    assert result == {"proposed_features": [{"feature": "beak_shape"}]}
+    assert captured["image_paths_or_folder"] == ["a.jpg", "b.jpg"]
+    assert captured["output_filename"] == "features.json"
+    assert captured["as_set"] is False
+    assert "3 visual categories" in captured["prompt"]
+    assert "at least 5 distinct features" in captured["prompt"]
+
+
+def test_discover_features_multiclass_videos_forwards_video_options(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured = {}
+
+    def fake_discover_features_from_videos(**kwargs):
+        captured.update(kwargs)
+        return {"proposed_features": [{"feature": "arm_stroke_pattern"}]}
+
+    monkeypatch.setattr(
+        multiclass_mod,
+        "discover_features_from_videos",
+        fake_discover_features_from_videos,
+    )
+
+    multiclass_mod.discover_features_multiclass_videos(
+        videos_or_folder=tmp_path,
+        classes=["Diving", "FrontCrawl", "BreastStroke"],
+        provider="provider",
+        output_dir=tmp_path,
+        num_frames=8,
+        use_audio=False,
+        max_videos_to_sample=4,
+        max_total_frames_payload=12,
+        random_seed=42,
+        min_features=11,
+    )
+
+    assert captured["num_frames"] == 8
+    assert captured["use_audio"] is False
+    assert captured["max_videos_to_sample"] == 4
+    assert captured["max_total_frames_payload"] == 12
+    assert captured["random_seed"] == 42
+    assert "3 visual categories" in captured["prompt"]
+    assert "at least 11 distinct features" in captured["prompt"]

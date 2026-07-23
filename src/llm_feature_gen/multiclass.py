@@ -46,17 +46,6 @@ class MultiClassDiscoveryPromptBuilder:
             min_features=min_features,
         )
 
-    def build(self) -> str:
-        n_classes = len(self.classes)
-        class_list = "\n".join(f"  - {class_name}" for class_name in self.classes)
-        min_features = self.min_features if self.min_features is not None else max(10, n_classes * 3)
-
-        return self.template.format(
-            n_classes=n_classes,
-            class_list=class_list,
-            min_features=min_features,
-        )
-
 
 def discover_features_multiclass(
     texts_or_file: Union[str, Path, List[str]],
