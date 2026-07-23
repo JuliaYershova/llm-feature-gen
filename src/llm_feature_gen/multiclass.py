@@ -13,30 +13,38 @@ from .providers.openai_provider import OpenAIProvider
 
 
 class MultiClassDiscoveryPromptBuilder:
-    """Build a text discovery prompt for an arbitrary class list."""
+    """Build a discovery prompt for an arbitrary class list.
 
-    class MultiClassDiscoveryPromptBuilder:
-        """Build a discovery prompt for an arbitrary class list.
+    Defaults to the text prompt template; pass ``template`` to build the same
+    prompt for another modality (e.g. ``multiclass_image_discovery_prompt``).
+    """
 
-        Defaults to the text prompt template; pass ``template`` to build the same
-        prompt for another modality (e.g. ``multiclass_image_discovery_prompt``).
-        """
+    def __init__(
+        self,
+        classes: Sequence[str],
+        min_features: Optional[int] = None,
+        template: str = multiclass_discovery_prompt,
+    ) -> None:
+        classes = list(classes)
+        if len(classes) < 2:
+            raise ValueError("At least 2 classes are required.")
+        if min_features is not None and min_features < 1:
+            raise ValueError("min_features must be a positive integer.")
 
-        def __init__(
-                self,
-                classes: Sequence[str],
-                min_features: Optional[int] = None,
-                template: str = multiclass_discovery_prompt,
-        ) -> None:
-            classes = list(classes)
-            if len(classes) < 2:
-                raise ValueError("At least 2 classes are required.")
-            if min_features is not None and min_features < 1:
-                raise ValueError("min_features must be a positive integer.")
+        self.classes = classes
+        self.min_features = min_features
+        self.template = template
 
-            self.classes = classes
-            self.min_features = min_features
-            self.template = template
+    def build(self) -> str:
+        n_classes = len(self.classes)
+        class_list = "\n".join(f"  - {class_name}" for class_name in self.classes)
+        min_features = self.min_features if self.min_features is not None else max(10, n_classes * 3)
+
+        return self.template.format(
+            n_classes=n_classes,
+            class_list=class_list,
+            min_features=min_features,
+        )
 
     def build(self) -> str:
         n_classes = len(self.classes)
