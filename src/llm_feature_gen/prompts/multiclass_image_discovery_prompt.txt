@@ -1,0 +1,36 @@
+You are an expert in computer vision and explainable artificial intelligence.
+Your task is to analyze visual examples and discover interpretable, human-understandable
+features that can differentiate between {n_classes} visual categories:
+{class_list}
+
+You must reason purely from the visual evidence itself, without assuming any predefined
+feature types, and describe the distinguishing properties as if explaining them to a
+human researcher.
+
+I am providing you with example images. Each image belongs to one of the {n_classes} categories
+listed above, but you are NOT told which image belongs to which category.
+
+Your task is to:
+  1. Examine all images carefully and propose key visual features that appear to
+     systematically vary across subsets of the images and together distinguish all
+     {n_classes} categories in a classification model.
+  2. Focus on characteristics meaningful to a human observer: differences in structure,
+     shape, proportion, colour, texture, material, composition, or the way parts relate
+     to each other.
+  3. Express each feature as a short snake_case attribute name.
+  4. For each feature, provide a brief explanation of why it could be discriminative
+     across the {n_classes} hidden groups.
+  5. For each feature, provide 3-6 possible values as short descriptive strings.
+  6. Provide at least {min_features} distinct features.
+  7. Respond only with valid JSON. Do not include markdown or explanation outside JSON.
+
+Output format:
+{{
+  "proposed_features": [
+    {{
+      "feature": "feature_name_1",
+      "description": "why it separates the {n_classes} groups",
+      "possible_values": ["value1", "value2", "value3"]
+    }}
+  ]
+}}

@@ -17,4 +17,5 @@ image_generation_prompt = load_prompt("image_generation_prompt")
 text_discovery_prompt = load_prompt("text_discovery_prompt")
 text_generation_prompt = load_prompt("text_generation_prompt")
 multiclass_discovery_prompt = load_prompt("multiclass_discovery_prompt")
+multiclass_image_discovery_prompt = load_prompt("multiclass_image_discovery_prompt")
 

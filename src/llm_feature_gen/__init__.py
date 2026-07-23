@@ -22,6 +22,8 @@ from .batch import BatchTextCache, generate_features_batch, generate_features_fr
 from .multiclass import (
     MultiClassDiscoveryPromptBuilder,
     discover_features_multiclass,
+    discover_features_multiclass_images,
+    discover_features_multiclass_videos,
     generate_features_multiclass,
     run_multiclass_pipeline,
 )
@@ -41,6 +43,8 @@ __all__ = [
     "BatchTextCache",
     "discover_features_from_images",
     "discover_features_multiclass",
+    "discover_features_multiclass_images",
+    "discover_features_multiclass_videos",
     "discover_features_from_tabular",
     "discover_features_from_texts",
     "discover_features_from_videos",
