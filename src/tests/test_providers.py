@@ -10,7 +10,11 @@ import pytest
 
 from llm_feature_gen.providers import local_provider as local_mod
 from llm_feature_gen.providers import openai_provider as openai_mod
-from llm_feature_gen.contracts import ProviderResponseError
+from llm_feature_gen.contracts import (
+    ProviderResponseError,
+    explain_empty_reply,
+    instruct_variant_of,
+)
 
 
 class DummyRateLimitError(Exception):
@@ -344,7 +348,7 @@ def test_explain_empty_reply_names_the_cause_and_the_fix():
         def __init__(self, completion_tokens):
             self.usage = Usage(completion_tokens)
 
-    explain = local_mod._explain_empty_reply
+    explain = explain_empty_reply
 
     # reasoning came back instead of an answer -> point at the instruct tag
     thinking = explain(Response(2048), Message("reasoning..."), "qwen3-vl:32b", 2048)
@@ -367,5 +371,18 @@ def test_explain_empty_reply_names_the_cause_and_the_fix():
 
 
 def test_instruct_variant_of_skips_models_that_already_are_one():
-    assert local_mod._instruct_variant_of("qwen3-vl:32b") == "qwen3-vl:32b-instruct"
-    assert local_mod._instruct_variant_of("qwen3-vl:32b-instruct") == ""
+    assert instruct_variant_of("qwen3-vl:32b") == "qwen3-vl:32b-instruct"
+    assert instruct_variant_of("qwen3-vl:32b-instruct") == ""
+
+def test_openai_provider_raises_a_useful_error_on_an_empty_reply():
+    """The OpenAI path needs the same explanation as the local one."""
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_tokens = 2048
+
+    client, _ = make_chat_client([""])
+    provider.client = client
+
+    with pytest.raises(ProviderResponseError, match="empty reply"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
