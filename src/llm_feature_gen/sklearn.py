@@ -10,7 +10,13 @@ import pandas as pd
 
 from .batch import BatchTextCache, generate_features_batch
 from .discover import discover_features_from_texts
-from .generate import _extract_feature_names, load_discovered_features
+from .generate import (
+    _build_prompt_for_generation,
+    _extract_feature_names,
+    load_discovered_features,
+)
+from .contracts import normalize_feature_values_response
+from .prompts import text_generation_prompt
 from .providers.openai_provider import OpenAIProvider
 
 try:  # pragma: no cover - exercised when scikit-learn is installed
@@ -46,6 +52,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         provider: Any = None,
         discovered_features: Any = None,
         text_column: Optional[str] = None,
+        use_batch: bool = True,
         batch_size: int = 8,
         cache: Optional[BatchTextCache] = None,
         min_features: int = 10,
@@ -56,6 +63,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         self.provider = provider
         self.discovered_features = discovered_features
         self.text_column = text_column
+        self.use_batch = use_batch
         self.batch_size = batch_size
         self.cache = cache
         self.min_features = min_features
@@ -92,6 +100,9 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             raise ValueError("This LLMFeatureTransformer instance is not fitted yet.")
 
         texts = self._as_text_list(X)
+        if not self.use_batch:
+            return self._transform_one_by_one(texts)
+
         df = generate_features_batch(
             texts=texts,
             labels=[""] * len(texts),
@@ -102,6 +113,18 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             retry_delay=self.retry_delay,
         )
         return df.loc[:, self.feature_names_]
+
+    def _transform_one_by_one(self, texts: list[str]) -> pd.DataFrame:
+        prompt = _build_prompt_for_generation(text_generation_prompt, self.discovered_features_)
+        rows: list[dict[str, Any]] = []
+
+        for text in texts:
+            response = self.provider_.text_features([text], prompt=prompt)
+            payload = response[0] if response else {}
+            inner = normalize_feature_values_response(payload)["features"]
+            rows.append({feature: inner.get(feature, "not given by LLM") for feature in self.feature_names_})
+
+        return pd.DataFrame(rows, columns=self.feature_names_)
 
     def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
         _ = input_features

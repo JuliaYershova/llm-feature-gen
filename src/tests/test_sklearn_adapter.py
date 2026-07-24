@@ -55,6 +55,20 @@ def test_llm_feature_transformer_uses_supplied_schema_and_dataframe_column():
     assert provider.calls[0]["texts"] == ["need invoice"]
 
 
+def test_llm_feature_transformer_can_transform_without_batch_mode():
+    provider = FakeTextProvider()
+    transformer = LLMFeatureTransformer(
+        provider=provider,
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+        use_batch=False,
+    )
+
+    result = transformer.fit_transform(["need invoice", "cannot log in"])
+
+    assert result.to_dict(orient="records") == [{"topic": "billing"}, {"topic": "access"}]
+    assert [call["texts"] for call in provider.calls] == [["need invoice"], ["cannot log in"]]
+
+
 def test_llm_feature_transformer_loads_schema_path_and_uses_default_provider(tmp_path, monkeypatch):
     provider = FakeTextProvider()
     schema_path = tmp_path / "schema.json"
