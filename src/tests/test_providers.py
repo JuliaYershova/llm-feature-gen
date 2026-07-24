@@ -56,6 +56,7 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     assert provider.client is fake_azure_client
     assert provider.max_completion_tokens == 2048
     assert provider.max_tokens == 2048
+    assert provider.reasoning_effort is None
 
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
     with pytest.raises(EnvironmentError):
@@ -89,6 +90,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     provider.max_retries = 2
     provider.temperature = 0.1
     provider.max_completion_tokens = 50
+    provider.reasoning_effort = "low"
     provider.default_model = "model"
     provider.audio_model = "audio-model"
 
@@ -97,6 +99,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
     assert create.calls[0]["response_format"] == {"type": "json_object"}
     assert create.calls[0]["max_completion_tokens"] == 50
+    assert create.calls[0]["reasoning_effort"] == "low"
 
     client, _ = make_chat_client(["not-json"])
     provider.client = client
@@ -194,6 +197,19 @@ def test_openai_provider_retries_completion_token_parameter(monkeypatch: pytest.
     provider.max_retries = 1
     provider.temperature = 0.0
     provider.max_completion_tokens = 50
+
+    assert provider._token_limit_fallback(
+        "max_completion_tokens",
+        RuntimeError("not a bad request"),
+    ) is None
+    assert provider._token_limit_fallback(
+        "max_completion_tokens",
+        DummyBadRequestError("different bad request"),
+    ) is None
+    assert provider._token_limit_fallback(
+        "other",
+        DummyBadRequestError("max_tokens max_completion_tokens"),
+    ) is None
 
     client, create = make_chat_client(
         [

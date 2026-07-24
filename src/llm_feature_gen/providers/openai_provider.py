@@ -48,6 +48,7 @@ class OpenAIProvider:
         temperature: float = 0.0,
         max_completion_tokens: int = 2048,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
         default_audio_model: Optional[str] = None,
     ) -> None:
         if max_tokens is not None and max_tokens != max_completion_tokens:
@@ -129,6 +130,7 @@ class OpenAIProvider:
         self.temperature = temperature
         self.max_completion_tokens = max_tokens if max_tokens is not None else max_completion_tokens
         self.max_tokens = self.max_completion_tokens
+        self.reasoning_effort = reasoning_effort
         self._completion_token_parameter = "max_completion_tokens"
 
     # -----------------------
@@ -182,6 +184,8 @@ class OpenAIProvider:
         kwargs = {}
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
+        if getattr(self, "reasoning_effort", None) is not None:
+            kwargs["reasoning_effort"] = self.reasoning_effort
 
         backoff = 2
         for attempt in range(self.max_retries):
