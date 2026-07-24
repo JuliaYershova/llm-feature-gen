@@ -41,6 +41,9 @@ def make_chat_client(responses):
 
 
 def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
+    with pytest.raises(ValueError, match="only one"):
+        openai_mod.OpenAIProvider(max_completion_tokens=100, max_tokens=50)
+
     fake_azure_client = object()
     monkeypatch.setattr(openai_mod.openai, "AzureOpenAI", lambda **kwargs: fake_azure_client)
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "k")
@@ -51,6 +54,8 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     provider = openai_mod.OpenAIProvider()
     assert provider.is_azure is True
     assert provider.client is fake_azure_client
+    assert provider.max_completion_tokens == 2048
+    assert provider.max_tokens == 2048
 
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
     with pytest.raises(EnvironmentError):
@@ -83,7 +88,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     provider = object.__new__(openai_mod.OpenAIProvider)
     provider.max_retries = 2
     provider.temperature = 0.1
-    provider.max_tokens = 50
+    provider.max_completion_tokens = 50
     provider.default_model = "model"
     provider.audio_model = "audio-model"
 
@@ -91,6 +96,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
     assert create.calls[0]["response_format"] == {"type": "json_object"}
+    assert create.calls[0]["max_completion_tokens"] == 50
 
     client, _ = make_chat_client(["not-json"])
     provider.client = client
@@ -179,6 +185,52 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     )
     with pytest.raises(RuntimeError, match="bad"):
         provider.transcribe_audio(str(audio_path))
+
+
+def test_openai_provider_retries_completion_token_parameter(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_completion_tokens = 50
+
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError(
+                "Unsupported parameter: 'max_completion_tokens'. Use 'max_tokens' instead."
+            ),
+            '{"ok": true}',
+        ]
+    )
+    provider.client = client
+
+    assert provider._chat_json("deployment-alias", "system", [{"type": "text", "text": "u"}]) == {"ok": True}
+    assert "max_completion_tokens" in create.calls[0]
+    assert "max_tokens" not in create.calls[0]
+    assert "max_completion_tokens" not in create.calls[1]
+    assert create.calls[1]["max_tokens"] == 50
+    assert provider._completion_token_parameter == "max_tokens"
+
+    client, create = make_chat_client(['{"remembered": true}'])
+    provider.client = client
+    assert provider._chat_json("another-alias", "system", [{"type": "text", "text": "u"}]) == {"remembered": True}
+    assert "max_completion_tokens" not in create.calls[0]
+    assert create.calls[0]["max_tokens"] == 50
+
+    provider._completion_token_parameter = "max_tokens"
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError(
+                "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."
+            ),
+            '{"modern": true}',
+        ]
+    )
+    provider.client = client
+    assert provider._chat_json("modern-alias", "system", [{"type": "text", "text": "u"}]) == {"modern": True}
+    assert create.calls[1]["max_completion_tokens"] == 50
+    assert provider._completion_token_parameter == "max_completion_tokens"
 
 
 def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):

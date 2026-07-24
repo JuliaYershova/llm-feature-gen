@@ -46,9 +46,12 @@ class OpenAIProvider:
         default_deployment_name: Optional[str] = None,
         max_retries: int = 5,
         temperature: float = 0.0,
-        max_tokens: int = 2048,
+        max_completion_tokens: int = 2048,
+        max_tokens: Optional[int] = None,
         default_audio_model: Optional[str] = None,
     ) -> None:
+        if max_tokens is not None and max_tokens != max_completion_tokens:
+            raise ValueError("Pass only one of max_completion_tokens or max_tokens.")
 
         # -------------------------------------------------
         # detect whether we are using Azure or not
@@ -124,11 +127,42 @@ class OpenAIProvider:
         # -------------------------------------------------
         self.max_retries = max_retries
         self.temperature = temperature
-        self.max_tokens = max_tokens
+        self.max_completion_tokens = max_tokens if max_tokens is not None else max_completion_tokens
+        self.max_tokens = self.max_completion_tokens
+        self._completion_token_parameter = "max_completion_tokens"
 
     # -----------------------
     # Low-level helper
     # -----------------------
+    def _token_limit_fallback(self, current_parameter: str, exc: Exception) -> Optional[str]:
+        bad_request_error = getattr(openai, "BadRequestError", None)
+        if bad_request_error is None or not isinstance(exc, bad_request_error):
+            return None
+
+        message = str(exc).lower()
+        if "max_tokens" not in message or "max_completion_tokens" not in message:
+            return None
+        if current_parameter == "max_tokens":
+            return "max_completion_tokens"
+        if current_parameter == "max_completion_tokens":
+            return "max_tokens"
+        return None
+
+    def _create_chat_completion(self, deployment_name: str, kwargs: Dict[str, Any]) -> Any:
+        token_parameter = getattr(self, "_completion_token_parameter", "max_completion_tokens")
+        token_limit = getattr(self, "max_completion_tokens", getattr(self, "max_tokens", 2048))
+        request_kwargs = {**kwargs, token_parameter: token_limit}
+        try:
+            return self.client.chat.completions.create(**request_kwargs)
+        except Exception as exc:
+            fallback = self._token_limit_fallback(token_parameter, exc)
+            if not fallback:
+                raise
+            request_kwargs.pop(token_parameter)
+            request_kwargs[fallback] = token_limit
+            self._completion_token_parameter = fallback
+            return self.client.chat.completions.create(**request_kwargs)
+
     def _chat_json(
         self,
         deployment_name: str, #  meaning: deployment (Azure) OR model (OpenAI)
@@ -152,15 +186,17 @@ class OpenAIProvider:
         backoff = 2
         for attempt in range(self.max_retries):
             try:
-                resp = self.client.chat.completions.create(
-                    model=deployment_name,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_content},
-                    ],
-                    temperature=self.temperature,
-                    max_tokens=self.max_tokens,
-                    **kwargs,
+                resp = self._create_chat_completion(
+                    deployment_name,
+                    {
+                        "model": deployment_name,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "temperature": self.temperature,
+                        **kwargs,
+                    },
                 )
                 text = resp.choices[0].message.content
                 try:
