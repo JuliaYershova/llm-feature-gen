@@ -63,6 +63,8 @@ class OpenAIProvider:
     Provider is auto-detected from environment variables.
     """
 
+    supports_response_schema = True
+
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -173,11 +175,6 @@ class OpenAIProvider:
             return "max_completion_tokens"
         if current_parameter == "max_completion_tokens":
             return "max_tokens"
-        return None
-
-    def _schema_for_prompt(self, prompt: str) -> Optional[Dict[str, Any]]:
-        if "proposed_features" in prompt:
-            return FEATURE_DISCOVERY_SCHEMA
         return None
 
     def _uses_reasoning_effort(self) -> bool:
@@ -322,6 +319,7 @@ class OpenAIProvider:
         as_set: bool = False,
         extra_context: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each base64 image, ask the LLM to extract features.
@@ -337,7 +335,6 @@ class OpenAIProvider:
 
         # fallback/default prompt
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
-        response_schema = self._schema_for_prompt(base_prompt)
 
         # System prompt
         resolved_system_prompt = system_prompt or "You are a feature extraction assistant for images."
@@ -399,6 +396,7 @@ class OpenAIProvider:
         deployment_name: Optional[str] = None,
         feature_gen: bool = False,
         system_prompt: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each text, ask the LLM to extract features.
@@ -410,7 +408,6 @@ class OpenAIProvider:
 
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
-        response_schema = self._schema_for_prompt(base_prompt)
 
         resolved_system_prompt = system_prompt or base_prompt
         if feature_gen and system_prompt is None:

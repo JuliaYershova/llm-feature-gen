@@ -86,6 +86,8 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    assert openai_mod.OpenAIProvider.supports_response_schema is True
+
     provider = object.__new__(openai_mod.OpenAIProvider)
     provider.max_retries = 2
     provider.temperature = 0.1
@@ -235,6 +237,14 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
 
     captured.clear()
     assert provider.text_features(["hello"], prompt='{"proposed_features": []}') == [{"features": "x"}]
+    assert captured[0]["response_schema"] is None
+
+    captured.clear()
+    assert provider.text_features(
+        ["hello"],
+        prompt='{"proposed_features": []}',
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == [{"features": "x"}]
     assert captured[0]["response_schema"] == openai_mod.FEATURE_DISCOVERY_SCHEMA
 
     captured.clear()

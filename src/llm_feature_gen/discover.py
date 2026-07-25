@@ -22,7 +22,7 @@ from .utils.image import image_to_base64
 from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, extract_audio_track, downsample_batch
-from .providers.openai_provider import OpenAIProvider
+from .providers.openai_provider import FEATURE_DISCOVERY_SCHEMA, OpenAIProvider
 from .prompts import image_discovery_prompt, text_discovery_prompt
 
 # Load environment variables automatically
@@ -70,8 +70,17 @@ def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
     return [chunk for chunk in chunks if chunk.strip()]
 
 
-def _system_prompt_kwargs(system_prompt: Optional[str]) -> Dict[str, str]:
-    return {"system_prompt": system_prompt} if system_prompt is not None else {}
+def _provider_call_kwargs(
+        provider: Any,
+        system_prompt: Optional[str],
+        response_schema: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    kwargs: Dict[str, Any] = {}
+    if system_prompt is not None:
+        kwargs["system_prompt"] = system_prompt
+    if response_schema is not None and getattr(provider, "supports_response_schema", False) is True:
+        kwargs["response_schema"] = response_schema
+    return kwargs
 
 
 def discover_features_from_images(
@@ -154,7 +163,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=True,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # per-image behavior
@@ -162,7 +171,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=False,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving
@@ -357,7 +366,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=True,
             extra_context=final_context,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # per-frame discovery
@@ -366,7 +375,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=False,
             extra_context=final_context,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving
@@ -532,14 +541,14 @@ def discover_features_from_texts(
         result_list = provider.text_features(
             [combined_text],  # ONE request
             prompt=prompt,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # PER-TEXT DESCRIPTION MODE
         result_list = provider.text_features(
             texts,  # MANY requests
             prompt=prompt,
-            **_system_prompt_kwargs(system_prompt),
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving

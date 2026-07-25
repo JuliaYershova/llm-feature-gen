@@ -146,6 +146,35 @@ def test_discovery_forwards_custom_system_prompt(tmp_path: Path):
     assert image_provider.calls[0]["system_prompt"] == "custom vision discovery system"
 
 
+def test_discovery_passes_schema_to_schema_capable_provider(tmp_path: Path):
+    class SchemaTextProvider:
+        supports_response_schema = True
+
+        def __init__(self):
+            self.calls = []
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            self.calls.append(
+                {
+                    "texts": list(text_list),
+                    "prompt": prompt,
+                    "system_prompt": system_prompt,
+                    "response_schema": response_schema,
+                }
+            )
+            return [{"proposed_features": [{"feature": "x"}]}]
+
+    provider = SchemaTextProvider()
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        prompt="custom prompt without magic schema key",
+        provider=provider,
+        output_dir=tmp_path / "schema_out",
+    )
+
+    assert provider.calls[0]["response_schema"] is discover_mod.FEATURE_DISCOVERY_SCHEMA
+
+
 def test_discover_texts_warns_and_errors_when_only_file_is_empty(tmp_path: Path):
     provider = TextProvider()
     empty_file = tmp_path / "empty.txt"
