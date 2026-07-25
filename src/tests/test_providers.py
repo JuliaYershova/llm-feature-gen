@@ -59,8 +59,9 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     assert provider.reasoning_effort is None
 
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
-    with pytest.raises(EnvironmentError):
-        openai_mod.OpenAIProvider()
+    provider = openai_mod.OpenAIProvider()
+    assert provider.is_azure is True
+    assert provider.audio_model is None
 
     monkeypatch.delenv("AZURE_OPENAI_API_KEY")
     with pytest.raises(EnvironmentError):
@@ -262,6 +263,14 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
 
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
+
+    provider.is_azure = True
+    provider.audio_model = None
+    with pytest.raises(EnvironmentError, match="WHISPER"):
+        provider.transcribe_audio(str(audio_path))
+
+    provider.is_azure = False
+    provider.audio_model = "audio-model"
     provider.client = SimpleNamespace(
         audio=SimpleNamespace(
             transcriptions=SimpleNamespace(

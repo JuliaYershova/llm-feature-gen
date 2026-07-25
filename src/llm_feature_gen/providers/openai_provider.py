@@ -120,11 +120,6 @@ class OpenAIProvider:
                     or os.getenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
             )
 
-            if not self.audio_model:
-                raise EnvironmentError(
-                    "Missing AZURE_OPENAI_WHISPER_DEPLOYMENT for Azure audio transcription."
-                )
-
         # -------------------------------------------------
         # PERSONAL / PRIVATE OPENAI
         # -------------------------------------------------
@@ -448,6 +443,11 @@ class OpenAIProvider:
 
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found at {audio_path}")
+
+        if self.is_azure and not self.audio_model:
+            raise EnvironmentError(
+                "Missing AZURE_OPENAI_WHISPER_DEPLOYMENT for Azure audio transcription."
+            )
 
         try:
             with open(audio_path, "rb") as audio_file:
