@@ -241,6 +241,7 @@ class LocalProvider:
             feature_gen: bool = False,
             as_set: bool = False,
             extra_context: Optional[str] = None,
+            system_prompt: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each base64 image, ask the LLM to extract features.
@@ -254,9 +255,9 @@ class LocalProvider:
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
 
         # System prompt
-        system_prompt = "You are a feature extraction assistant for images."
-        if feature_gen:
-            system_prompt = (
+        resolved_system_prompt = system_prompt or "You are a feature extraction assistant for images."
+        if feature_gen and system_prompt is None:
+            resolved_system_prompt = (
                 "You are a feature extraction assistant for images. "
                 "Respond in strict JSON with keys as feature names and values as concise strings."
             )
@@ -284,13 +285,13 @@ class LocalProvider:
         # ----------------------------
         if as_set or extra_context:
             user_content = build_content(base_prompt, image_base64_list, extra_context)
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=use_json_mode)
+            out = self._chat_json(deployment, resolved_system_prompt, user_content, json_mode=use_json_mode)
             return [out]
 
         results: List[Dict[str, Any]] = []
         for img_b64 in image_base64_list:
             user_content = build_content(base_prompt, [img_b64], None)
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=use_json_mode)
+            out = self._chat_json(deployment, resolved_system_prompt, user_content, json_mode=use_json_mode)
             results.append(out)
 
         return results
@@ -301,6 +302,7 @@ class LocalProvider:
             prompt: Optional[str] = None,
             deployment_name: Optional[str] = None,
             feature_gen: bool = False,
+            system_prompt: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each text, ask the LLM to extract features.
@@ -312,9 +314,9 @@ class LocalProvider:
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
 
-        system_prompt = base_prompt
-        if feature_gen:
-            system_prompt = (
+        resolved_system_prompt = system_prompt or base_prompt
+        if feature_gen and system_prompt is None:
+            resolved_system_prompt = (
                 "You are a feature extraction assistant for text documents. "
                 "You provide output in a structured JSON format and do NOT provide explanations.\n"
                 "{\n"
@@ -328,14 +330,15 @@ class LocalProvider:
                 "GENERATE ALL PRESENTED FEATURES!\n"
             )
             if prompt:
-                system_prompt += str(prompt)
+                resolved_system_prompt += str(prompt)
 
         # We generally want JSON mode for feature extraction tasks locally
         use_json_mode = True
 
         for txt in text_list:
-            user_content: List[Dict[str, Any]] = [{"type": "text", "text": txt}]
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=use_json_mode)
+            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt else txt
+            user_content: List[Dict[str, Any]] = [{"type": "text", "text": user_text}]
+            out = self._chat_json(deployment, resolved_system_prompt, user_content, json_mode=use_json_mode)
             results.append(out)
 
         return results

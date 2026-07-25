@@ -100,6 +100,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     assert create.calls[0]["response_format"] == {"type": "json_object"}
     assert create.calls[0]["max_completion_tokens"] == 50
     assert create.calls[0]["reasoning_effort"] == "low"
+    assert "temperature" not in create.calls[0]
 
     client, create = make_chat_client(['{"proposed_features": []}'])
     provider.client = client
@@ -141,19 +142,62 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     client, create = make_chat_client(
         [
             DummyBadRequestError("response_format json_schema is unsupported"),
-            '{"fallback": true}',
         ]
     )
     provider.client = client
-    assert provider._chat_json(
-        "m",
-        "system",
-        [{"type": "text", "text": "u"}],
-        json_mode=True,
-        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
-    ) == {"fallback": True}
+    with pytest.raises(ProviderResponseError, match="json_schema is unsupported"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+        )
     assert create.calls[0]["response_format"]["type"] == "json_schema"
-    assert create.calls[1]["response_format"] == {"type": "json_object"}
+
+    client, _ = make_chat_client(
+        [
+            json.dumps(
+                {
+                    "proposed_features": [
+                        {
+                            "name": "task_type",
+                            "feature": "task_type",
+                            "description": "desc",
+                            "possible_values": [],
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    provider.client = client
+    with pytest.raises(ProviderResponseError, match="unexpected keys"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+        )
+
+    client, _ = make_chat_client(["not-json"])
+    provider.client = client
+    with pytest.raises(ProviderResponseError, match="Invalid JSON"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+        )
+
+    provider.reasoning_effort = "none"
+    client, create = make_chat_client(['{"ok": true}'])
+    provider.client = client
+    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"ok": True}
+    assert create.calls[0]["temperature"] == 0.1
+    assert "reasoning_effort" not in create.calls[0]
 
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
@@ -192,6 +236,16 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     captured.clear()
     assert provider.text_features(["hello"], prompt='{"proposed_features": []}') == [{"features": "x"}]
     assert captured[0]["response_schema"] == openai_mod.FEATURE_DISCOVERY_SCHEMA
+
+    captured.clear()
+    assert provider.image_features(["a"], prompt="image task", system_prompt="custom vision system") == [{"features": "x"}]
+    assert captured[0]["system_prompt"] == "custom vision system"
+    assert captured[0]["user_content"][-1]["text"] == "image task"
+
+    captured.clear()
+    assert provider.text_features(["hello"], prompt="text task", system_prompt="custom text system") == [{"features": "x"}]
+    assert captured[0]["system_prompt"] == "custom text system"
+    assert captured[0]["user_content"][0]["text"] == "text task\n\nTEXT:\nhello"
 
     with pytest.raises(FileNotFoundError, match="not found"):
         provider.transcribe_audio(str(tmp_path / "missing.wav"))
@@ -287,6 +341,38 @@ def test_openai_provider_retries_completion_token_parameter(monkeypatch: pytest.
     assert provider._completion_token_parameter == "max_completion_tokens"
 
 
+def test_openai_provider_validates_discovery_schema_payload():
+    provider = object.__new__(openai_mod.OpenAIProvider)
+
+    provider._validate_feature_discovery_payload(
+        {
+            "proposed_features": [
+                {
+                    "feature": "task_type",
+                    "description": "desc",
+                    "possible_values": ["a", "b"],
+                }
+            ]
+        }
+    )
+
+    invalid_payloads = [
+        [],
+        {"unexpected": []},
+        {"proposed_features": "not a list"},
+        {"proposed_features": ["not an object"]},
+        {"proposed_features": [{"feature": "x", "description": "desc", "possible_values": [], "type": "extra"}]},
+        {"proposed_features": [{"feature": "x", "description": "desc"}]},
+        {"proposed_features": [{"feature": 1, "description": "desc", "possible_values": []}]},
+        {"proposed_features": [{"feature": "x", "description": 1, "possible_values": []}]},
+        {"proposed_features": [{"feature": "x", "description": "desc", "possible_values": [1]}]},
+    ]
+
+    for payload in invalid_payloads:
+        with pytest.raises(ProviderResponseError):
+            provider._validate_feature_discovery_payload(payload)
+
+
 def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(local_mod, "OpenAI", lambda **kwargs: "client")
     provider = local_mod.LocalProvider()
@@ -374,6 +460,9 @@ def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.Mon
     assert captured[-1]["deployment"] == "txt-model"
     assert provider.text_features(["hello"], feature_gen=True) == [{"features": "x"}]
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
+    assert provider.text_features(["hello"], prompt="task", system_prompt="local custom") == [{"features": "x"}]
+    assert captured[-1]["system_prompt"] == "local custom"
+    assert captured[-1]["user_content"][0]["text"] == "task\n\nTEXT:\nhello"
 
     monkeypatch.setattr(local_mod, "HAS_LOCAL_WHISPER", False)
     with pytest.raises(ImportError, match="not installed"):

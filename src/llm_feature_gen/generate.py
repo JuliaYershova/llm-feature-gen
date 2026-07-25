@@ -286,6 +286,10 @@ def _ensure_output_dir(path: Union[str, Path]) -> Path:
     return path
 
 
+def _system_prompt_kwargs(system_prompt: Optional[str]) -> Dict[str, str]:
+    return {"system_prompt": system_prompt} if system_prompt is not None else {}
+
+
 def _extract_feature_names(discovered_features: Any) -> List[str]:
     """
     Try to get feature names from discovered_features.
@@ -339,6 +343,7 @@ def assign_feature_values_from_folder(
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
+        system_prompt: Optional[str] = None,
 ) -> Path:
     """Generate feature values for every supported file in one class folder.
 
@@ -434,6 +439,7 @@ def assign_feature_values_from_folder(
                         llm_resp = provider.text_features(
                             [text_value],
                             prompt=full_prompt,
+                            **_system_prompt_kwargs(system_prompt),
                         )
 
                         parsed, inner = _normalize_generation_payload(llm_resp[0])
@@ -483,6 +489,7 @@ def assign_feature_values_from_folder(
                         prompt=full_prompt,
                         as_set=True,
                         extra_context=transcript_context,
+                        **_system_prompt_kwargs(system_prompt),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -498,6 +505,7 @@ def assign_feature_values_from_folder(
                     llm_resp = provider.image_features(
                         image_base64_list=b64_list,
                         prompt=full_prompt,
+                        **_system_prompt_kwargs(system_prompt),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -514,6 +522,7 @@ def assign_feature_values_from_folder(
                     llm_resp = provider.text_features(
                         [combined_text],
                         prompt=full_prompt,
+                        **_system_prompt_kwargs(system_prompt),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -592,6 +601,7 @@ def generate_features(
         text_column: Optional[str] = None,
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
+        system_prompt: Optional[str] = None,
 ) -> Dict[str, str]:
     """Run the full feature-generation pipeline for a class-organized dataset.
 
@@ -640,6 +650,7 @@ def generate_features(
             label_column=label_column,
             failure_threshold=failure_threshold,
             num_frames=num_frames,
+            system_prompt=system_prompt,
         )
         csv_paths[cls] = str(csv_path)
 

@@ -175,22 +175,56 @@ class OpenAIProvider:
             return "max_tokens"
         return None
 
-    def _structured_outputs_fallback(self, exc: Exception) -> bool:
-        bad_request_error = getattr(openai, "BadRequestError", None)
-        if bad_request_error is None or not isinstance(exc, bad_request_error):
-            return False
-
-        message = str(exc).lower()
-        return "response_format" in message and (
-            "json_schema" in message
-            or "structured output" in message
-            or "structured outputs" in message
-        )
-
     def _schema_for_prompt(self, prompt: str) -> Optional[Dict[str, Any]]:
         if "proposed_features" in prompt:
             return FEATURE_DISCOVERY_SCHEMA
         return None
+
+    def _uses_reasoning_effort(self) -> bool:
+        effort = getattr(self, "reasoning_effort", None)
+        return effort is not None and str(effort).lower() != "none"
+
+    def _validate_feature_discovery_payload(self, payload: Dict[str, Any]) -> None:
+        if not isinstance(payload, dict):
+            raise ProviderResponseError("Feature discovery response must be a JSON object.")
+
+        extra_keys = set(payload) - {"proposed_features"}
+        if extra_keys:
+            raise ProviderResponseError(
+                f"Feature discovery response has unexpected keys: {sorted(extra_keys)}"
+            )
+
+        proposed_features = payload.get("proposed_features")
+        if not isinstance(proposed_features, list):
+            raise ProviderResponseError("Feature discovery response must contain a proposed_features list.")
+
+        allowed_feature_keys = {"feature", "description", "possible_values"}
+        for index, feature in enumerate(proposed_features):
+            if not isinstance(feature, dict):
+                raise ProviderResponseError(f"Feature at index {index} must be an object.")
+
+            extra_feature_keys = set(feature) - allowed_feature_keys
+            if extra_feature_keys:
+                raise ProviderResponseError(
+                    f"Feature at index {index} has unexpected keys: {sorted(extra_feature_keys)}"
+                )
+
+            missing_keys = allowed_feature_keys - set(feature)
+            if missing_keys:
+                raise ProviderResponseError(
+                    f"Feature at index {index} is missing keys: {sorted(missing_keys)}"
+                )
+
+            if not isinstance(feature["feature"], str):
+                raise ProviderResponseError(f"Feature name at index {index} must be a string.")
+            if not isinstance(feature["description"], str):
+                raise ProviderResponseError(f"Feature description at index {index} must be a string.")
+            if not isinstance(feature["possible_values"], list) or not all(
+                isinstance(value, str) for value in feature["possible_values"]
+            ):
+                raise ProviderResponseError(
+                    f"Feature possible_values at index {index} must be a list of strings."
+                )
 
     def _create_chat_completion(self, deployment_name: str, kwargs: Dict[str, Any]) -> Any:
         token_parameter = getattr(self, "_completion_token_parameter", "max_completion_tokens")
@@ -236,31 +270,35 @@ class OpenAIProvider:
             }
         elif json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        if getattr(self, "reasoning_effort", None) is not None:
+        if self._uses_reasoning_effort():
             kwargs["reasoning_effort"] = self.reasoning_effort
 
         backoff = 2
-        tried_structured_outputs = response_schema is not None
         for attempt in range(self.max_retries):
             try:
-                resp = self._create_chat_completion(
-                    deployment_name,
-                    {
-                        "model": deployment_name,
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": user_content},
-                        ],
-                        "temperature": self.temperature,
-                        **kwargs,
-                    },
-                )
+                request = {
+                    "model": deployment_name,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content},
+                    ],
+                    **kwargs,
+                }
+                if not self._uses_reasoning_effort():
+                    request["temperature"] = self.temperature
+
+                resp = self._create_chat_completion(deployment_name, request)
                 text = resp.choices[0].message.content
                 try:
-                    return json.loads(text)
+                    parsed = json.loads(text)
                 except Exception:
                     # Not strict JSON—wrap it so callers have something consistent
+                    if response_schema is not None:
+                        raise ProviderResponseError("Invalid JSON response for requested schema.")
                     return {"features": text}
+                if response_schema is FEATURE_DISCOVERY_SCHEMA:
+                    self._validate_feature_discovery_payload(parsed)
+                return parsed
             except openai.RateLimitError as e:
                 if attempt < self.max_retries - 1:
                     time.sleep(backoff)
@@ -268,10 +306,6 @@ class OpenAIProvider:
                     continue
                 raise ProviderResponseError("Rate limit exceeded. Please try again later.")
             except Exception as e:
-                if tried_structured_outputs and self._structured_outputs_fallback(e):
-                    kwargs["response_format"] = {"type": "json_object"}
-                    tried_structured_outputs = False
-                    continue
                 raise ProviderResponseError(str(e)) from e
 
         raise ProviderResponseError("Unknown failure: unable to get response.")
@@ -287,6 +321,7 @@ class OpenAIProvider:
         feature_gen: bool = False,
         as_set: bool = False,
         extra_context: Optional[str] = None,
+        system_prompt: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each base64 image, ask the LLM to extract features.
@@ -305,9 +340,9 @@ class OpenAIProvider:
         response_schema = self._schema_for_prompt(base_prompt)
 
         # System prompt
-        system_prompt = "You are a feature extraction assistant for images."
-        if feature_gen:
-            system_prompt = (
+        resolved_system_prompt = system_prompt or "You are a feature extraction assistant for images."
+        if feature_gen and system_prompt is None:
+            resolved_system_prompt = (
                 "You are a feature extraction assistant for images. "
                 "Respond in strict JSON with keys as feature names and values as concise strings."
             )
@@ -336,7 +371,7 @@ class OpenAIProvider:
             user_content = build_content(base_prompt, image_base64_list, extra_context)
             out = self._chat_json(
                 deployment,
-                system_prompt,
+                resolved_system_prompt,
                 user_content,
                 json_mode=True,
                 response_schema=response_schema,
@@ -348,7 +383,7 @@ class OpenAIProvider:
             user_content = build_content(base_prompt, [img_b64], None)
             out = self._chat_json(
                 deployment,
-                system_prompt,
+                resolved_system_prompt,
                 user_content,
                 json_mode=True,
                 response_schema=response_schema,
@@ -363,6 +398,7 @@ class OpenAIProvider:
         prompt: Optional[str] = None,
         deployment_name: Optional[str] = None,
         feature_gen: bool = False,
+        system_prompt: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         For each text, ask the LLM to extract features.
@@ -376,9 +412,9 @@ class OpenAIProvider:
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
         response_schema = self._schema_for_prompt(base_prompt)
 
-        system_prompt = base_prompt
-        if feature_gen:
-            system_prompt = (
+        resolved_system_prompt = system_prompt or base_prompt
+        if feature_gen and system_prompt is None:
+            resolved_system_prompt = (
                 "You are a feature extraction assistant for text documents. "
                 "You provide output in a structured JSON format and do NOT provide explanations.\n"
                 "{\n"
@@ -392,13 +428,14 @@ class OpenAIProvider:
                 "GENERATE ALL PRESENTED FEATURES!\n"
             )
             if prompt:
-                system_prompt += str(prompt)
+                resolved_system_prompt += str(prompt)
 
         for txt in text_list:
-            user_content: List[Dict[str, Any]] = [{"type": "text", "text": txt}]
+            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt else txt
+            user_content: List[Dict[str, Any]] = [{"type": "text", "text": user_text}]
             out = self._chat_json(
                 deployment,
-                system_prompt,
+                resolved_system_prompt,
                 user_content,
                 json_mode=True,
                 response_schema=response_schema,

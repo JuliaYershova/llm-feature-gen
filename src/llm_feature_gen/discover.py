@@ -70,6 +70,10 @@ def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
     return [chunk for chunk in chunks if chunk.strip()]
 
 
+def _system_prompt_kwargs(system_prompt: Optional[str]) -> Dict[str, str]:
+    return {"system_prompt": system_prompt} if system_prompt is not None else {}
+
+
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
         prompt: str = image_discovery_prompt,
@@ -78,6 +82,7 @@ def discover_features_from_images(
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         min_features: int = 10,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from image files and persist the provider response.
 
@@ -149,6 +154,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=True,
+            **_system_prompt_kwargs(system_prompt),
         )
     else:
         # per-image behavior
@@ -156,6 +162,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=False,
+            **_system_prompt_kwargs(system_prompt),
         )
 
     # validate before saving
@@ -201,6 +208,7 @@ def discover_features_from_videos(
         max_total_frames_payload: int = 15,
         random_seed: Optional[int] = None,
         min_features: int = 10,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -349,6 +357,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=True,
             extra_context=final_context,
+            **_system_prompt_kwargs(system_prompt),
         )
     else:
         # per-frame discovery
@@ -357,6 +366,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=False,
             extra_context=final_context,
+            **_system_prompt_kwargs(system_prompt),
         )
 
     # validate before saving
@@ -399,6 +409,7 @@ def discover_features_from_texts(
         output_filename: Optional[str] = None,
         num_classes: Optional[int] = None,
         min_features: int = 10,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -521,12 +532,14 @@ def discover_features_from_texts(
         result_list = provider.text_features(
             [combined_text],  # ONE request
             prompt=prompt,
+            **_system_prompt_kwargs(system_prompt),
         )
     else:
         # PER-TEXT DESCRIPTION MODE
         result_list = provider.text_features(
             texts,  # MANY requests
             prompt=prompt,
+            **_system_prompt_kwargs(system_prompt),
         )
 
     # validate before saving
@@ -570,6 +583,7 @@ def discover_features_from_tabular(
         output_filename: Optional[str] = None,
         max_rows: Optional[int] = None,
         min_features: int = 10,
+        system_prompt: Optional[str] = None,
         ) -> DiscoveryResult:
     """Discover features from tabular datasets by projecting a text column.
 
@@ -659,4 +673,5 @@ def discover_features_from_tabular(
         output_dir=output_dir,
         output_filename=output_filename or "discovered_tabular_features.json",
         min_features=min_features,
+        system_prompt=system_prompt,
     )

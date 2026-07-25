@@ -18,19 +18,20 @@ class FakeProvider:
         self.image_calls = []
         self.text_calls = []
 
-    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None):
         self.image_calls.append(
             {
                 "images": list(image_base64_list),
                 "prompt": prompt,
                 "as_set": as_set,
                 "extra_context": extra_context,
+                "system_prompt": system_prompt,
             }
         )
         return [{"features": {"feat1": "img", "feat2": "common"}}]
 
-    def text_features(self, text_list, prompt=None):
-        self.text_calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, system_prompt=None):
+        self.text_calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt})
         if len(text_list) == 1 and "row-text" in text_list[0]:
             return [{"features": '{"feat1": "row-value"}'}]
         return [{"features": {"feat1": "txt", "feat2": "common"}}]
@@ -240,6 +241,28 @@ def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monk
         label_column="label",
     )
     assert csv_path.exists()
+
+
+def test_assign_feature_values_forwards_custom_system_prompt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classPrompt"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+    provider = FakeProvider()
+
+    gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classPrompt",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=provider,
+        output_dir=tmp_path / "out",
+        system_prompt="custom generation system",
+    )
+
+    assert provider.text_calls[0]["system_prompt"] == "custom generation system"
 
 
 def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -706,6 +729,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         text_column,
         label_column,
         failure_threshold,
+        system_prompt,
     ):
         csv_path = Path(output_dir) / f"{class_name}.csv"
         pd.DataFrame([{"File": f"{class_name}.txt", "Class": class_name, "feat1": "x", "raw_llm_output": "{}"}]).to_csv(
@@ -717,6 +741,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
             "text_column": text_column,
             "label_column": label_column,
             "failure_threshold": failure_threshold,
+            "system_prompt": system_prompt,
         }
         return csv_path
 
@@ -731,12 +756,14 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         merge_to_single_csv=True,
         text_column="body",
         label_column="label",
+        system_prompt="custom generation system",
     )
 
     assert set(result) == {"c1", "c2", "__merged__"}
     assert Path(result["__merged__"]).exists()
     assert generated["c1"]["text_column"] == "body"
     assert generated["c1"]["failure_threshold"] == 3
+    assert generated["c1"]["system_prompt"] == "custom generation system"
 
     result = gen.generate_features(
         root_folder=root,
