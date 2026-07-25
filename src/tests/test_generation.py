@@ -18,6 +18,12 @@ class FakeProvider:
         self.image_calls = []
         self.text_calls = []
 
+    def _response_features(self, prompt, prefix):
+        features = {"feat1": prefix}
+        if prompt and '"feat2"' in prompt:
+            features["feat2"] = "common"
+        return features
+
     def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None, response_schema=None):
         self.image_calls.append(
             {
@@ -29,13 +35,13 @@ class FakeProvider:
                 "response_schema": response_schema,
             }
         )
-        return [{"features": {"feat1": "img", "feat2": "common"}}]
+        return [{"features": self._response_features(prompt, "img")}]
 
     def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
         self.text_calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt, "response_schema": response_schema})
         if len(text_list) == 1 and "row-text" in text_list[0]:
-            return [{"features": '{"feat1": "row-value"}'}]
-        return [{"features": {"feat1": "txt", "feat2": "common"}}]
+            return [{"features": json.dumps(self._response_features(prompt, "row-value"))}]
+        return [{"features": self._response_features(prompt, "txt")}]
 
     def transcribe_audio(self, audio_path: str) -> str:
         return f"audio:{audio_path}"
@@ -267,7 +273,7 @@ def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monk
     df = pd.read_csv(csv_path)
     assert list(df["Class"]) == ["L1"]
     assert list(df["feat1"]) == ["row-value"]
-    assert list(df["feat2"]) == ["not given by LLM"]
+    assert list(df["feat2"]) == ["common"]
 
     csv_path = gen.assign_feature_values_from_folder(
         folder_path=root,
@@ -393,6 +399,45 @@ def test_assign_feature_values_rejects_invalid_strict_generation_output(tmp_path
             class_name="classBad",
             discovered_features={"proposed_features": [{"feature": "topic", "possible_values": ["yes", "no"]}]},
             provider=BadStrictProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
+
+
+def test_assign_feature_values_rejects_invalid_generation_output_without_schema_support(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classBadShape"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class DiscoveryShapedProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [
+                {
+                    "features": {
+                        "proposed_features": [
+                            {
+                                "feature": "topic",
+                                "description": "program_output_prediction",
+                                "possible_values": ["program_output_prediction"],
+                            }
+                        ]
+                    }
+                }
+            ]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="missing feature keys"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classBadShape",
+            discovered_features={"proposed_features": [{"feature": "topic"}]},
+            provider=DiscoveryShapedProvider(),
             output_dir=tmp_path / "out",
             failure_threshold=1,
         )

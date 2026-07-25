@@ -158,6 +158,22 @@ def test_generate_features_batch_rejects_invalid_schema_provider_response(tmp_pa
     assert list(df["length"]) == ["not given by LLM"]
 
 
+def test_generate_features_batch_rejects_invalid_response_without_schema_support(tmp_path: Path):
+    class DiscoveryShapedBatchProvider:
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            return [{"features": {"proposed_features": [{"feature": "topic"}]}}]
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=DiscoveryShapedBatchProvider(),
+    )
+
+    assert list(df["topic"]) == ["not given by LLM"]
+    assert list(df["length"]) == ["not given by LLM"]
+
+
 def test_generate_features_batch_loads_schema_from_path_and_uses_default_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

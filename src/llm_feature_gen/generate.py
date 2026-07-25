@@ -464,7 +464,6 @@ def assign_feature_values_from_folder(
     if not feature_names:
         raise ValueError("discovered_features must include at least one feature name")
     response_schema = _build_generation_response_schema(discovered_features)
-    strict_generation = getattr(provider, "supports_response_schema", False) is True
 
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
@@ -526,8 +525,7 @@ def assign_feature_values_from_folder(
                         )
 
                         parsed, inner = _normalize_generation_payload(llm_resp[0])
-                        if strict_generation:
-                            _validate_generation_features(inner, discovered_features)
+                        _validate_generation_features(inner, discovered_features)
 
                         row_dict: Dict[str, Any] = {
                             "File": f"{filename}__row_{idx}",
@@ -642,8 +640,7 @@ def assign_feature_values_from_folder(
         # =========================================================
         try:
             parsed, inner = _normalize_generation_payload(parsed)
-            if strict_generation:
-                _validate_generation_features(inner, discovered_features)
+            _validate_generation_features(inner, discovered_features)
         except Exception as e:
             consecutive_failures += 1
             last_failure = _format_generation_failure(filename, str(e))

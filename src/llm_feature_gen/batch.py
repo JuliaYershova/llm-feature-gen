@@ -142,7 +142,6 @@ def generate_features_batch(
     features_hash = BatchTextCache._hash(json.dumps(discovered_features, sort_keys=True))
     full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
     response_schema = _build_generation_response_schema(discovered_features)
-    strict_generation = getattr(provider, "supports_response_schema", False) is True
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
     indices_to_process: List[int] = []
@@ -185,12 +184,11 @@ def generate_features_batch(
         for local_pos, global_index in enumerate(batch_indices):
             parsed = responses[local_pos] if local_pos < len(responses) else {}
             inner = _normalise_provider_response(parsed)
-            if strict_generation:
-                try:
-                    _validate_generation_features(inner, discovered_features)
-                except ValueError as exc:
-                    print(f"Invalid batch response for text_{global_index}: {exc}")
-                    inner = {}
+            try:
+                _validate_generation_features(inner, discovered_features)
+            except ValueError as exc:
+                print(f"Invalid batch response for text_{global_index}: {exc}")
+                inner = {}
             batch_responses[global_index] = inner
 
             if cache is not None:
