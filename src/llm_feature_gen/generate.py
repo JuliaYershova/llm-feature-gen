@@ -286,8 +286,17 @@ def _ensure_output_dir(path: Union[str, Path]) -> Path:
     return path
 
 
-def _system_prompt_kwargs(system_prompt: Optional[str]) -> Dict[str, str]:
-    return {"system_prompt": system_prompt} if system_prompt is not None else {}
+def _provider_call_kwargs(
+        provider: Any,
+        system_prompt: Optional[str],
+        response_schema: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    kwargs: Dict[str, Any] = {}
+    if system_prompt is not None:
+        kwargs["system_prompt"] = system_prompt
+    if response_schema is not None and getattr(provider, "supports_response_schema", False) is True:
+        kwargs["response_schema"] = response_schema
+    return kwargs
 
 
 def _extract_feature_names(discovered_features: Any) -> List[str]:
@@ -309,6 +318,78 @@ def _extract_feature_names(discovered_features: Any) -> List[str]:
         elif isinstance(f, str):
             names.append(f)
     return names
+
+
+def _iter_feature_specs(discovered_features: Any) -> List[Dict[str, Any]]:
+    if isinstance(discovered_features, list):
+        discovered_features = {"proposed_features": discovered_features}
+
+    specs: List[Dict[str, Any]] = []
+    seen = set()
+    for item in discovered_features.get("proposed_features", []):
+        if isinstance(item, str):
+            item = {"feature": item}
+        if not isinstance(item, dict) or not item.get("feature"):
+            continue
+
+        name = item["feature"]
+        if name in seen:
+            continue
+        seen.add(name)
+        specs.append(item)
+    return specs
+
+
+def _enum_values(feature_spec: Dict[str, Any]) -> List[str]:
+    values = feature_spec.get("allowed_values") or feature_spec.get("possible_values") or []
+    return [value for value in values if isinstance(value, str)]
+
+
+def _build_generation_response_schema(discovered_features: Any) -> Dict[str, Any]:
+    properties: Dict[str, Any] = {}
+    required: List[str] = []
+    for feature_spec in _iter_feature_specs(discovered_features):
+        name = feature_spec["feature"]
+        schema: Dict[str, Any] = {"type": "string"}
+        values = _enum_values(feature_spec)
+        if values:
+            schema["enum"] = values
+        properties[name] = schema
+        required.append(name)
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
+
+
+def _validate_generation_features(features: Dict[str, Any], discovered_features: Any) -> None:
+    specs = _iter_feature_specs(discovered_features)
+    expected = [spec["feature"] for spec in specs]
+    expected_set = set(expected)
+    actual_set = set(features)
+
+    missing = expected_set - actual_set
+    if missing:
+        raise ValueError(f"Generation response is missing feature keys: {sorted(missing)}")
+
+    extra = actual_set - expected_set
+    if extra:
+        raise ValueError(f"Generation response has unexpected feature keys: {sorted(extra)}")
+
+    for spec in specs:
+        name = spec["feature"]
+        value = features[name]
+        if not isinstance(value, str):
+            raise ValueError(f"Generation value for '{name}' must be a string.")
+
+        values = _enum_values(spec)
+        if values and value not in values:
+            raise ValueError(
+                f"Generation value for '{name}' must be one of {values}, got {value!r}."
+            )
 
 
 def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -382,6 +463,8 @@ def assign_feature_values_from_folder(
     feature_names = list(dict.fromkeys(raw_names))
     if not feature_names:
         raise ValueError("discovered_features must include at least one feature name")
+    response_schema = _build_generation_response_schema(discovered_features)
+    strict_generation = getattr(provider, "supports_response_schema", False) is True
 
     video_exts = {".mp4", ".mov", ".avi", ".mkv"}
     image_exts = {".jpg", ".jpeg", ".png"}
@@ -439,10 +522,12 @@ def assign_feature_values_from_folder(
                         llm_resp = provider.text_features(
                             [text_value],
                             prompt=full_prompt,
-                            **_system_prompt_kwargs(system_prompt),
+                            **_provider_call_kwargs(provider, system_prompt, response_schema),
                         )
 
                         parsed, inner = _normalize_generation_payload(llm_resp[0])
+                        if strict_generation:
+                            _validate_generation_features(inner, discovered_features)
 
                         row_dict: Dict[str, Any] = {
                             "File": f"{filename}__row_{idx}",
@@ -489,7 +574,7 @@ def assign_feature_values_from_folder(
                         prompt=full_prompt,
                         as_set=True,
                         extra_context=transcript_context,
-                        **_system_prompt_kwargs(system_prompt),
+                        **_provider_call_kwargs(provider, system_prompt, response_schema),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -505,7 +590,7 @@ def assign_feature_values_from_folder(
                     llm_resp = provider.image_features(
                         image_base64_list=b64_list,
                         prompt=full_prompt,
-                        **_system_prompt_kwargs(system_prompt),
+                        **_provider_call_kwargs(provider, system_prompt, response_schema),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -522,7 +607,7 @@ def assign_feature_values_from_folder(
                     llm_resp = provider.text_features(
                         [combined_text],
                         prompt=full_prompt,
-                        **_system_prompt_kwargs(system_prompt),
+                        **_provider_call_kwargs(provider, system_prompt, response_schema),
                     )
                 except Exception as e:
                     consecutive_failures += 1
@@ -557,6 +642,8 @@ def assign_feature_values_from_folder(
         # =========================================================
         try:
             parsed, inner = _normalize_generation_payload(parsed)
+            if strict_generation:
+                _validate_generation_features(inner, discovered_features)
         except Exception as e:
             consecutive_failures += 1
             last_failure = _format_generation_failure(filename, str(e))

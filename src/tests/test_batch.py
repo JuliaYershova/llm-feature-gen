@@ -14,8 +14,8 @@ class FakeBatchProvider:
         self.calls = []
         self.fail_first = fail_first
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, response_schema=None):
+        self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
         if self.fail_first:
             self.fail_first = False
             raise RuntimeError("temporary failure")
@@ -30,8 +30,8 @@ class AlwaysFailProvider:
     def __init__(self) -> None:
         self.calls = []
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, response_schema=None):
+        self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
         raise RuntimeError("permanent failure")
 
 
@@ -112,6 +112,50 @@ def test_generate_features_batch_batches_provider_calls_and_saves_cache_once_per
     assert list(df["Class"]) == ["A", "B", "C"]
     assert list(df["topic"]) == ["value-0", "value-1", "value-0"]
     assert pd.read_csv(output_csv).shape[0] == 3
+
+
+def test_generate_features_batch_uses_schema_for_schema_provider(tmp_path: Path):
+    class StrictBatchProvider:
+        supports_response_schema = True
+
+        def __init__(self):
+            self.calls = []
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
+            return [
+                {"topic": "value", "length": str(len(text))}
+                for text in text_list
+            ]
+
+    provider = StrictBatchProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=provider,
+    )
+
+    assert provider.calls[0]["response_schema"]["required"] == ["topic", "length"]
+    assert list(df["topic"]) == ["value"]
+
+
+def test_generate_features_batch_rejects_invalid_schema_provider_response(tmp_path: Path):
+    class BadStrictBatchProvider:
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            return [{"topic": "value", "extra": "bad"}]
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=BadStrictBatchProvider(),
+    )
+
+    assert list(df["topic"]) == ["not given by LLM"]
+    assert list(df["length"]) == ["not given by LLM"]
 
 
 def test_generate_features_batch_loads_schema_from_path_and_uses_default_provider(

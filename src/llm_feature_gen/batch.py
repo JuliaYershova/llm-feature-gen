@@ -12,7 +12,10 @@ import pandas as pd
 
 from .generate import (
     _build_prompt_for_generation,
+    _build_generation_response_schema,
     _extract_feature_names,
+    _provider_call_kwargs,
+    _validate_generation_features,
     load_discovered_features,
     parse_json_from_markdown,
 )
@@ -88,8 +91,13 @@ def _call_provider_batch(
     provider: OpenAIProvider,
     texts: List[str],
     prompt: str,
+    response_schema: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    return provider.text_features(texts, prompt=prompt)
+    return provider.text_features(
+        texts,
+        prompt=prompt,
+        **_provider_call_kwargs(provider, None, response_schema),
+    )
 
 
 def _normalise_provider_response(response: Any) -> Dict[str, Any]:
@@ -133,6 +141,8 @@ def generate_features_batch(
 
     features_hash = BatchTextCache._hash(json.dumps(discovered_features, sort_keys=True))
     full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
+    response_schema = _build_generation_response_schema(discovered_features)
+    strict_generation = getattr(provider, "supports_response_schema", False) is True
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
     indices_to_process: List[int] = []
@@ -161,12 +171,12 @@ def generate_features_batch(
         batch_texts = [texts[index] for index in batch_indices]
 
         try:
-            responses = _call_provider_batch(provider, batch_texts, full_prompt)
+            responses = _call_provider_batch(provider, batch_texts, full_prompt, response_schema)
         except Exception as exc:
             print(f"Batch error ({exc}), retrying after {retry_delay}s...")
             time.sleep(retry_delay)
             try:
-                responses = _call_provider_batch(provider, batch_texts, full_prompt)
+                responses = _call_provider_batch(provider, batch_texts, full_prompt, response_schema)
             except Exception as retry_exc:
                 print(f"Batch failed again: {retry_exc}. Skipping batch.")
                 responses = [{}] * len(batch_texts)
@@ -175,6 +185,12 @@ def generate_features_batch(
         for local_pos, global_index in enumerate(batch_indices):
             parsed = responses[local_pos] if local_pos < len(responses) else {}
             inner = _normalise_provider_response(parsed)
+            if strict_generation:
+                try:
+                    _validate_generation_features(inner, discovered_features)
+                except ValueError as exc:
+                    print(f"Invalid batch response for text_{global_index}: {exc}")
+                    inner = {}
             batch_responses[global_index] = inner
 
             if cache is not None:

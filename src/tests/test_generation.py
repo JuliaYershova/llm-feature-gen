@@ -18,7 +18,7 @@ class FakeProvider:
         self.image_calls = []
         self.text_calls = []
 
-    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None):
+    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None, response_schema=None):
         self.image_calls.append(
             {
                 "images": list(image_base64_list),
@@ -26,12 +26,13 @@ class FakeProvider:
                 "as_set": as_set,
                 "extra_context": extra_context,
                 "system_prompt": system_prompt,
+                "response_schema": response_schema,
             }
         )
         return [{"features": {"feat1": "img", "feat2": "common"}}]
 
-    def text_features(self, text_list, prompt=None, system_prompt=None):
-        self.text_calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt})
+    def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+        self.text_calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt, "response_schema": response_schema})
         if len(text_list) == 1 and "row-text" in text_list[0]:
             return [{"features": '{"feat1": "row-value"}'}]
         return [{"features": {"feat1": "txt", "feat2": "common"}}]
@@ -207,6 +208,43 @@ def test_build_generation_prompt_embeds_enum_lists_in_spec():
     assert "low" in built and "approved" in built
 
 
+def test_generation_response_schema_and_validation():
+    spec = {
+        "proposed_features": [
+            {"feature": "risk", "possible_values": ["low", "high"]},
+            {"feature": "status", "allowed_values": ["approved", "denied"]},
+            {"feature": "summary"},
+        ]
+    }
+
+    schema = gen._build_generation_response_schema(spec)
+    assert schema["required"] == ["risk", "status", "summary"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["risk"]["enum"] == ["low", "high"]
+    assert schema["properties"]["status"]["enum"] == ["approved", "denied"]
+    assert schema["properties"]["summary"] == {"type": "string"}
+
+    gen._validate_generation_features(
+        {"risk": "low", "status": "approved", "summary": "short phrase"},
+        spec,
+    )
+
+    invalid_outputs = [
+        {"risk": "low", "status": "approved"},
+        {"risk": "low", "status": "approved", "summary": "ok", "extra": "x"},
+        {"risk": "medium", "status": "approved", "summary": "ok"},
+        {"risk": "low", "status": "approved", "summary": 1},
+    ]
+    for output in invalid_outputs:
+        with pytest.raises(ValueError):
+            gen._validate_generation_features(output, spec)
+
+    duplicate_schema = gen._build_generation_response_schema(
+        [{"feature": "topic"}, "length", {"ignored": "x"}, {"feature": "topic"}]
+    )
+    assert duplicate_schema["required"] == ["topic", "length"]
+
+
 def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "root"
     class_dir = root / "classA"
@@ -263,6 +301,101 @@ def test_assign_feature_values_forwards_custom_system_prompt(tmp_path: Path, mon
     )
 
     assert provider.text_calls[0]["system_prompt"] == "custom generation system"
+
+
+def test_assign_feature_values_uses_strict_schema_for_schema_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classStrict"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class StrictProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            self.text_calls.append(
+                {
+                    "texts": list(text_list),
+                    "prompt": prompt,
+                    "system_prompt": system_prompt,
+                    "response_schema": response_schema,
+                }
+            )
+            return [{"topic": "yes", "kind": "exercise"}]
+
+    provider = StrictProvider()
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classStrict",
+        discovered_features={
+            "proposed_features": [
+                {"feature": "topic", "possible_values": ["yes", "no"]},
+                {"feature": "kind"},
+            ]
+        },
+        provider=provider,
+        output_dir=tmp_path / "out",
+    )
+
+    assert provider.text_calls[0]["response_schema"]["properties"]["topic"]["enum"] == ["yes", "no"]
+    df = pd.read_csv(csv_path)
+    assert list(df["topic"]) == ["yes"]
+    assert list(df["kind"]) == ["exercise"]
+
+
+def test_assign_feature_values_validates_strict_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classRows"
+    class_dir.mkdir(parents=True)
+    (class_dir / "rows.csv").write_text("text\nrow-text\n", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class StrictRowProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [{"topic": "yes"}]
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classRows",
+        discovered_features={"proposed_features": [{"feature": "topic", "possible_values": ["yes", "no"]}]},
+        provider=StrictRowProvider(),
+        output_dir=tmp_path / "out",
+        text_column="text",
+    )
+
+    assert pd.read_csv(csv_path)["topic"].tolist() == ["yes"]
+
+
+def test_assign_feature_values_rejects_invalid_strict_generation_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classBad"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class BadStrictProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [{"topic": "maybe", "extra": "x"}]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="unexpected feature keys"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classBad",
+            discovered_features={"proposed_features": [{"feature": "topic", "possible_values": ["yes", "no"]}]},
+            provider=BadStrictProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
 
 
 def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
