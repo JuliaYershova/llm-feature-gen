@@ -101,6 +101,20 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     assert create.calls[0]["max_completion_tokens"] == 50
     assert create.calls[0]["reasoning_effort"] == "low"
 
+    client, create = make_chat_client(['{"proposed_features": []}'])
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == {"proposed_features": []}
+    response_format = create.calls[0]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"]["required"] == ["proposed_features"]
+
     client, _ = make_chat_client(["not-json"])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"features": "not-json"}
@@ -123,18 +137,37 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     with pytest.raises(ProviderResponseError, match="boom"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError("response_format json_schema is unsupported"),
+            '{"fallback": true}',
+        ]
+    )
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == {"fallback": True}
+    assert create.calls[0]["response_format"]["type"] == "json_schema"
+    assert create.calls[1]["response_format"] == {"type": "json_object"}
+
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
     with pytest.raises(ProviderResponseError, match="Unknown failure"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
 
     captured = []
-    provider._chat_json = lambda deployment, system_prompt, user_content, json_mode=False: captured.append(
+    provider._chat_json = lambda deployment, system_prompt, user_content, json_mode=False, response_schema=None: captured.append(
         {
             "deployment": deployment,
             "system_prompt": system_prompt,
             "user_content": user_content,
             "json_mode": json_mode,
+            "response_schema": response_schema,
         }
     ) or {"features": "x"}
     assert provider.image_features(["a", "b"], feature_gen=True) == [{"features": "x"}, {"features": "x"}]
@@ -154,6 +187,11 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     captured.clear()
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
     assert captured[0]["system_prompt"] == "plain"
+    assert captured[0]["response_schema"] is None
+
+    captured.clear()
+    assert provider.text_features(["hello"], prompt='{"proposed_features": []}') == [{"features": "x"}]
+    assert captured[0]["response_schema"] == openai_mod.FEATURE_DISCOVERY_SCHEMA
 
     with pytest.raises(FileNotFoundError, match="not found"):
         provider.transcribe_audio(str(tmp_path / "missing.wav"))

@@ -15,6 +15,31 @@ from openai import OpenAI, AzureOpenAI
 load_dotenv()
 
 
+FEATURE_DISCOVERY_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "proposed_features": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "feature": {"type": "string"},
+                    "description": {"type": "string"},
+                    "possible_values": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["feature", "description", "possible_values"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["proposed_features"],
+    "additionalProperties": False,
+}
+
+
 class OpenAIProvider:
     """
     Thin adapter around  OpenAI (Azure or personal) for feature discovery/generation.
@@ -150,6 +175,23 @@ class OpenAIProvider:
             return "max_tokens"
         return None
 
+    def _structured_outputs_fallback(self, exc: Exception) -> bool:
+        bad_request_error = getattr(openai, "BadRequestError", None)
+        if bad_request_error is None or not isinstance(exc, bad_request_error):
+            return False
+
+        message = str(exc).lower()
+        return "response_format" in message and (
+            "json_schema" in message
+            or "structured output" in message
+            or "structured outputs" in message
+        )
+
+    def _schema_for_prompt(self, prompt: str) -> Optional[Dict[str, Any]]:
+        if "proposed_features" in prompt:
+            return FEATURE_DISCOVERY_SCHEMA
+        return None
+
     def _create_chat_completion(self, deployment_name: str, kwargs: Dict[str, Any]) -> Any:
         token_parameter = getattr(self, "_completion_token_parameter", "max_completion_tokens")
         token_limit = getattr(self, "max_completion_tokens", getattr(self, "max_tokens", 2048))
@@ -171,6 +213,7 @@ class OpenAIProvider:
         system_prompt: str,
         user_content: List[Dict[str, Any]],
         json_mode: bool = False,
+        response_schema: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Sends a chat completion request and tries to parse JSON from the reply.
@@ -182,12 +225,22 @@ class OpenAIProvider:
             system_prompt += " Respond in strict JSON format."
 
         kwargs = {}
-        if json_mode:
+        if response_schema is not None:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "feature_discovery",
+                    "schema": response_schema,
+                    "strict": True,
+                },
+            }
+        elif json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         if getattr(self, "reasoning_effort", None) is not None:
             kwargs["reasoning_effort"] = self.reasoning_effort
 
         backoff = 2
+        tried_structured_outputs = response_schema is not None
         for attempt in range(self.max_retries):
             try:
                 resp = self._create_chat_completion(
@@ -215,6 +268,10 @@ class OpenAIProvider:
                     continue
                 raise ProviderResponseError("Rate limit exceeded. Please try again later.")
             except Exception as e:
+                if tried_structured_outputs and self._structured_outputs_fallback(e):
+                    kwargs["response_format"] = {"type": "json_object"}
+                    tried_structured_outputs = False
+                    continue
                 raise ProviderResponseError(str(e)) from e
 
         raise ProviderResponseError("Unknown failure: unable to get response.")
@@ -245,6 +302,7 @@ class OpenAIProvider:
 
         # fallback/default prompt
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
+        response_schema = self._schema_for_prompt(base_prompt)
 
         # System prompt
         system_prompt = "You are a feature extraction assistant for images."
@@ -276,13 +334,25 @@ class OpenAIProvider:
         if as_set or extra_context:
             # one message with many images
             user_content = build_content(base_prompt, image_base64_list, extra_context)
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
+            out = self._chat_json(
+                deployment,
+                system_prompt,
+                user_content,
+                json_mode=True,
+                response_schema=response_schema,
+            )
             return [out]
 
         results: List[Dict[str, Any]] = []
         for img_b64 in image_base64_list:
             user_content = build_content(base_prompt, [img_b64], None)
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
+            out = self._chat_json(
+                deployment,
+                system_prompt,
+                user_content,
+                json_mode=True,
+                response_schema=response_schema,
+            )
             results.append(out)
 
         return results
@@ -304,6 +374,7 @@ class OpenAIProvider:
 
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
+        response_schema = self._schema_for_prompt(base_prompt)
 
         system_prompt = base_prompt
         if feature_gen:
@@ -325,7 +396,13 @@ class OpenAIProvider:
 
         for txt in text_list:
             user_content: List[Dict[str, Any]] = [{"type": "text", "text": txt}]
-            out = self._chat_json(deployment, system_prompt, user_content, json_mode=True)
+            out = self._chat_json(
+                deployment,
+                system_prompt,
+                user_content,
+                json_mode=True,
+                response_schema=response_schema,
+            )
             results.append(out)
 
         return results
