@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 import openai
 from openai import OpenAI, BadRequestError
 
+from ..contracts import ProviderResponseError, explain_empty_reply
+
 # Optional: Local Whisper
 try:
     from faster_whisper import WhisperModel
@@ -194,7 +196,15 @@ class LocalProvider:
                     **kwargs,
                 )
 
-                text = resp.choices[0].message.content or ""
+                message = resp.choices[0].message
+                text = message.content or ""
+
+                # An empty reply has nothing to parse; say what happened
+                # instead of wrapping the emptiness and passing it on.
+                if not text.strip():
+                    raise ProviderResponseError(
+                        explain_empty_reply(resp, message, deployment_name, self.max_tokens)
+                    )
 
                 try:
                     return json.loads(text)
