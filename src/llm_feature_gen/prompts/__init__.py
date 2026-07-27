@@ -10,12 +10,11 @@ def load_prompt(name: str) -> str:
         raise FileNotFoundError(f"Prompt '{name}' not found in {path.parent}")
     return path.read_text(encoding="utf-8")
 
-
-image_discovery_prompt = load_prompt("image_discovery_prompt")
-image_generation_prompt = load_prompt("image_generation_prompt")
-
-text_discovery_prompt = load_prompt("text_discovery_prompt")
-text_generation_prompt = load_prompt("text_generation_prompt")
-multiclass_discovery_prompt = load_prompt("multiclass_discovery_prompt")
+multiclass_text_discovery_prompt = load_prompt("multiclass_text_discovery_prompt")
 multiclass_image_discovery_prompt = load_prompt("multiclass_image_discovery_prompt")
+multiclass_video_discovery_prompt = load_prompt("multiclass_video_discovery_prompt")
+multiclass_tabular_discovery_prompt = load_prompt("multiclass_tabular_discovery_prompt")
+
+# Old name for the text prompt, kept so existing imports keep working.
+multiclass_discovery_prompt = multiclass_text_discovery_prompt
 

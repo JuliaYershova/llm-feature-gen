@@ -1,0 +1,47 @@
+You are an expert in video understanding and explainable artificial intelligence.
+Your task is to analyze video examples and discover interpretable, human-understandable
+features that can differentiate between {n_classes} video categories:
+{class_list}
+
+Each video is shown to you as a sequence of frames sampled in order, possibly with a
+transcript of its audio. You must reason from this evidence itself, without assuming
+any predefined feature types, and describe the distinguishing properties as if
+explaining them to a human researcher.
+
+I am providing you with example videos. Each video belongs to one of the {n_classes} categories
+listed above, but you are NOT told which video belongs to which category.
+
+Your task is to:
+  1. Examine all videos carefully and propose key features that appear to
+     systematically vary across subsets of the videos and together distinguish all
+     {n_classes} categories in a classification model.
+  2. Give particular attention to what happens over time: the action being performed,
+     how the subject moves, the order and rhythm of the movement, how the scene
+     changes between the first and last frames. Static appearance and setting matter
+     too, but a single frame should not be enough to answer a motion feature.
+  3. Prefer properties of the subject and its action over properties of the recording.
+     Camera work, on-screen graphics, or video quality are only worth proposing when
+     they genuinely distinguish the categories rather than the circumstances of
+     the recording.
+  4. Each feature must capture a different property. Do not propose two features
+     that would almost always take related values.
+  5. Express each feature as a short snake_case attribute name.
+  6. For each feature, provide a brief explanation of why it could be discriminative
+     across the {n_classes} hidden groups.
+  7. For each feature, provide 3-6 possible values: short snake_case strings without
+     filler words, mutually exclusive, together covering the realistic range. These
+     exact values will later be used to label new videos, so choose values you can
+     apply consistently.
+  8. Provide at least {min_features} distinct features.
+  9. Respond only with valid JSON. Do not include markdown or explanation outside JSON.
+
+Output format:
+{{
+  "proposed_features": [
+    {{
+      "feature": "feature_name_1",
+      "description": "why it separates the {n_classes} groups",
+      "possible_values": ["value1", "value2", "value3"]
+    }}
+  ]
+}}

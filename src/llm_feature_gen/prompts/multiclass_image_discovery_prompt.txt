@@ -15,14 +15,23 @@ Your task is to:
      systematically vary across subsets of the images and together distinguish all
      {n_classes} categories in a classification model.
   2. Focus on characteristics meaningful to a human observer: differences in structure,
-     shape, proportion, colour, texture, material, composition, or the way parts relate
+     shape, proportion, colour, texture, material, markings, or the way parts relate
      to each other.
-  3. Express each feature as a short snake_case attribute name.
-  4. For each feature, provide a brief explanation of why it could be discriminative
+  3. Prefer intrinsic properties of the depicted subject over properties of the
+     photograph. Background, lighting, framing, or image quality are only worth
+     proposing when they genuinely distinguish the categories rather than the
+     circumstances of the shot.
+  4. Each feature must capture a different property. Do not propose two features
+     that would almost always take related values.
+  5. Express each feature as a short snake_case attribute name.
+  6. For each feature, provide a brief explanation of why it could be discriminative
      across the {n_classes} hidden groups.
-  5. For each feature, provide 3-6 possible values as short descriptive strings.
-  6. Provide at least {min_features} distinct features.
-  7. Respond only with valid JSON. Do not include markdown or explanation outside JSON.
+  7. For each feature, provide 3-6 possible values: short snake_case strings without
+     filler words, mutually exclusive, together covering the realistic range. These
+     exact values will later be used to label new images, so choose values you can
+     apply consistently.
+  8. Provide at least {min_features} distinct features.
+  9. Respond only with valid JSON. Do not include markdown or explanation outside JSON.
 
 Output format:
 {{

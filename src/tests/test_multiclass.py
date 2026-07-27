@@ -377,3 +377,61 @@ def test_discover_features_multiclass_videos_forwards_video_options(
     assert captured["random_seed"] == 42
     assert "3 visual categories" in captured["prompt"]
     assert "at least 11 distinct features" in captured["prompt"]
+
+
+def test_each_modality_gets_its_own_template():
+    classes = ["A", "B", "C"]
+
+    def build(template):
+        return multiclass_mod.MultiClassDiscoveryPromptBuilder(
+            classes=classes, min_features=10, template=template,
+        ).build()
+
+    text = build(multiclass_mod.multiclass_text_discovery_prompt)
+    image = build(multiclass_mod.multiclass_image_discovery_prompt)
+    video = build(multiclass_mod.multiclass_video_discovery_prompt)
+    tabular = build(multiclass_mod.multiclass_tabular_discovery_prompt)
+
+    assert "text categories" in text
+    assert "visual categories" in image
+    assert "video categories" in video and "sequence of frames" in video
+    assert "record categories" in tabular
+
+    # the improvements every template shares
+    for prompt in (text, image, video, tabular):
+        assert "capture a different property" in prompt
+        assert "apply consistently" in prompt
+        assert "  - B" in prompt
+
+
+def test_discover_features_multiclass_tabular_delegates_with_formatted_prompt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured = {}
+
+    def fake_discover_features_from_tabular(**kwargs):
+        captured.update(kwargs)
+        return {"proposed_features": [{"feature": "income_band"}]}
+
+    monkeypatch.setattr(
+        multiclass_mod,
+        "discover_features_from_tabular",
+        fake_discover_features_from_tabular,
+    )
+
+    result = multiclass_mod.discover_features_multiclass_tabular(
+        file_or_folder=tmp_path / "data.csv",
+        text_column="row_text",
+        classes=["low", "high"],
+        provider="provider",
+        output_dir=tmp_path,
+        max_rows=50,
+        min_features=9,
+    )
+
+    assert result == {"proposed_features": [{"feature": "income_band"}]}
+    assert captured["text_column"] == "row_text"
+    assert captured["max_rows"] == 50
+    assert "2 record categories" in captured["prompt"]
+    assert "at least 9 distinct features" in captured["prompt"]

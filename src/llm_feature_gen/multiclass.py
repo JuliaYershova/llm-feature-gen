@@ -6,9 +6,19 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
-from .discover import discover_features_from_images, discover_features_from_texts, discover_features_from_videos
+from .discover import (
+    discover_features_from_images,
+    discover_features_from_tabular,
+    discover_features_from_texts,
+    discover_features_from_videos,
+)
 from .generate import generate_features
-from .prompts import multiclass_discovery_prompt, multiclass_image_discovery_prompt
+from .prompts import (
+    multiclass_image_discovery_prompt,
+    multiclass_tabular_discovery_prompt,
+    multiclass_text_discovery_prompt,
+    multiclass_video_discovery_prompt,
+)
 from .providers.openai_provider import OpenAIProvider
 
 
@@ -23,7 +33,7 @@ class MultiClassDiscoveryPromptBuilder:
         self,
         classes: Sequence[str],
         min_features: Optional[int] = None,
-        template: str = multiclass_discovery_prompt,
+        template: str = multiclass_text_discovery_prompt,
     ) -> None:
         classes = list(classes)
         if len(classes) < 2:
@@ -209,7 +219,7 @@ def discover_features_multiclass_videos(
     prompt = MultiClassDiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
-        template=multiclass_image_discovery_prompt,
+        template=multiclass_video_discovery_prompt,
     ).build()
 
     return discover_features_from_videos(
@@ -224,4 +234,33 @@ def discover_features_multiclass_videos(
         max_videos_to_sample=max_videos_to_sample,
         max_total_frames_payload=max_total_frames_payload,
         random_seed=random_seed,
+    )
+
+def discover_features_multiclass_tabular(
+    file_or_folder: Union[str, Path],
+    text_column: str,
+    classes: Sequence[str],
+    provider: Optional[OpenAIProvider] = None,
+    output_dir: Union[str, Path] = "outputs",
+    output_filename: str = "discovered_tabular_features.json",
+    as_set: bool = True,
+    min_features: Optional[int] = None,
+    max_rows: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Discover tabular features that distinguish all supplied classes."""
+    prompt = MultiClassDiscoveryPromptBuilder(
+        classes=classes,
+        min_features=min_features,
+        template=multiclass_tabular_discovery_prompt,
+    ).build()
+
+    return discover_features_from_tabular(
+        file_or_folder=file_or_folder,
+        text_column=text_column,
+        prompt=prompt,
+        provider=provider,
+        as_set=as_set,
+        output_dir=output_dir,
+        output_filename=output_filename,
+        max_rows=max_rows,
     )
