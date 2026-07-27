@@ -912,3 +912,48 @@ def test_assign_feature_values_passes_num_frames(tmp_path: Path, monkeypatch: py
     )
 
     assert captured["frame_limit"] == 12
+
+def test_assign_feature_values_from_folder_starts_each_run_clean(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+):
+    """A second run must replace the CSV, not append to the previous one.
+
+    Appending under a stale header merges two runs into one file. When both
+    runs produce the same number of features the merge is silent, so metrics
+    end up computed on a mix of old and new rows.
+    """
+    root = tmp_path / "root"
+    class_dir = root / "classA"
+    class_dir.mkdir(parents=True)
+    (class_dir / "rows.csv").write_text("text,label\nrow-text,L1\n", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "tqdm", lambda files, desc=None, unit=None: files)
+    provider = FakeProvider()
+
+    def run(features):
+        return gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classA",
+            discovered_features={"proposed_features": features},
+            provider=provider,
+            output_dir=tmp_path / "out",
+            text_column="text",
+            label_column="label",
+        )
+
+    csv_path = run([{"feature": "feat1"}])
+    assert len(pd.read_csv(csv_path)) == 1
+
+    # same schema again: rows must be replaced, not doubled
+    csv_path = run([{"feature": "feat1"}])
+    assert len(pd.read_csv(csv_path)) == 1
+    assert "Overwriting" in capsys.readouterr().out
+
+    # different schema: the header must follow the new schema
+    csv_path = run([{"feature": "other"}])
+    df = pd.read_csv(csv_path)
+    assert len(df) == 1
+    assert "other" in df.columns
+    assert "feat1" not in df.columns
