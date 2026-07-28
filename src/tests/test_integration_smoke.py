@@ -21,7 +21,7 @@ class SmokeProvider:
 
     def text_features(self, text_list, prompt=None, feature_gen=False):
         texts = list(text_list)
-        if prompt and "DISOVERED_FEATURES_SPEC" in prompt:
+        if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
             self.generation_calls.append({"texts": texts, "prompt": prompt})
             return [
                 {
