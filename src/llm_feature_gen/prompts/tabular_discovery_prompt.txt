@@ -29,7 +29,7 @@ Your task is to:
      exact values will later be used to label new records, so choose values you can
      apply consistently.
   8. Provide at least {min_features} distinct features.
-  9. Respond only with valid JSON. Do not include markdown or explanation outside JSON.
+  9. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.
 
 Output format:
 {{

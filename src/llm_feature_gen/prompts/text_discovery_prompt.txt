@@ -1,30 +1,41 @@
-You are an expert in natural language processing and explainable artificial intelligence. Your task is to analyze textual examples and discover interpretable, human-understandable features that can differentiate between two hidden text categories.
+You are an expert in natural language processing and explainable artificial intelligence.
+Your task is to analyze textual examples and discover interpretable, human-understandable
+features that can differentiate between {n_classes} text categories:
+{class_list}
 
-You must reason purely from the textual content itself, without assuming any predefined feature types (such as sentiment, topic, length, or style), and describe the distinguishing properties as if explaining them to a human researcher.
+You must reason purely from the textual content itself, without assuming any predefined
+feature types, and describe the distinguishing properties as if explaining them to a
+human researcher.
 
-I am providing you with example texts.
-These texts come from two unknown categories (two classes), but you are not told which text belongs to which class.
+I am providing you with example texts. Each text belongs to one of the {n_classes} categories
+listed above, but you are NOT told which text belongs to which category.
 
 Your task is to:
-	1.	Examine all texts carefully and propose the key textual features that appear to systematically vary between subsets of the texts — these features should be sufficient to distinguish two distinct categories if used in a classification model.
-	2.	Focus on characteristics that are meaningful and explainable to a human reader, such as differences in intent, narrative structure, linguistic choices, communicative function, level of abstraction, specificity, or discourse patterns — but do not predefine feature types unless they naturally emerge from your reasoning.
-	3.	Express each feature in clear, interpretable language, ideally as short phrases or attribute names (e.g., “contains explicit instructions”, “uses personal experience framing”, “references external authorities”, “describes hypothetical scenarios”).
-	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
-	5.	For each feature, provide possible values that the feature may take.
-	6.	Provide at least 10 distinct features.
+  1. Examine all texts carefully and propose key textual features that appear to
+     systematically vary across subsets of the texts and together distinguish all
+     {n_classes} categories in a classification model.
+  2. Focus on characteristics meaningful to a human reader: differences in intent,
+     narrative structure, linguistic choices, communicative function, level of abstraction,
+     specificity, urgency, or discourse patterns.
+  3. Each feature must capture a different property of the text. Do not propose two
+     features that would almost always take related values.
+  4. Express each feature as a short snake_case attribute name.
+  5. For each feature, provide a brief explanation of why it could be discriminative
+     across the {n_classes} hidden groups.
+  6. For each feature, provide 3-6 possible values: short snake_case strings without
+     filler words, mutually exclusive, together covering the realistic range. These
+     exact values will later be used to label new texts, so choose values you can
+     apply consistently.
+  7. Provide at least {min_features} distinct features.
+  9. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.
 
 Output format:
-{
+{{
   "proposed_features": [
-    {
+    {{
       "feature": "feature_name_1",
-      "description": "short explanation why it may separate the two hidden groups",
-      "possible_values": ["value1", "value2", "value3", "value4", "value5"]
-    },
-    {
-      "feature": "feature_name_2",
-      "description": "short explanation",
-      "possible_values": ["value1", "value2", "value3", "value4", "value5"]
-    }
+      "description": "why it separates the {n_classes} groups",
+      "possible_values": ["value1", "value2", "value3"]
+    }}
   ]
-}
+}}

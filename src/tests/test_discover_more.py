@@ -252,7 +252,7 @@ def test_discover_images_single_file_and_video_edge_branches(tmp_path: Path, mon
     )
     assert "proposed_features" in result
     assert len(image_provider.calls[0]["images"]) == 1
-    assert "Provide at least 4 features." in image_provider.calls[0]["prompt"]
+    assert "Provide at least 4 distinct features." in image_provider.calls[0]["prompt"]
 
     with pytest.raises(ValueError, match="min_features"):
         discover_mod.discover_features_from_images(
@@ -310,7 +310,7 @@ def test_discover_images_single_file_and_video_edge_branches(tmp_path: Path, mon
     assert isinstance(result, list)
     assert video_provider.calls[0]["as_set"] is False
     assert downsample_calls
-    assert "Provide at least 6 features." in video_provider.calls[0]["prompt"]
+    assert "Provide at least 6 distinct features." in video_provider.calls[0]["prompt"]
 
     list_provider = ImageProvider()
     monkeypatch.setattr(discover_mod, "OpenAIProvider", lambda: list_provider)
@@ -552,3 +552,55 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
     monkeypatch.setattr(discover_mod, "Path", FakePath)
     with pytest.raises(ValueError):
         discover_mod.discover_features_from_tabular("odd", text_column="text", provider=TextProvider())
+
+
+def test_discover_functions_pass_custom_prompt_through_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A user-supplied prompt is sent verbatim; no default is built and no patching happens."""
+    custom = "My fully custom discovery prompt."
+
+    text_provider = TextProvider()
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        prompt=custom,
+        provider=text_provider,
+        output_dir=tmp_path / "t",
+    )
+    assert text_provider.calls[0]["prompt"] == custom
+
+    from PIL import Image
+    img_path = tmp_path / "one.png"
+    Image.new("RGB", (8, 8), color=(1, 2, 3)).save(img_path)
+    image_provider = ImageProvider()
+    discover_mod.discover_features_from_images(
+        img_path,
+        prompt=custom,
+        provider=image_provider,
+        output_dir=tmp_path / "i",
+    )
+    assert image_provider.calls[0]["prompt"] == custom
+
+    monkeypatch.setattr(discover_mod, "extract_key_frames", lambda path, frame_limit: [b"f1", b"f2"])
+    monkeypatch.setattr(discover_mod, "downsample_batch", lambda frames, target: frames[:target])
+    video_path = tmp_path / "v.mp4"
+    video_path.write_bytes(b"video")
+    video_provider = ImageProvider()
+    discover_mod.discover_features_from_videos(
+        [str(video_path)],
+        prompt=custom,
+        provider=video_provider,
+        use_audio=False,
+        output_dir=tmp_path / "v",
+    )
+    assert video_provider.calls[0]["prompt"] == custom
+
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("text\nrow1\nrow2\n", encoding="utf-8")
+    tabular_provider = TextProvider()
+    discover_mod.discover_features_from_tabular(
+        file_or_folder=csv_path,
+        text_column="text",
+        prompt=custom,
+        provider=tabular_provider,
+        output_dir=tmp_path / "tab",
+    )
+    assert tabular_provider.calls[0]["prompt"] == custom

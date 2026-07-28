@@ -18,9 +18,10 @@ from .generate import (
     load_discovered_features,
     parse_json_from_markdown,
 )
+from .prompts import DiscoveryPromptBuilder
 from .batch import BatchTextCache, generate_features_batch, generate_features_from_texts_cached
 from .multiclass import (
-    MultiClassDiscoveryPromptBuilder,
+    discover_features_multiclass_tabular,
     discover_features_multiclass,
     discover_features_multiclass_images,
     discover_features_multiclass_videos,
@@ -36,7 +37,7 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "LocalProvider",
-    "MultiClassDiscoveryPromptBuilder",
+    "DiscoveryPromptBuilder",
     "OpenAIProvider",
     "__version__",
     "assign_feature_values_from_folder",
@@ -45,6 +46,7 @@ __all__ = [
     "discover_features_multiclass",
     "discover_features_multiclass_images",
     "discover_features_multiclass_videos",
+    "discover_features_multiclass_tabular",
     "discover_features_from_tabular",
     "discover_features_from_texts",
     "discover_features_from_videos",

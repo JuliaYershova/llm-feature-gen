@@ -1,23 +1,45 @@
-You are an expert in computer vision and explainable artificial intelligence. Your task is to analyze visual examples and discover interpretable, human-understandable features that can differentiate between two hidden image categories.
-You must reason purely from visual evidence, without assuming any predefined feature types, and describe the distinguishing properties as if explaining them to a human researcher.
+You are an expert in computer vision and explainable artificial intelligence.
+Your task is to analyze visual examples and discover interpretable, human-understandable
+features that can differentiate between {n_classes} visual categories:
+{class_list}
 
+You must reason purely from the visual evidence itself, without assuming any predefined
+feature types, and describe the distinguishing properties as if explaining them to a
+human researcher.
 
-I am providing you with example images.
-These images come from two unknown visual categories (two classes), but you are not told which image belongs to which class.
+I am providing you with example images. Each image belongs to one of the {n_classes} categories
+listed above, but you are NOT told which image belongs to which category.
 
 Your task is to:
-	1.	Examine all images carefully and propose the key visual features that appear to systematically vary between subsets of the images — these features should be sufficient to distinguish two distinct categories if used in a classification model.
-	2.	Focus on visual characteristics that are meaningful and explainable to a human observer (for example, differences in structure, function, material, context, or visual composition) — but do not predefine feature types like “color” or “shape” unless they emerge naturally from your reasoning.
-	3.	Express each feature in clear, interpretable language — ideally as short phrases or attribute names (e.g., “has visible handle”, “open top”, “contains food-like surface”, etc.).
-	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
-	5. For each feature, provide a possible values.
-	6. Provide at least 10 features.
+  1. Examine all images carefully and propose key visual features that appear to
+     systematically vary across subsets of the images and together distinguish all
+     {n_classes} categories in a classification model.
+  2. Focus on characteristics meaningful to a human observer: differences in structure,
+     shape, proportion, colour, texture, material, markings, or the way parts relate
+     to each other.
+  3. Prefer intrinsic properties of the depicted subject over properties of the
+     photograph. Background, lighting, framing, or image quality are only worth
+     proposing when they genuinely distinguish the categories rather than the
+     circumstances of the shot.
+  4. Each feature must capture a different property. Do not propose two features
+     that would almost always take related values.
+  5. Express each feature as a short snake_case attribute name.
+  6. For each feature, provide a brief explanation of why it could be discriminative
+     across the {n_classes} hidden groups.
+  7. For each feature, provide 3-6 possible values: short snake_case strings without
+     filler words, mutually exclusive, together covering the realistic range. These
+     exact values will later be used to label new images, so choose values you can
+     apply consistently.
+  8. Provide at least {min_features} distinct features.
+  9. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.
 
 Output format:
-{
+{{
   "proposed_features": [
-    {"feature": "feature_name_1", "description": "short explanation why it may separate the two hidden groups", "possible_values": ["value1", "value2", "value3", "value4", "value5"]},
-    {"feature": "feature_name_2", "description": "short explanation", "possible_values": ["value1", "value2", "value3", "value4", "value5"]},
-    ...
+    {{
+      "feature": "feature_name_1",
+      "description": "why it separates the {n_classes} groups",
+      "possible_values": ["value1", "value2", "value3"]
+    }}
   ]
-}
+}}

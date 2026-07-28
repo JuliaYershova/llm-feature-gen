@@ -13,48 +13,8 @@ from .discover import (
     discover_features_from_videos,
 )
 from .generate import generate_features
-from .prompts import (
-    multiclass_image_discovery_prompt,
-    multiclass_tabular_discovery_prompt,
-    multiclass_text_discovery_prompt,
-    multiclass_video_discovery_prompt,
-)
+from .prompts import DiscoveryPromptBuilder
 from .providers.openai_provider import OpenAIProvider
-
-
-class MultiClassDiscoveryPromptBuilder:
-    """Build a discovery prompt for an arbitrary class list.
-
-    Defaults to the text prompt template; pass ``template`` to build the same
-    prompt for another modality (e.g. ``multiclass_image_discovery_prompt``).
-    """
-
-    def __init__(
-        self,
-        classes: Sequence[str],
-        min_features: Optional[int] = None,
-        template: str = multiclass_text_discovery_prompt,
-    ) -> None:
-        classes = list(classes)
-        if len(classes) < 2:
-            raise ValueError("At least 2 classes are required.")
-        if min_features is not None and min_features < 1:
-            raise ValueError("min_features must be a positive integer.")
-
-        self.classes = classes
-        self.min_features = min_features
-        self.template = template
-
-    def build(self) -> str:
-        n_classes = len(self.classes)
-        class_list = "\n".join(f"  - {class_name}" for class_name in self.classes)
-        min_features = self.min_features if self.min_features is not None else max(10, n_classes * 3)
-
-        return self.template.format(
-            n_classes=n_classes,
-            class_list=class_list,
-            min_features=min_features,
-        )
 
 
 def discover_features_multiclass(
@@ -67,9 +27,10 @@ def discover_features_multiclass(
     min_features: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Discover text features that distinguish all supplied classes."""
-    prompt = MultiClassDiscoveryPromptBuilder(
+    prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
+        modality="text",
     ).build()
 
     return discover_features_from_texts(
@@ -185,10 +146,10 @@ def discover_features_multiclass_images(
     min_features: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Discover image features that distinguish all supplied classes."""
-    prompt = MultiClassDiscoveryPromptBuilder(
+    prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
-        template=multiclass_image_discovery_prompt,
+        modality="image",
     ).build()
 
     return discover_features_from_images(
@@ -216,10 +177,10 @@ def discover_features_multiclass_videos(
     random_seed: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Discover video features that distinguish all supplied classes."""
-    prompt = MultiClassDiscoveryPromptBuilder(
+    prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
-        template=multiclass_video_discovery_prompt,
+        modality="video",
     ).build()
 
     return discover_features_from_videos(
@@ -248,10 +209,10 @@ def discover_features_multiclass_tabular(
     max_rows: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Discover tabular features that distinguish all supplied classes."""
-    prompt = MultiClassDiscoveryPromptBuilder(
+    prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
-        template=multiclass_tabular_discovery_prompt,
+        modality="tabular",
     ).build()
 
     return discover_features_from_tabular(
