@@ -61,6 +61,32 @@ def _fake_generate_features_from_texts(
     return {"__merged__": str(output_path)}
 
 
+def _fake_generate_features_from_texts_missing_row(
+    root_folder,
+    discovered_features_path,
+    provider,
+    classes,
+    output_dir,
+    merge_to_single_csv,
+    merged_csv_name,
+):
+    del root_folder, discovered_features_path, provider, merge_to_single_csv
+
+    output_dir = Path(output_dir)
+    class_name = classes[0]
+    output_path = output_dir / merged_csv_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        {
+            "File": ["text_00000.txt"],
+            "Class": [class_name],
+            "emotional_tone": [0.0],
+            "raw_llm_output": ["{}"],
+        }
+    ).to_csv(output_path, index=False)
+    return {"__merged__": str(output_path)}
+
+
 def _fake_discover_features_from_texts(texts_or_file, provider, as_set, output_dir, output_filename):
     del texts_or_file, provider, as_set
 
@@ -90,6 +116,7 @@ def test_transformer_init():
     assert transformer.classes is None
     assert transformer.output_dir == "outputs"
     assert transformer.n_discovery_samples == 10
+    assert transformer.random_state is None
     assert not hasattr(transformer, "discovered_features_path_")
 
 
@@ -108,8 +135,30 @@ def test_transformer_fit_sets_features_path(mock_provider, tmp_path):
     ) as mock_discover:
         transformer.fit(texts)
 
-    assert transformer.discovered_features_path_ == tmp_path / "discovered_text_features.json"
+    assert transformer.discovered_features_path_.parent == tmp_path
+    assert transformer.discovered_features_path_.name.startswith("discovered_text_features_")
     assert mock_discover.call_args.kwargs["texts_or_file"] == list(texts)
+    assert mock_discover.call_args.kwargs["output_filename"] == transformer.discovered_features_path_.name
+
+
+def test_transformer_fit_samples_randomly_with_seed(mock_provider, tmp_path):
+    """Test that discovery sampling is random and reproducible."""
+    transformer = LLMFeatureTransformer(
+        provider=mock_provider,
+        output_dir=tmp_path,
+        n_discovery_samples=2,
+        random_state=0,
+    )
+
+    texts = ["class_a_1", "class_a_2", "class_b_1", "class_b_2"]
+
+    with patch(
+        "llm_feature_gen.sklearn_transformer.discover_features_from_texts",
+        side_effect=_fake_discover_features_from_texts,
+    ) as mock_discover:
+        transformer.fit(texts)
+
+    assert mock_discover.call_args.kwargs["texts_or_file"] == ["class_b_1", "class_b_2"]
 
 
 def test_transformer_transform_raises_before_fit():
@@ -139,6 +188,31 @@ def test_transformer_transform_uses_configured_class_name(mock_provider, tmp_pat
     assert list(result.columns) == ["emotional_tone"]
     assert result.shape == (2, 1)
     assert mock_generate.call_args.kwargs["classes"] == ["support_tickets"]
+
+
+def test_transformer_transform_raises_when_generation_skips_rows(mock_provider, tmp_path):
+    """Test that skipped generated rows do not silently misalign pipeline data."""
+    transformer = LLMFeatureTransformer(provider=mock_provider, output_dir=tmp_path)
+
+    with patch(
+        "llm_feature_gen.sklearn_transformer.discover_features_from_texts",
+        side_effect=_fake_discover_features_from_texts,
+    ), patch(
+        "llm_feature_gen.sklearn_transformer.generate_features_from_texts",
+        side_effect=_fake_generate_features_from_texts_missing_row,
+    ):
+        transformer.fit(["first text", "second text"])
+        with pytest.raises(ValueError, match="Generated 1 rows for 2 input texts"):
+            transformer.transform(["first text", "second text"])
+
+
+def test_transformer_align_generated_rows_without_file_column_checks_length():
+    """Test fallback row count validation when generator output has no File column."""
+    df = pd.DataFrame({"emotional_tone": [0.0]})
+
+    assert LLMFeatureTransformer._align_generated_rows(df, ["text_00000.txt"]).equals(df)
+    with pytest.raises(ValueError, match="Generated 1 rows for 2 input texts"):
+        LLMFeatureTransformer._align_generated_rows(df, ["text_00000.txt", "text_00001.txt"])
 
 
 def test_transformer_treats_raw_string_as_single_sample(mock_provider, tmp_path):
