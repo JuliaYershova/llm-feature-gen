@@ -19,14 +19,19 @@ Your task is to:
      specificity, urgency, or discourse patterns.
   3. Each feature must capture a different property of the text. Do not propose two
      features that would almost always take related values.
-  4. Express each feature as a short snake_case attribute name.
-  5. For each feature, provide a brief explanation of why it could be discriminative
+  4. Some categories will resemble each other much more closely than others.
+     Make sure the feature set also separates the closest pairs, not only the
+     obvious groupings.
+  5. Express each feature as a short snake_case attribute name.
+  6. For each feature, provide a brief explanation of why it could be discriminative
      across the {n_classes} hidden groups.
-  6. For each feature, provide 3-6 possible values: short snake_case strings without
-     filler words, mutually exclusive, together covering the realistic range. These
-     exact values will later be used to label new texts, so choose values you can
-     apply consistently.
-  7. Provide at least {min_features} distinct features.
+  7. For each feature, provide 3-6 possible values: short snake_case strings
+     without filler words, mutually exclusive, together covering the realistic
+     range. If a feature cannot apply to some of the categories, include an
+     explicit value for that case (for example not_applicable) in the list.
+     These exact values will later be used to label new videos, so choose
+     values you can apply consistently.
+  8. Provide at least {min_features} distinct features.
   9. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.
 
 Output format:
