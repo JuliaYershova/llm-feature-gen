@@ -383,3 +383,16 @@ def test_reset_usage_clears_counters():
         "completion_tokens": 0,
         "total_tokens": 0,
     }
+
+def test_usage_counter_can_be_replaced():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(_Usage(10, 5)))
+
+    tracker._usage = Usage(calls=7, prompt_tokens=1, completion_tokens=2)
+
+    assert tracker.usage_summary() == {
+        "calls": 7,
+        "prompt_tokens": 1,
+        "completion_tokens": 2,
+        "total_tokens": 3,
+    }
