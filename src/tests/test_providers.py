@@ -93,6 +93,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
     assert create.calls[0]["response_format"] == {"type": "json_object"}
+    assert provider.usage_summary()["calls"] == 1
 
     client, _ = make_chat_client(["not-json"])
     provider.client = client
@@ -205,6 +206,7 @@ def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
     client, _ = make_chat_client(['{"ok": 1}'])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
+    assert provider.usage_summary()["calls"] == 1
 
     client, _ = make_chat_client(["before ```json\n[1,2]\n``` after"])
     provider.client = client

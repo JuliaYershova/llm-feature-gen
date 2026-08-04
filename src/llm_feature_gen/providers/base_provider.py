@@ -48,6 +48,10 @@ class BaseProvider:
             self._usage_state = usage
         return usage
 
+    @_usage.setter
+    def _usage(self, usage: Usage) -> None:
+        self._usage_state = usage
+
     def _record_usage(self, response: Any) -> None:
         self._usage.calls += 1
         usage = getattr(response, "usage", None)
