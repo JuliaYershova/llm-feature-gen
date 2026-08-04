@@ -485,10 +485,9 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
 
     captured = {}
 
-    def fake_discover_texts(texts_or_file, prompt, provider, as_set, output_dir, output_filename, min_features):
+    def fake_discover_texts(texts_or_file, prompt, provider, as_set, output_dir, output_filename):
         captured["texts"] = texts_or_file
         captured["output_filename"] = output_filename
-        captured["min_features"] = min_features
         captured["prompt"] = prompt
         return {"ok": True}
 
@@ -504,7 +503,7 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
     assert result == {"ok": True}
     assert captured["texts"] == ["c1", "c2", "x1"]
     assert captured["output_filename"] == "discovered_tabular_features.json"
-    assert captured["min_features"] == 7
+    assert "at least 7 distinct features" in captured["prompt"]
     assert calls == [("csv", ","), ("csv", ";")]
 
     subdir = folder / "subdir"
@@ -604,3 +603,42 @@ def test_discover_functions_pass_custom_prompt_through_unchanged(tmp_path: Path,
         output_dir=tmp_path / "tab",
     )
     assert tabular_provider.calls[0]["prompt"] == custom
+
+def test_custom_prompt_can_use_the_same_placeholders(tmp_path: Path):
+    """A caller-supplied prompt is treated as a template, so min_features and
+    num_classes still apply when it uses the placeholders."""
+    provider = TextProvider()
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        prompt="Split {n_classes} groups:\n{class_list}\nGive {min_features} features.",
+        provider=provider,
+        num_classes=3,
+        min_features=25,
+        output_dir=tmp_path / "out",
+    )
+    assert provider.calls[0]["prompt"] == (
+        "Split 3 groups:\n  - category_1\n  - category_2\n  - category_3\nGive 25 features."
+    )
+
+
+def test_custom_prompt_without_placeholders_rejects_options_it_cannot_apply(tmp_path: Path):
+    """Without placeholders the prompt goes out verbatim, so those options
+    would be silently dropped; raise instead."""
+    with pytest.raises(ValueError, match="min_features cannot be applied"):
+        discover_mod.discover_features_from_texts(
+            "raw text", prompt="plain custom prompt", provider=TextProvider(), min_features=25,
+        )
+
+    with pytest.raises(ValueError, match="num_classes and min_features cannot be applied"):
+        discover_mod.discover_features_from_texts(
+            "raw text", prompt="plain custom prompt", provider=TextProvider(),
+            num_classes=3, min_features=25,
+        )
+
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("text\nrow1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="num_classes cannot be applied"):
+        discover_mod.discover_features_from_tabular(
+            file_or_folder=csv_path, text_column="text", prompt="plain custom prompt",
+            provider=TextProvider(), num_classes=4,
+        )
