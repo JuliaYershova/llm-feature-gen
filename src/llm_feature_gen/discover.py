@@ -33,22 +33,40 @@ DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".html"}
 
 
-def _validate_min_features(min_features: int) -> None:
-    """Validate the requested minimum number of discovered features."""
-    if not isinstance(min_features, int) or min_features < 1:
-        raise ValueError("min_features must be a positive integer.")
 
-
-def _default_discovery_prompt(
+def _resolve_discovery_prompt(
     modality: str,
+    prompt: Optional[str],
     num_classes: Optional[int],
     min_features: Optional[int],
 ) -> str:
-    """Build the bundled discovery prompt for one modality."""
+    """Return the prompt to send, filling in placeholders where there are any.
+
+    Without ``prompt`` this is the bundled template for the modality. With one,
+    it is treated as a template too, so a caller can reuse the ``{n_classes}``,
+    ``{class_list}`` and ``{min_features}`` placeholders. A custom prompt
+    without placeholders is sent verbatim, and then those two options cannot
+    take effect, so passing them is an error rather than a silent no-op.
+    """
+    placeholders = ("{n_classes}", "{class_list}", "{min_features}")
+    if prompt is not None and not any(name in prompt for name in placeholders):
+        unused = [
+            name
+            for name, value in (("num_classes", num_classes), ("min_features", min_features))
+            if value is not None
+        ]
+        if unused:
+            raise ValueError(
+                f"{' and '.join(unused)} cannot be applied: the supplied prompt has "
+                f"none of the placeholders {', '.join(placeholders)}."
+            )
+        return prompt
+
     return DiscoveryPromptBuilder(
         modality=modality,
         n_classes=num_classes,
         min_features=min_features,
+        template=prompt,
     ).build()
 
 
@@ -110,11 +128,8 @@ def discover_features_from_images(
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
-    if min_features is not None:
-        _validate_min_features(min_features)
 
-    if prompt is None:
-        prompt = _default_discovery_prompt("image", num_classes, min_features)
+    prompt = _resolve_discovery_prompt("image", prompt, num_classes, min_features)
 
     # 2) collect image paths
     if isinstance(image_paths_or_folder, (str, Path)):
@@ -258,10 +273,8 @@ def discover_features_from_videos(
     # 1) init provider
     # -------------------------------------------------
     provider = provider or OpenAIProvider()
-    if min_features is not None:
-        _validate_min_features(min_features)
-    if prompt is None:
-        prompt = _default_discovery_prompt("video", num_classes, min_features)
+
+    prompt = _resolve_discovery_prompt("video", prompt, num_classes, min_features)
 
     # -------------------------------------------------
     # 2) collect video paths
@@ -442,10 +455,8 @@ def discover_features_from_texts(
 
     # 1) init provider
     provider = provider or OpenAIProvider()
-    if min_features is not None:
-        _validate_min_features(min_features)
-    if prompt is None:
-        prompt = _default_discovery_prompt("text", num_classes, min_features)
+
+    prompt = _resolve_discovery_prompt("text", prompt, num_classes, min_features)
 
     # -------------------------------------------------
     # 2) collect texts
@@ -612,10 +623,7 @@ def discover_features_from_tabular(
     import pandas as pd
     provider = provider or OpenAIProvider()
 
-    if min_features is not None:
-        _validate_min_features(min_features)
-    if prompt is None:
-        prompt = _default_discovery_prompt("tabular", num_classes, min_features)
+    prompt = _resolve_discovery_prompt("tabular", prompt, num_classes, min_features)
 
     path = Path(file_or_folder)
 
@@ -670,5 +678,4 @@ def discover_features_from_tabular(
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename or "discovered_tabular_features.json",
-        min_features=min_features,
     )

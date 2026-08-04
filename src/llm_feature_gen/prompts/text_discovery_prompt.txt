@@ -29,7 +29,7 @@ Your task is to:
      without filler words, mutually exclusive, together covering the realistic
      range. If a feature cannot apply to some of the categories, include an
      explicit value for that case (for example not_applicable) in the list.
-     These exact values will later be used to label new videos, so choose
+     These exact values will later be used to label new texts, so choose
      values you can apply consistently.
   8. Provide at least {min_features} distinct features.
   9. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.
