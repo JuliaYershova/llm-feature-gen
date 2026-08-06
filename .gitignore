@@ -6,10 +6,12 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
+site/
 *.egg-info/
 
 # Environments & dependencies
-.env            # contains secrets; should never be committed
+# contains secrets; should never be committed
+.env
 .venv/
 venv/
 env/
@@ -30,16 +32,25 @@ htmlcov/
 .ipynb_checkpoints/
 
 # IDEs
-.idea/          # PyCharm project settings
-.vscode/        # VS Code settings
+# PyCharm project settings
+.idea/
+# VS Code settings
+.vscode/
 
 # OS files
-.DS_Store       # macOS
-Thumbs.db       # Windows
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+# Local working documents (JMLR paper drafts, experiment plans)
+paper/
 
 # Local images/results (customize as needed)
-outputs/        # generated feature JSONs and other outputs
-discover_images/ # your local image dataset (if not meant to be tracked)
+# generated feature JSONs and other outputs
+outputs/
+# your local image dataset (if not meant to be tracked)
+discover_images/
 
 # Logs and temporary files
 *.log
