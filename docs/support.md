@@ -1,7 +1,5 @@
 # Platform and Python Support
 
-This page makes the package support claims explicit for users, reviewers, and downstream projects.
-
 ## Declared support
 
 `llm-feature-gen` targets CPython `3.9+` and is intended to run on current Linux, macOS, and Windows environments.

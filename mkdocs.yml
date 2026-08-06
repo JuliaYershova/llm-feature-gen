@@ -1,7 +1,9 @@
 site_name: LLM Feature Gen
-site_description: API and usage documentation for llm-feature-gen.
+site_description: Turn text, images, video, and tables into interpretable feature tables with LLMs.
+site_url: https://juliayershova.github.io/llm-feature-gen/
 repo_url: https://github.com/JuliaYershova/LLM-feature-gen
 repo_name: JuliaYershova/LLM-feature-gen
+edit_uri: edit/main/docs/
 theme:
   name: material
   features:
@@ -13,7 +15,13 @@ theme:
 markdown_extensions:
   - admonition
   - codehilite
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.snippets:
+      base_path: [".", "docs"]
   - tables
 plugins:
   - search
@@ -36,13 +44,26 @@ plugins:
             summary: true
 nav:
   - Overview: index.md
-  - Install Guide: install.md
-  - Platform Support: support.md
-  - Quickstart: quickstart.md
-  - Provider Configuration: provider-configuration.md
-  - Outputs and Schema: outputs-schema.md
-  - API Reference:
+  - Getting started:
+      - Install: install.md
+      - Quickstart: quickstart.md
+      - Platform support: support.md
+  - Guides:
+      - Multiclass and batch workflows: advanced-workflows.md
+      - Provider configuration: provider-configuration.md
+      - Outputs and schema: outputs-schema.md
+      - Reproducibility: reproducibility.md
+      - When to use it: when-to-use.md
+  - Examples:
+      - Text-to-tabular pipeline: examples.md
+  - API reference:
       - Discover: api/discover.md
       - Generate: api/generate.md
+      - Multiclass: api/multiclass.md
+      - Batch and caching: api/batch.md
       - Providers: api/providers.md
       - Utils: api/utils.md
+  - Project:
+      - Changelog: changelog.md
+      - Contributing: contributing.md
+      - Citing: citing.md

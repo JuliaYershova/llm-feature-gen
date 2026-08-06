@@ -1,8 +1,8 @@
 # Examples
 
-## Canonical Text-to-Tabular Pipeline
+## Text-to-Tabular Pipeline
 
-The repository now includes one publishable end-to-end example:
+One complete run of the library, from raw text files to a trained classifier:
 
 - Script: `examples/text_to_tabular_pipeline.py`
 - Raw inputs: `examples/data/text_to_tabular/`
@@ -14,7 +14,7 @@ Run it from the repository root with a real provider:
 python3 examples/text_to_tabular_pipeline.py --provider auto
 ```
 
-If you want the fully offline reproducibility path used by tests, run:
+Or fully offline, replaying checked-in provider responses — the same path the test suite verifies in CI:
 
 ```bash
 python3 examples/text_to_tabular_pipeline.py --provider replay --check
@@ -26,6 +26,6 @@ What it does:
 2. Discovers an interpretable schema JSON.
 3. Generates one CSV per class folder.
 4. Merges those CSVs into a single tabular dataset.
-5. Runs a simple downstream leave-one-out nearest-centroid classifier.
+5. Trains and evaluates a leave-one-out nearest-centroid classifier on the feature columns.
 
-The canonical path uses the actual provider stack selected from your environment. The `replay` mode is only there to make the same example verifiable offline in tests and for artifact checking.
+The `replay` mode exists so the example runs without credentials and always produces identical artifacts; use `auto`, `openai`, or `local` to run it against your configured provider stack. A longer walkthrough is on the docs site under [Examples](https://juliayershova.github.io/llm-feature-gen/examples/).
