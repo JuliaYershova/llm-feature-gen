@@ -113,7 +113,46 @@ def generate_features_batch(
     cache: Optional[BatchTextCache] = None,
     retry_delay: float = 1.0,
 ) -> pd.DataFrame:
-    """Generate text feature values in batches."""
+    """Generate text feature values in batches, with optional caching.
+
+    Unlike the folder-based helpers, this function works on in-memory texts
+    and returns a DataFrame instead of writing per-class CSVs. Provider calls
+    are grouped into batches; a failed batch is retried once and then skipped,
+    leaving ``"not given by LLM"`` in the affected rows.
+
+    Args:
+        texts: Raw input texts.
+        labels: One class label per text, written to the ``Class`` column.
+        discovered_features: Schema to score against — a path to a discovery
+            JSON artifact or an already-loaded schema dictionary.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        batch_size: Number of texts per provider call batch.
+        output_csv: Optional path; when given, the DataFrame is also saved
+            there.
+        cache: Optional [BatchTextCache][llm_feature_gen.batch.BatchTextCache].
+            Cached texts are skipped and new responses are stored, so repeated
+            runs only pay for new inputs.
+        retry_delay: Seconds to wait before retrying a failed batch.
+
+    Returns:
+        A DataFrame with columns ``File``, ``Class``, one column per
+        discovered feature, and ``raw_llm_output``.
+
+    Raises:
+        ValueError: If ``batch_size`` is not positive, ``texts`` and
+            ``labels`` differ in length, or the schema contains no features.
+
+    Example:
+        ```python
+        df = generate_features_batch(
+            texts=["I am sad", "I am scared"],
+            labels=["sadness", "fear"],
+            discovered_features="outputs/discovered_text_features.json",
+            cache=BatchTextCache(),
+        )
+        ```
+    """
     provider = provider or OpenAIProvider()
     texts = list(texts)
     labels = list(labels)
@@ -218,7 +257,47 @@ def generate_features_from_texts_cached(
     batch_size: int = 8,
     cache_file: Optional[Union[str, Path]] = None,
 ) -> Dict[str, str]:
-    """Generate text feature CSVs using batched provider calls and caching."""
+    """Generate text feature CSVs using batched provider calls and caching.
+
+    A drop-in alternative to
+    [generate_features_from_texts][llm_feature_gen.generate.generate_features_from_texts]
+    for larger text datasets: files are scored in batches through
+    [generate_features_batch][llm_feature_gen.batch.generate_features_batch],
+    and responses are cached on disk so interrupted or repeated runs do not
+    re-pay for texts that were already scored.
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class with
+            ``.txt`` files inside.
+        discovered_features_path: Path to the discovered schema JSON.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        classes: Optional subset of class-folder names. Defaults to all
+            immediate subdirectories of ``root_folder``.
+        output_dir: Directory where CSV outputs and the cache file are
+            written.
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+        batch_size: Number of texts per provider call batch.
+        cache_file: Cache location. Defaults to
+            ``<output_dir>/feature_cache.json``.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Raises:
+        FileNotFoundError: If a requested class folder does not exist.
+
+    Example:
+        ```python
+        csv_paths = generate_features_from_texts_cached(
+            root_folder="texts",
+            discovered_features_path="outputs/discovered_text_features.json",
+            batch_size=8,
+        )
+        ```
+    """
     root_folder = Path(root_folder)
     output_dir = Path(output_dir)
     provider = provider or OpenAIProvider()

@@ -105,6 +105,13 @@ def discover_features_from_images(
         FileNotFoundError: If the provided path does not exist.
         ValueError: If no supported image files are found.
         RuntimeError: If image decoding fails for every candidate input.
+
+    Example:
+        ```python
+        result = discover_features_from_images("discover_images")
+        result["proposed_features"][0]
+        # {'feature': 'has visible handle', 'description': ..., 'possible_values': [...]}
+        ```
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
@@ -192,7 +199,7 @@ def discover_features_from_videos(
         videos_or_folder: str | List[str],
         prompt: str = image_discovery_prompt,
         provider: Optional[OpenAIProvider] = None,
-        as_set: bool = True,  # stejné chování jako image/text
+        as_set: bool = True,  # same semantics as the image/text helpers
         num_frames: int = 5,
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
@@ -245,6 +252,16 @@ def discover_features_from_videos(
         FileNotFoundError: If the input path is missing or a folder contains no
             supported video files.
         ValueError: If no frames can be extracted from the provided videos.
+
+    Example:
+        ```python
+        result = discover_features_from_videos(
+            "discover_videos",
+            num_frames=5,
+            use_audio=True,
+            random_seed=7,
+        )
+        ```
     """
 
     # -------------------------------------------------
@@ -428,6 +445,15 @@ def discover_features_from_texts(
         FileNotFoundError: If a path-like input does not exist.
         ValueError: If the path is invalid or no supported text input can be
             extracted.
+
+    Example:
+        ```python
+        result = discover_features_from_texts([
+            "The dish was rich, spicy, and served in a deep bowl.",
+            "The dessert was light, creamy, and topped with fresh fruit.",
+        ])
+        # also accepts a folder: discover_features_from_texts("discover_texts")
+        ```
     """
 
     # 1) init provider
@@ -602,6 +628,14 @@ def discover_features_from_tabular(
         FileNotFoundError: If the provided path does not exist.
         ValueError: If no supported tabular files are found or ``text_column``
             is missing.
+
+    Example:
+        ```python
+        result = discover_features_from_tabular(
+            "discover_tabular/test.csv",
+            text_column="text",
+        )
+        ```
     """
     import pandas as pd
     provider = provider or OpenAIProvider()

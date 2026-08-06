@@ -7,7 +7,22 @@ from typing import Any, Dict, List, TypedDict
 
 
 class ProviderResponseError(ValueError):
-    """Raised when a provider response cannot be used as feature data."""
+    """Raised when a provider response cannot be used as feature data.
+
+    Providers raise it for empty replies, invalid or non-object JSON,
+    exhausted rate-limit retries, and failed requests. It subclasses
+    ``ValueError``, so catch it around discovery or generation calls to
+    handle provider failures separately from local errors:
+
+    ```python
+    from llm_feature_gen.contracts import ProviderResponseError
+
+    try:
+        discover_features_from_texts("discover_texts")
+    except ProviderResponseError as exc:
+        print(f"Provider failed: {exc}")
+    ```
+    """
 
 
 class FeatureValuesPayload(TypedDict):

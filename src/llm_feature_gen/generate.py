@@ -618,6 +618,22 @@ def generate_features(
         A mapping from class name to generated CSV path. When
         ``merge_to_single_csv`` is enabled, the merged output is returned under
         the ``"__merged__"`` key.
+
+    Raises:
+        FileNotFoundError: If ``discovered_features_path`` or a requested
+            class folder does not exist.
+        ValueError: If the schema JSON cannot be interpreted, or a modality
+            requirement is violated (for example tabular generation without
+            ``text_column``).
+
+    Example:
+        ```python
+        csv_paths = generate_features(
+            root_folder="texts",
+            discovered_features_path="outputs/discovered_text_features.json",
+            merge_to_single_csv=True,
+        )
+        ```
     """
     root_folder = Path(root_folder)
     provider = provider or OpenAIProvider()
@@ -658,33 +674,240 @@ def generate_features(
 # ----------------------------
 # modality-specific wrappers
 # ----------------------------
-def generate_features_from_tabular(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_tabular_features.json`` by default."""
-    if "discovered_features_path" not in kwargs:
-        kwargs["discovered_features_path"] = "outputs/discovered_tabular_features.json"
-    return generate_features(*args, **kwargs)
+def generate_features_from_tabular(
+        root_folder: Union[str, Path],
+        discovered_features_path: Union[str, Path] = "outputs/discovered_tabular_features.json",
+        output_dir: Union[str, Path] = "outputs",
+        classes: Optional[List[str]] = None,
+        provider: Optional[OpenAIProvider] = None,
+        merge_to_single_csv: bool = False,
+        merged_csv_name: str = "all_feature_values.csv",
+        text_column: Optional[str] = None,
+        label_column: Optional[str] = None,
+        failure_threshold: Optional[int] = 3,
+) -> Dict[str, str]:
+    """Generate feature values for class folders of tabular files, row by row.
+
+    Wrapper around [generate_features][llm_feature_gen.generate.generate_features]
+    that defaults ``discovered_features_path`` to the artifact written by
+    [discover_features_from_tabular][llm_feature_gen.discover.discover_features_from_tabular].
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class with
+            tabular files inside.
+        discovered_features_path: Path to the discovered schema JSON.
+        output_dir: Directory where CSV outputs are written.
+        classes: Optional subset of class-folder names. Defaults to all
+            immediate subdirectories of ``root_folder``.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+        text_column: Name of the column whose text is scored. Required for
+            tabular generation.
+        label_column: Optional column whose value overrides the class label
+            written for each row.
+        failure_threshold: Abort after this many consecutive provider/output
+            failures. ``None`` or ``0`` disables the guard.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Example:
+        ```python
+        csv_paths = generate_features_from_tabular(
+            root_folder="tabular",
+            text_column="text",
+            label_column="label",
+        )
+        ```
+    """
+    return generate_features(
+        root_folder=root_folder,
+        discovered_features_path=discovered_features_path,
+        output_dir=output_dir,
+        classes=classes,
+        provider=provider,
+        merge_to_single_csv=merge_to_single_csv,
+        merged_csv_name=merged_csv_name,
+        text_column=text_column,
+        label_column=label_column,
+        failure_threshold=failure_threshold,
+    )
 
 
-def generate_features_from_texts(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_text_features.json`` by default."""
-    if "discovered_features_path" not in kwargs:
-        kwargs["discovered_features_path"] = "outputs/discovered_text_features.json"
-    return generate_features(*args, **kwargs)
+def generate_features_from_texts(
+        root_folder: Union[str, Path],
+        discovered_features_path: Union[str, Path] = "outputs/discovered_text_features.json",
+        output_dir: Union[str, Path] = "outputs",
+        classes: Optional[List[str]] = None,
+        provider: Optional[OpenAIProvider] = None,
+        merge_to_single_csv: bool = False,
+        merged_csv_name: str = "all_feature_values.csv",
+        failure_threshold: Optional[int] = 3,
+) -> Dict[str, str]:
+    """Generate feature values for a class-organized folder of text files.
+
+    Wrapper around [generate_features][llm_feature_gen.generate.generate_features]
+    that defaults ``discovered_features_path`` to the artifact written by
+    [discover_features_from_texts][llm_feature_gen.discover.discover_features_from_texts].
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class, for
+            example ``texts/positive/`` and ``texts/negative/``.
+        discovered_features_path: Path to the discovered schema JSON.
+        output_dir: Directory where CSV outputs are written.
+        classes: Optional subset of class-folder names. Defaults to all
+            immediate subdirectories of ``root_folder``.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+        failure_threshold: Abort after this many consecutive provider/output
+            failures. ``None`` or ``0`` disables the guard.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Example:
+        ```python
+        csv_paths = generate_features_from_texts(
+            root_folder="texts",
+            merge_to_single_csv=True,
+        )
+        # {'positive': 'outputs/positive_feature_values.csv',
+        #  'negative': 'outputs/negative_feature_values.csv',
+        #  '__merged__': 'outputs/all_feature_values.csv'}
+        ```
+    """
+    return generate_features(
+        root_folder=root_folder,
+        discovered_features_path=discovered_features_path,
+        output_dir=output_dir,
+        classes=classes,
+        provider=provider,
+        merge_to_single_csv=merge_to_single_csv,
+        merged_csv_name=merged_csv_name,
+        failure_threshold=failure_threshold,
+    )
 
 
-def generate_features_from_images(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_image_features.json`` by default."""
-    if "discovered_features_path" not in kwargs:
-        kwargs["discovered_features_path"] = "outputs/discovered_image_features.json"
-    return generate_features(*args, **kwargs)
+def generate_features_from_images(
+        root_folder: Union[str, Path],
+        discovered_features_path: Union[str, Path] = "outputs/discovered_image_features.json",
+        output_dir: Union[str, Path] = "outputs",
+        classes: Optional[List[str]] = None,
+        provider: Optional[OpenAIProvider] = None,
+        merge_to_single_csv: bool = False,
+        merged_csv_name: str = "all_feature_values.csv",
+        failure_threshold: Optional[int] = 3,
+) -> Dict[str, str]:
+    """Generate feature values for a class-organized folder of images.
+
+    Wrapper around [generate_features][llm_feature_gen.generate.generate_features]
+    that defaults ``discovered_features_path`` to the artifact written by
+    [discover_features_from_images][llm_feature_gen.discover.discover_features_from_images].
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class, for
+            example ``images/hotpot/`` and ``images/vase/``.
+        discovered_features_path: Path to the discovered schema JSON.
+        output_dir: Directory where CSV outputs are written.
+        classes: Optional subset of class-folder names. Defaults to all
+            immediate subdirectories of ``root_folder``.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+        failure_threshold: Abort after this many consecutive provider/output
+            failures. ``None`` or ``0`` disables the guard.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Example:
+        ```python
+        csv_paths = generate_features_from_images(
+            root_folder="images",
+            merge_to_single_csv=True,
+        )
+        ```
+    """
+    return generate_features(
+        root_folder=root_folder,
+        discovered_features_path=discovered_features_path,
+        output_dir=output_dir,
+        classes=classes,
+        provider=provider,
+        merge_to_single_csv=merge_to_single_csv,
+        merged_csv_name=merged_csv_name,
+        failure_threshold=failure_threshold,
+    )
 
 
-def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_video_features.json`` by default."""
-    if "discovered_features_path" not in kwargs:
-        kwargs["discovered_features_path"] = "outputs/discovered_video_features.json"
+def generate_features_from_videos(
+        root_folder: Union[str, Path],
+        discovered_features_path: Union[str, Path] = "outputs/discovered_video_features.json",
+        output_dir: Union[str, Path] = "outputs",
+        classes: Optional[List[str]] = None,
+        provider: Optional[OpenAIProvider] = None,
+        merge_to_single_csv: bool = False,
+        merged_csv_name: str = "all_feature_values.csv",
+        use_audio: bool = True,
+        num_frames: int = 6,
+        failure_threshold: Optional[int] = 3,
+) -> Dict[str, str]:
+    """Generate feature values for a class-organized folder of videos.
 
-    kwargs.setdefault("use_audio", True)
-    return generate_features(*args, **kwargs)
+    Wrapper around [generate_features][llm_feature_gen.generate.generate_features]
+    that defaults ``discovered_features_path`` to the artifact written by
+    [discover_features_from_videos][llm_feature_gen.discover.discover_features_from_videos].
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class with
+            video files inside.
+        discovered_features_path: Path to the discovered schema JSON.
+        output_dir: Directory where CSV outputs are written.
+        classes: Optional subset of class-folder names. Defaults to all
+            immediate subdirectories of ``root_folder``.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+        use_audio: Include an audio transcript alongside the extracted frames.
+            Requires the ``ffmpeg`` binary (and, for
+            [LocalProvider][llm_feature_gen.providers.LocalProvider],
+            the ``faster-whisper`` package).
+        num_frames: Maximum number of key frames extracted per video.
+        failure_threshold: Abort after this many consecutive provider/output
+            failures. ``None`` or ``0`` disables the guard.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Example:
+        ```python
+        csv_paths = generate_features_from_videos(
+            root_folder="videos",
+            use_audio=False,
+        )
+        ```
+    """
+    return generate_features(
+        root_folder=root_folder,
+        discovered_features_path=discovered_features_path,
+        output_dir=output_dir,
+        classes=classes,
+        provider=provider,
+        merge_to_single_csv=merge_to_single_csv,
+        merged_csv_name=merged_csv_name,
+        use_audio=use_audio,
+        num_frames=num_frames,
+        failure_threshold=failure_threshold,
+    )
 
 

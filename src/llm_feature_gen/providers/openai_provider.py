@@ -16,26 +16,18 @@ load_dotenv()
 
 
 class OpenAIProvider:
-    """
-    Thin adapter around  OpenAI (Azure or personal) for feature discovery/generation.
-        Supports:
-        - Azure OpenAI
-        - Personal / private OpenAI API
+    """Adapter around the OpenAI or Azure OpenAI API for discovery and generation.
 
-    - Reads credentials from .env:
-        AZURE_OPENAI_API_KEY
-        AZURE_OPENAI_API_VERSION
-        AZURE_OPENAI_ENDPOINT
-        AZURE_OPENAI_GPT41_DEPLOYMENT_NAME  (default deployment/model name)
+    The provider exposes three methods used by every discovery and generation
+    helper: ``image_features``, ``text_features``, and ``transcribe_audio``.
+    Each returns a list of dictionaries, one per input item — or a
+    single-element list when a joint (``as_set=True``) call is made.
 
-    - Two entry points:
-        image_features(image_base64_list, prompt=None, deployment_name=None, feature_gen=False, as_set=False)
-        text_features(text_list, prompt=None, deployment_name=None, feature_gen=False)
-
-    - Returns a list of dicts (one per input item) in the usual case.
-      If `as_set=True`, returns a list with a single dict corresponding to the joint call.
-
-    Provider is auto-detected from environment variables.
+    Azure mode is selected automatically when an Azure endpoint is configured
+    (via the ``endpoint`` argument or the ``AZURE_OPENAI_ENDPOINT`` environment
+    variable); otherwise the standard OpenAI API is used. Any argument left as
+    ``None`` falls back to the corresponding environment variable, typically
+    loaded from a ``.env`` file in the working directory.
     """
 
     def __init__(
@@ -49,6 +41,37 @@ class OpenAIProvider:
         max_tokens: int = 2048,
         default_audio_model: Optional[str] = None,
     ) -> None:
+        """Configure the client from arguments or environment variables.
+
+        Args:
+            api_key: API key. Falls back to ``AZURE_OPENAI_API_KEY`` (Azure
+                mode) or ``OPENAI_API_KEY``.
+            api_version: Azure API version. Falls back to
+                ``AZURE_OPENAI_API_VERSION``. Ignored outside Azure mode.
+            endpoint: Azure resource endpoint. Setting it (or
+                ``AZURE_OPENAI_ENDPOINT``) switches the provider to Azure mode.
+            default_deployment_name: Chat deployment (Azure) or model name
+                (OpenAI). Falls back to ``AZURE_OPENAI_GPT41_DEPLOYMENT_NAME``
+                or ``OPENAI_MODEL``.
+            max_retries: Retries on rate-limit errors, with exponential
+                backoff.
+            temperature: Sampling temperature for all chat calls.
+            max_tokens: Completion token limit for all chat calls.
+            default_audio_model: Transcription deployment/model. Falls back to
+                ``AZURE_OPENAI_WHISPER_DEPLOYMENT`` (Azure, required) or
+                ``OPENAI_AUDIO_MODEL`` (default ``whisper-1``).
+
+        Raises:
+            EnvironmentError: If a required credential is neither passed nor
+                present in the environment — in Azure mode the key, version,
+                endpoint, and audio deployment; otherwise ``OPENAI_API_KEY``
+                and ``OPENAI_MODEL``.
+
+        Example:
+            ```python
+            provider = OpenAIProvider(temperature=0.0, max_tokens=4096)
+            ```
+        """
 
         # -------------------------------------------------
         # detect whether we are using Azure or not
@@ -199,15 +222,27 @@ class OpenAIProvider:
         as_set: bool = False,
         extra_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        For each base64 image, ask the LLM to extract features.
+        """Extract features from base64-encoded images.
 
-        - If as_set=False (default): behaves as before — one request per image,
-          returns a list of dicts.
-        - If as_set=True: sends ALL images in ONE request (for comparative / discovery
-          prompts) and returns a list with a single dict.
+        Args:
+            image_base64_list: Base64-encoded JPEG payloads.
+            prompt: Prompt sent with the images. Defaults to a generic
+                feature-extraction instruction.
+            deployment_name: Override the default chat deployment/model.
+            feature_gen: Enforce the strict JSON feature-value system prompt
+                used during generation.
+            as_set: Send all images in one request (for comparative discovery)
+                instead of one request per image.
+            extra_context: Optional text appended to the prompt, for example
+                an audio transcript for video frames.
 
-        `feature_gen=True` can be used to enforce a strict JSON schema prompt on the system side.
+        Returns:
+            One dictionary per image, or a single-element list for a joint
+            (``as_set=True``) call.
+
+        Raises:
+            ProviderResponseError: If the provider returns an empty reply,
+                stays rate-limited after all retries, or fails the request.
         """
         deployment = deployment_name or self.default_model
 
@@ -262,10 +297,22 @@ class OpenAIProvider:
         deployment_name: Optional[str] = None,
         feature_gen: bool = False,
     ) -> List[Dict[str, Any]]:
-        """
-        For each text, ask the LLM to extract features.
-        If `feature_gen=True`, a JSON-only system prompt is enforced and your custom prompt
-        is appended (preserving your colleagues’ behavior).
+        """Extract features from raw texts, one request per text.
+
+        Args:
+            text_list: Raw input texts.
+            prompt: Prompt used as the system instruction. Defaults to a
+                generic feature-extraction instruction.
+            deployment_name: Override the default chat deployment/model.
+            feature_gen: Enforce the strict JSON feature-value system prompt
+                used during generation; a custom ``prompt`` is appended to it.
+
+        Returns:
+            One dictionary per input text.
+
+        Raises:
+            ProviderResponseError: If the provider returns an empty reply,
+                stays rate-limited after all retries, or fails the request.
         """
         results: List[Dict[str, Any]] = []
         deployment = deployment_name or self.default_model
@@ -299,8 +346,17 @@ class OpenAIProvider:
         return results
 
     def transcribe_audio(self, audio_path: str) -> str:
-        """
-        Transcribes audio file using OpenAI Whisper (Cloud).
+        """Transcribe an audio file with the configured Whisper model.
+
+        Args:
+            audio_path: Path to the audio file.
+
+        Returns:
+            The transcribed text.
+
+        Raises:
+            FileNotFoundError: If ``audio_path`` does not exist.
+            RuntimeError: If the transcription request fails.
         """
 
         if not os.path.exists(audio_path):

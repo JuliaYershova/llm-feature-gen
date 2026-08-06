@@ -26,31 +26,18 @@ load_dotenv()
 
 
 class LocalProvider:
-    """
-    Thin adapter around OpenAI-compatible LOCAL endpoints.
-        Supports:
-        - Ollama
-        - vLLM
-        - LM Studio
-        - Any OpenAI-compatible local server
+    """Adapter around OpenAI-compatible local servers such as Ollama, vLLM, and LM Studio.
 
-    - Reads configuration from .env:
-        LOCAL_OPENAI_BASE_URL
-        LOCAL_OPENAI_API_KEY
-        LOCAL_MODEL_TEXT
-        LOCAL_MODEL_VISION
-        LOCAL_WHISPER_MODEL_SIZE
-        LOCAL_WHISPER_DEVICE
+    A drop-in alternative to
+    [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider] with the same
+    three methods — ``image_features``, ``text_features``, and
+    ``transcribe_audio`` — so every discovery and generation helper works
+    against a local endpoint without an API key. Audio transcription runs
+    locally through ``faster-whisper`` when that package is installed.
 
-    - Two entry points:
-        image_features(image_base64_list, prompt=None, deployment_name=None, feature_gen=False, as_set=False)
-        text_features(text_list, prompt=None, deployment_name=None, feature_gen=False)
-        transcribe_audio(audio_path)
-
-    - Returns a list of dicts (one per input item) in the usual case.
-      If `as_set=True`, returns a list with a single dict corresponding to the joint call.
-
-    Provider is configured via environment variables.
+    Any argument left as ``None`` falls back to the corresponding environment
+    variable, typically loaded from a ``.env`` file in the working directory.
+    All configuration has usable defaults for a stock Ollama install.
     """
 
     def __init__(
@@ -63,6 +50,28 @@ class LocalProvider:
             temperature: float = 0.0,
             max_tokens: int = 2048,
     ) -> None:
+        """Configure the client from arguments or environment variables.
+
+        Args:
+            base_url: Server endpoint. Falls back to ``LOCAL_OPENAI_BASE_URL``,
+                then ``http://localhost:11434/v1`` (Ollama).
+            api_key: Placeholder key expected by the SDK — local servers
+                usually ignore it. Falls back to ``LOCAL_OPENAI_API_KEY``,
+                then ``"ollama"``.
+            default_text_model: Model used for text calls. Falls back to
+                ``LOCAL_MODEL_TEXT``, then ``llama3``.
+            default_vision_model: Model used for image calls. Falls back to
+                ``LOCAL_MODEL_VISION``, then ``llava``.
+            max_retries: Retries on rate-limit errors, with exponential
+                backoff.
+            temperature: Sampling temperature for all chat calls.
+            max_tokens: Completion token limit for all chat calls.
+
+        Example:
+            ```python
+            provider = LocalProvider(base_url="http://localhost:11434/v1")
+            ```
+        """
 
         # -------------------------------------------------
         # LOCAL CONFIGURATION
@@ -252,11 +261,27 @@ class LocalProvider:
             as_set: bool = False,
             extra_context: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        For each base64 image, ask the LLM to extract features.
+        """Extract features from base64-encoded images via the local vision model.
 
-        - If as_set=False (default): behaves as before — one request per image.
-        - If as_set=True: sends ALL images in ONE request.
+        Args:
+            image_base64_list: Base64-encoded JPEG payloads.
+            prompt: Prompt sent with the images. Defaults to a generic
+                feature-extraction instruction.
+            deployment_name: Override the default vision model.
+            feature_gen: Enforce the strict JSON feature-value system prompt
+                used during generation.
+            as_set: Send all images in one request (for comparative discovery)
+                instead of one request per image.
+            extra_context: Optional text appended to the prompt, for example
+                an audio transcript for video frames.
+
+        Returns:
+            One dictionary per image, or a single-element list for a joint
+            (``as_set=True``) call.
+
+        Raises:
+            ProviderResponseError: If the local server returns an empty reply,
+                stays rate-limited after all retries, or fails the request.
         """
         deployment = deployment_name or self.vision_model
 
@@ -312,9 +337,22 @@ class LocalProvider:
             deployment_name: Optional[str] = None,
             feature_gen: bool = False,
     ) -> List[Dict[str, Any]]:
-        """
-        For each text, ask the LLM to extract features.
-        If `feature_gen=True`, a JSON-only system prompt is enforced.
+        """Extract features from raw texts via the local text model.
+
+        Args:
+            text_list: Raw input texts.
+            prompt: Prompt used as the system instruction. Defaults to a
+                generic feature-extraction instruction.
+            deployment_name: Override the default text model.
+            feature_gen: Enforce the strict JSON feature-value system prompt
+                used during generation.
+
+        Returns:
+            One dictionary per input text.
+
+        Raises:
+            ProviderResponseError: If the local server returns an empty reply,
+                stays rate-limited after all retries, or fails the request.
         """
         results: List[Dict[str, Any]] = []
         deployment = deployment_name or self.text_model
@@ -351,8 +389,17 @@ class LocalProvider:
         return results
 
     def transcribe_audio(self, audio_path: str) -> str:
-        """
-        Transcribes audio file using local Faster-Whisper.
+        """Transcribe an audio file locally with Faster-Whisper.
+
+        Args:
+            audio_path: Path to the audio file.
+
+        Returns:
+            The transcribed text.
+
+        Raises:
+            ImportError: If ``faster-whisper`` is not installed.
+            RuntimeError: If model initialization or transcription fails.
         """
         if not HAS_LOCAL_WHISPER:
             raise ImportError("Error: faster-whisper not installed.")

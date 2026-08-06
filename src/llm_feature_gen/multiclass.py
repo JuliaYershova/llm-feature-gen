@@ -13,7 +13,30 @@ from .providers.openai_provider import OpenAIProvider
 
 
 class MultiClassDiscoveryPromptBuilder:
-    """Build a text discovery prompt for an arbitrary class list."""
+    """Build a text discovery prompt tailored to an arbitrary class list.
+
+    The builder fills the multiclass discovery prompt template with the class
+    names and the requested feature count, so the provider is asked for
+    features that separate exactly those classes.
+
+    Args:
+        classes: Class names the discovered features should distinguish.
+            At least two are required.
+        min_features: Minimum number of features to request. Defaults to
+            ``max(10, 3 * len(classes))``.
+
+    Raises:
+        ValueError: If fewer than two classes are given, or ``min_features``
+            is not a positive integer.
+
+    Example:
+        ```python
+        prompt = MultiClassDiscoveryPromptBuilder(
+            classes=["sadness", "fear", "joy"],
+            min_features=12,
+        ).build()
+        ```
+    """
 
     def __init__(self, classes: Sequence[str], min_features: Optional[int] = None) -> None:
         classes = list(classes)
@@ -46,7 +69,41 @@ def discover_features_multiclass(
     as_set: bool = True,
     min_features: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Discover text features that distinguish all supplied classes."""
+    """Discover text features that distinguish all supplied classes.
+
+    Builds a class-aware prompt with
+    [MultiClassDiscoveryPromptBuilder][llm_feature_gen.multiclass.MultiClassDiscoveryPromptBuilder]
+    and delegates to
+    [discover_features_from_texts][llm_feature_gen.discover.discover_features_from_texts].
+
+    Args:
+        texts_or_file: Raw text, a list of texts, a document path, or a folder
+            of supported text documents to discover from.
+        classes: Class names the discovered features should distinguish.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        output_dir: Directory where the schema JSON is written.
+        output_filename: Filename of the schema JSON artifact.
+        as_set: When ``True``, all texts are combined into a single request so
+            the provider discovers one shared schema.
+        min_features: Minimum number of features to request. Defaults to
+            ``max(10, 3 * len(classes))``.
+
+    Returns:
+        The discovery payload, normally a dictionary with a
+        ``proposed_features`` list.
+
+    Raises:
+        ValueError: If fewer than two classes are given.
+
+    Example:
+        ```python
+        discovered = discover_features_multiclass(
+            texts_or_file="discover_texts",
+            classes=["sadness", "fear", "joy"],
+        )
+        ```
+    """
     prompt = MultiClassDiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
@@ -71,7 +128,39 @@ def generate_features_multiclass(
     merge_to_single_csv: bool = True,
     merged_csv_name: str = "all_feature_values.csv",
 ) -> Dict[str, str]:
-    """Generate feature-value CSVs for two or more classes."""
+    """Generate feature-value CSVs for two or more classes.
+
+    Args:
+        root_folder: Dataset root containing one subfolder per class.
+        discovered_features: Schema to score against — either a path to a
+            discovery JSON artifact or an already-loaded schema dictionary
+            (which is written to a temporary JSON file first).
+        classes: Class-folder names to process. Each must exist under
+            ``root_folder``.
+        provider: Provider instance. Defaults to
+            [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
+        output_dir: Directory where CSV outputs are written.
+        merge_to_single_csv: Also write one concatenated CSV across classes.
+        merged_csv_name: Filename of the merged CSV artifact.
+
+    Returns:
+        Mapping from class name to generated CSV path; the merged CSV is
+        stored under the ``"__merged__"`` key when enabled.
+
+    Raises:
+        ValueError: If fewer than two classes are given.
+        FileNotFoundError: If a class subfolder is missing under
+            ``root_folder``.
+
+    Example:
+        ```python
+        csv_paths = generate_features_multiclass(
+            root_folder="texts",
+            discovered_features="outputs/discovered_text_features.json",
+            classes=["sadness", "fear", "joy"],
+        )
+        ```
+    """
     classes = list(classes)
     if len(classes) < 2:
         raise ValueError(f"At least 2 classes required for multi-class generation, got {len(classes)}.")
@@ -115,7 +204,46 @@ def run_multiclass_pipeline(
     output_dir: Union[str, Path] = "outputs",
     min_features: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Run discovery, train generation, and test generation for multiple classes."""
+    """Run discovery, train generation, and test generation for multiple classes.
+
+    The three stages share one discovered schema: features are discovered from
+    ``discover_folder``, then feature values are generated for the train and
+    test splits so both use identical columns.
+
+    Args:
+        discover_folder: Folder of texts used only for feature discovery.
+        train_folder: Class-organized folder scored for the training split.
+        test_folder: Class-organized folder scored for the test split.
+        classes: Class-folder names present in both splits.
+        provider: Provider instance used for all three stages.
+        output_dir: Base output directory. The schema JSON is written here;
+            train CSVs go to ``<output_dir>/train_generated/`` and test CSVs
+            to ``<output_dir>/test_generated/``.
+        min_features: Minimum number of features to request during discovery.
+
+    Returns:
+        A dictionary with three keys — ``"discovered_features"`` (the schema
+        payload), ``"train_csv_paths"`` and ``"test_csv_paths"`` (the mappings
+        returned by
+        [generate_features_multiclass][llm_feature_gen.multiclass.generate_features_multiclass],
+        each including a ``"__merged__"`` entry).
+
+    Raises:
+        ValueError: If fewer than two classes are given.
+        FileNotFoundError: If a class subfolder is missing in either split.
+
+    Example:
+        ```python
+        results = run_multiclass_pipeline(
+            discover_folder="discover_texts",
+            train_folder="texts/train",
+            test_folder="texts/test",
+            classes=["sadness", "fear", "joy"],
+            provider=OpenAIProvider(),
+        )
+        train_csv = results["train_csv_paths"]["__merged__"]
+        ```
+    """
     output_dir = Path(output_dir)
     features_path = output_dir / "discovered_text_features.json"
 
