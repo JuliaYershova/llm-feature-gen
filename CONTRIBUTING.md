@@ -12,7 +12,7 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-If you need support for optional file formats, install the extra runtime dependencies called out in [`README.md`](README.md).
+If you need support for optional file formats, install the extra runtime dependencies called out in [`README.md`](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/README.md).
 
 ## Running Tests
 
@@ -36,7 +36,7 @@ Tests use fake providers and temporary directories, so they do not require real 
 - Keep pull requests focused and easy to review.
 - Add or update tests when behavior changes.
 - Update docs, examples, and prompts when user-facing behavior, supported inputs, or outputs change.
-- Add user-visible changes to [`CHANGELOG.md`](CHANGELOG.md) under `## [Unreleased]`.
+- Add user-visible changes to [`CHANGELOG.md`](https://github.com/JuliaYershova/LLM-feature-gen/blob/main/CHANGELOG.md) under `## [Unreleased]`.
 - Include a short summary of what changed and how you validated it.
 
 ## Reporting Issues
