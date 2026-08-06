@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "llm-feature-gen: interpretable feature discovery and generation from multimodal data with LLMs"
+authors:
+  - family-names: "Jeršova"
+    given-names: "Julija"
+version: 0.1.13
+date-released: "2026-07-08"
+license: MIT
+repository-code: "https://github.com/JuliaYershova/LLM-feature-gen"
+url: "https://juliayershova.github.io/llm-feature-gen/"
+keywords:
+  - feature engineering
+  - large language models
+  - interpretability
+  - multimodal
+  - tabular data

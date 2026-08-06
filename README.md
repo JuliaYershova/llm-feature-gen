@@ -4,10 +4,19 @@
 [![Tests](https://github.com/JuliaYershova/LLM-feature-gen/actions/workflows/tests.yml/badge.svg)](https://github.com/JuliaYershova/LLM-feature-gen/actions/workflows/tests.yml)
 [![Docs](https://github.com/JuliaYershova/LLM-feature-gen/actions/workflows/docs.yml/badge.svg)](https://juliayershova.github.io/llm-feature-gen/)
 [![Codecov](https://codecov.io/gh/JuliaYershova/LLM-feature-gen/graph/badge.svg?token=BHLNPPOZUH)](https://codecov.io/gh/JuliaYershova/LLM-feature-gen)
+[![License](https://img.shields.io/github/license/JuliaYershova/LLM-feature-gen)](LICENSE)
 
 `llm-feature-gen` turns text, images, tabular files, and videos into interpretable tabular features with LLMs.
 
-Use it when you have raw multimodal data and want a CSV dataset with explicit, human-readable feature columns for analysis, modeling, or inspection.
+Use it when you have raw multimodal data and want a CSV dataset with explicit, human-readable feature columns for analysis, modeling, or inspection. One input becomes one row; one feature becomes one named column:
+
+> "The service was slow and the food arrived cold."
+
+| emotional tone | service speed | food temperature |
+| --- | --- | --- |
+| negative | slow | cold |
+
+Full documentation: https://juliayershova.github.io/llm-feature-gen/
 
 ## What It Does
 
@@ -16,12 +25,12 @@ The package follows a two-step workflow:
 1. Discover a feature schema from example inputs.
 2. Generate feature values for class-organized data and save CSV files.
 
-Supported workflows include:
-
-- Text: `.txt`, `.md`, `.pdf`, `.docx`, `.html`
-- Images: `.jpg`, `.jpeg`, `.png`
-- Tabular data: `.csv`, `.xlsx`, `.xls`, `.parquet`, `.json`
-- Video: `.mp4`, `.mov`, `.avi`, `.mkv`
+| Modality | File formats | Discover | Generate | Batched + cached | Multiclass helpers |
+| --- | --- | :-: | :-: | :-: | :-: |
+| Text | `.txt`, `.md`, `.pdf`, `.docx`, `.html` | ✓ | ✓ | ✓ | ✓ |
+| Images | `.jpg`, `.jpeg`, `.png` | ✓ | ✓ | — | — |
+| Tabular | `.csv`, `.xlsx`, `.xls`, `.parquet`, `.json` | ✓ | ✓ | — | — |
+| Video | `.mp4`, `.mov`, `.avi`, `.mkv` | ✓ | ✓ | — | — |
 
 The default provider is OpenAI or Azure OpenAI. A local OpenAI-compatible provider is also available for Ollama, vLLM, LM Studio, and similar servers.
 
@@ -40,6 +49,63 @@ pip install pypdf python-docx beautifulsoup4 openpyxl xlrd pyarrow
 ```
 
 Video audio extraction also requires the `ffmpeg` system binary.
+
+## Quickstart
+
+The default provider is OpenAI — put a key into a `.env` file in your working directory (see [Configure a Provider](#configure-a-provider) for Azure and local, key-free options):
+
+```env
+OPENAI_API_KEY=your_api_key
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+This example creates a tiny text dataset, discovers a shared schema, and generates feature-value CSVs:
+
+```python
+from pathlib import Path
+
+from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
+
+samples = {
+    "demo_discover_texts/sample1.txt": "The dish was rich, spicy, and served in a deep bowl.",
+    "demo_discover_texts/sample2.txt": "The dessert was light, creamy, and topped with fresh fruit.",
+    "demo_texts/positive/review1.txt": "The meal was vibrant, aromatic, and beautifully plated.",
+    "demo_texts/negative/review1.txt": "The service was slow and the food arrived cold.",
+}
+
+for file_name, text in samples.items():
+    path = Path(file_name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+discovered = discover_features_from_texts("demo_discover_texts")
+csv_paths = generate_features_from_texts(
+    root_folder="demo_texts",
+    merge_to_single_csv=True,
+)
+
+print(discovered)
+print(csv_paths)
+```
+
+Expected outputs:
+
+- `outputs/discovered_text_features.json`
+- `outputs/positive_feature_values.csv`
+- `outputs/negative_feature_values.csv`
+- `outputs/all_feature_values.csv`
+
+Generation expects one subfolder per class:
+
+```text
+demo_texts/
+  positive/
+    review1.txt
+  negative/
+    review1.txt
+```
+
+Every generated CSV includes `File`, `Class`, one column per discovered feature, and `raw_llm_output` for auditing the original provider response.
 
 ## Configure a Provider
 
@@ -153,54 +219,6 @@ AZURE_OPENAI_API_VERSION=your_api_version
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_GPT41_DEPLOYMENT_NAME=your_chat_deployment
 AZURE_OPENAI_WHISPER_DEPLOYMENT=your_audio_deployment
-```
-
-## Quickstart
-
-This example creates a tiny text dataset, discovers a shared schema, and generates feature-value CSVs.
-
-```python
-from pathlib import Path
-
-from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
-
-samples = {
-    "demo_discover_texts/sample1.txt": "The dish was rich, spicy, and served in a deep bowl.",
-    "demo_discover_texts/sample2.txt": "The dessert was light, creamy, and topped with fresh fruit.",
-    "demo_texts/positive/review1.txt": "The meal was vibrant, aromatic, and beautifully plated.",
-    "demo_texts/negative/review1.txt": "The service was slow and the food arrived cold.",
-}
-
-for file_name, text in samples.items():
-    path = Path(file_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-
-discovered = discover_features_from_texts("demo_discover_texts")
-csv_paths = generate_features_from_texts(
-    root_folder="demo_texts",
-    merge_to_single_csv=True,
-)
-
-print(discovered)
-print(csv_paths)
-```
-
-Expected outputs:
-
-- `outputs/discovered_text_features.json`
-- `outputs/positive_feature_values.csv`
-- `outputs/negative_feature_values.csv`
-- `outputs/all_feature_values.csv`
-
-Generation expects one subfolder per class:
-
-```text
-demo_texts/
-  positive/
-    review1.txt
-  negative/
-    review1.txt
 ```
 
 ## Core API
@@ -342,7 +360,7 @@ For the offline replay path used by tests:
 python examples/text_to_tabular_pipeline.py --provider replay --check
 ```
 
-See [examples/README.md](examples/README.md) for details.
+See [examples/README.md](examples/README.md) for details. For an interactive walkthrough of all four modalities, open [tutorial.ipynb](tutorial.ipynb) from a repository checkout.
 
 ## Development
 
@@ -368,6 +386,21 @@ Useful project links:
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 - Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Issues: https://github.com/JuliaYershova/LLM-feature-gen/issues
+
+## Citing
+
+If you use `llm-feature-gen` in academic work, cite the software (a machine-readable [`CITATION.cff`](CITATION.cff) is also included, so GitHub's "Cite this repository" button works):
+
+```bibtex
+@software{jersova_llm_feature_gen,
+  author  = {Jer{\v s}ova, Julija},
+  title   = {llm-feature-gen: interpretable feature discovery and
+             generation from multimodal data with LLMs},
+  year    = {2026},
+  url     = {https://github.com/JuliaYershova/LLM-feature-gen},
+  version = {0.1.13},
+}
+```
 
 ## License
 
