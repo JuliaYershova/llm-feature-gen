@@ -274,7 +274,7 @@ def _build_prompt_for_generation(base_prompt: str, discovered_features: Dict[str
     """Append the discovered schema to a base generation prompt."""
     return (
             base_prompt.rstrip()
-            + "\n\nDISOVERED_FEATURES_SPEC:\n"
+            + "\n\nDISCOVERED_FEATURES_SPEC:\n"
             + json.dumps(discovered_features, ensure_ascii=False, indent=2)
     )
 
@@ -685,5 +685,3 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
-
-

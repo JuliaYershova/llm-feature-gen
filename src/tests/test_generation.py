@@ -145,7 +145,7 @@ def test_prepare_image_inputs_and_helper_functions(tmp_path: Path):
     assert gen.parse_json_from_markdown("not json") == {}
 
     prompt = gen._build_prompt_for_generation("Base", {"proposed_features": [{"feature": "f"}]})
-    assert "DISOVERED_FEATURES_SPEC" in prompt
+    assert "DISCOVERED_FEATURES_SPEC" in prompt
 
     out_dir = gen._ensure_output_dir(tmp_path / "nested" / "dir")
     assert out_dir.exists()
@@ -200,7 +200,7 @@ def test_build_generation_prompt_embeds_enum_lists_in_spec():
         ]
     }
     built = gen._build_prompt_for_generation(gen.text_generation_prompt, spec)
-    assert "DISOVERED_FEATURES_SPEC" in built
+    assert "DISCOVERED_FEATURES_SPEC" in built
     assert '"possible_values"' in built
     assert '"allowed_values"' in built
     assert "low" in built and "approved" in built
@@ -793,7 +793,7 @@ def test_video_discovery_and_generation_wrapper_defaults_line_up(tmp_path: Path,
 
     class SmokeProvider:
         def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
-            if prompt and "DISOVERED_FEATURES_SPEC" in prompt:
+            if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
                 return [{"features": {"shape": "round"}}]
             return [{"proposed_features": [{"feature": "shape"}]}]
 

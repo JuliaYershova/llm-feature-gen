@@ -15,7 +15,7 @@ class FakeTextProvider:
 
     def text_features(self, text_list, prompt=None):
         self.calls.append({"texts": list(text_list), "prompt": prompt})
-        if prompt and "DISOVERED_FEATURES_SPEC" in prompt:
+        if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
             return [
                 {
                     "features": {
@@ -67,6 +67,20 @@ def test_llm_feature_transformer_can_transform_without_batch_mode():
 
     assert result.to_dict(orient="records") == [{"topic": "billing"}, {"topic": "access"}]
     assert [call["texts"] for call in provider.calls] == [["need invoice"], ["cannot log in"]]
+
+
+def test_llm_feature_transformer_without_batch_mode_handles_empty_responses():
+    class EmptyResponseProvider:
+        def text_features(self, text_list, prompt=None):
+            return []
+
+    result = LLMFeatureTransformer(
+        provider=EmptyResponseProvider(),
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+        use_batch=False,
+    ).fit_transform(["need invoice"])
+
+    assert result.to_dict(orient="records") == [{"topic": "not given by LLM"}]
 
 
 def test_llm_feature_transformer_loads_schema_path_and_uses_default_provider(tmp_path, monkeypatch):

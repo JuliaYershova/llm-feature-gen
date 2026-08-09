@@ -47,8 +47,8 @@ jobs:
       - name: Upgrade packaging tools
         run: python -m pip install --upgrade setuptools wheel
 
-      - name: Install package and dev dependencies
-        run: python -m pip install -e ".[dev]"
+      - name: Install package, dev, and scikit-learn dependencies
+        run: python -m pip install -e ".[dev,sklearn]"
 
       - name: Verify package import
         run: python -c "import llm_feature_gen; print(llm_feature_gen.__file__)"

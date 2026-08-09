@@ -268,6 +268,8 @@ pipe.fit(train_texts, train_labels)
 predictions = pipe.predict(test_texts)
 ```
 
+By default, each `fit()` discovers a new feature schema, which incurs an LLM call and can vary between runs. For cross-validation or parameter search, pass a saved `discovered_features` schema to avoid repeated discovery and schema changes.
+
 ### Images
 
 ```python

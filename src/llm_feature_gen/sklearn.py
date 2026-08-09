@@ -11,12 +11,9 @@ import pandas as pd
 from .batch import BatchTextCache, generate_features_batch
 from .discover import discover_features_from_texts
 from .generate import (
-    _build_prompt_for_generation,
     _extract_feature_names,
     load_discovered_features,
 )
-from .contracts import normalize_feature_values_response
-from .prompts import text_generation_prompt
 from .providers.openai_provider import OpenAIProvider
 
 try:  # pragma: no cover - exercised when scikit-learn is installed
@@ -115,16 +112,16 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         return df.loc[:, self.feature_names_]
 
     def _transform_one_by_one(self, texts: list[str]) -> pd.DataFrame:
-        prompt = _build_prompt_for_generation(text_generation_prompt, self.discovered_features_)
-        rows: list[dict[str, Any]] = []
-
-        for text in texts:
-            response = self.provider_.text_features([text], prompt=prompt)
-            payload = response[0] if response else {}
-            inner = normalize_feature_values_response(payload)["features"]
-            rows.append({feature: inner.get(feature, "not given by LLM") for feature in self.feature_names_})
-
-        return pd.DataFrame(rows, columns=self.feature_names_)
+        df = generate_features_batch(
+            texts=texts,
+            labels=[""] * len(texts),
+            discovered_features=self.discovered_features_,
+            provider=self.provider_,
+            batch_size=1,
+            cache=self.cache,
+            retry_delay=self.retry_delay,
+        )
+        return df.loc[:, self.feature_names_]
 
     def get_feature_names_out(self, input_features: Any = None) -> np.ndarray:
         _ = input_features
