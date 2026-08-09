@@ -59,6 +59,10 @@ def test_batch_cache_round_trip_and_clear(tmp_path: Path):
     assert reloaded.get("other", "schema") is None
     assert len(reloaded) == 1
 
+    reloaded.delete("hello", "schema")
+    assert reloaded.get("hello", "schema") is None
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {}
+
     reloaded.clear()
     assert len(reloaded) == 0
     assert not cache_file.exists()
@@ -215,6 +219,54 @@ def test_generate_features_batch_reuses_cached_results_and_skips_provider(tmp_pa
     assert list(df["length"]) == ["5"]
 
 
+def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):
+    class InvalidThenValidProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            self.calls += 1
+            if self.calls == 1:
+                return [{"topic": "bad"}]
+            return [{"topic": "good", "length": "5"}]
+
+    schema = discovered_features()
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    provider = InvalidThenValidProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert provider.calls == 2
+    assert list(df["topic"]) == ["good"]
+    features_hash = batch_mod.BatchTextCache._hash(json.dumps(schema, sort_keys=True))
+    assert cache.get("alpha", features_hash) == {"topic": "good", "length": "5"}
+
+
+def test_generate_features_batch_replaces_invalid_cached_results(tmp_path: Path):
+    schema = discovered_features()
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    features_hash = batch_mod.BatchTextCache._hash(json.dumps(schema, sort_keys=True))
+    cache.set("alpha", features_hash, {"topic": "stale"})
+
+    provider = FakeBatchProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert len(provider.calls) == 1
+    assert list(df["topic"]) == ["value-0"]
+    assert cache.get("alpha", features_hash) == {"topic": "value-0", "length": "5"}
+
+
 def test_generate_features_batch_validates_inputs_and_retries_once(tmp_path: Path):
     with pytest.raises(ValueError, match="same length"):
         batch_mod.generate_features_batch(
@@ -289,7 +341,7 @@ def test_generate_features_batch_handles_second_retry_failure_and_short_response
     )
 
     assert seen == {"values": [0], "desc": "Batch generation", "unit": "batch", "total": 1}
-    assert list(df["topic"]) == ["only-first", "not given by LLM"]
+    assert list(df["topic"]) == ["only-first", "only-first"]
 
 
 def test_generate_features_from_texts_cached_writes_per_class_and_merged_csv(tmp_path: Path):

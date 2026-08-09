@@ -112,6 +112,7 @@ def test_discover_texts_allows_custom_min_features(tmp_path: Path):
 
     assert "Provide at least 3 distinct features." in provider.calls[0]["prompt"]
     assert "Provide at least 10 distinct features." not in provider.calls[0]["prompt"]
+    assert '"proposed_features"' in provider.calls[0]["prompt"]
 
     with pytest.raises(ValueError, match="min_features"):
         discover_mod.discover_features_from_texts(

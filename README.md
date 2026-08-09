@@ -155,6 +155,23 @@ AZURE_OPENAI_GPT41_DEPLOYMENT_NAME=your_chat_deployment
 AZURE_OPENAI_WHISPER_DEPLOYMENT=your_audio_deployment
 ```
 
+`AZURE_OPENAI_WHISPER_DEPLOYMENT` is only needed for audio transcription (for example, video workflows with `use_audio=True`).
+
+### Completion and structured-output options
+
+```python
+from llm_feature_gen.providers import OpenAIProvider
+
+provider = OpenAIProvider(
+    max_completion_tokens=4096,
+    reasoning_effort="low",  # optional; use only with models that support it
+)
+```
+
+`max_tokens` remains a supported alias for `max_completion_tokens`; do not pass both. OpenAI and Azure providers use JSON Schema when the selected deployment supports it and automatically fall back to JSON-object mode otherwise. Local and other compatible providers use the JSON shape included in the prompts.
+
+All discovery and generation helpers accept an optional `system_prompt` when you need to set custom model instructions.
+
 ## Quickstart
 
 This example creates a tiny text dataset, discovers a shared schema, and generates feature-value CSVs.

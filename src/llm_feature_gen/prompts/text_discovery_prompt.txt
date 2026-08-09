@@ -12,4 +12,15 @@ Your task is to:
 	4.	For each feature, provide a brief explanation of why it could be discriminative between two hidden groups.
 	5.	For each feature, provide possible values that the feature may take.
 	6.	Provide at least 10 distinct features.
-	7.  Follow the output schema strictly. Do not add any fields.
+	7. Follow the output schema strictly. Do not add any fields.
+
+Output format:
+{
+  "proposed_features": [
+    {
+      "feature": "feature_name_1",
+      "description": "short explanation why it may separate the two hidden groups",
+      "possible_values": ["value1", "value2", "value3", "value4", "value5"]
+    }
+  ]
+}

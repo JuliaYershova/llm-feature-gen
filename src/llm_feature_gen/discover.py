@@ -109,6 +109,7 @@ def discover_features_from_images(
         output_filename: Custom filename for the saved artifact. Defaults to
             ``discovered_image_features.json``.
         min_features: Minimum number of features to request from the provider.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -253,6 +254,7 @@ def discover_features_from_videos(
             subset of videos. Pass a value here to make the sampled subset
             reproducible across runs.
         min_features: Minimum number of features to request from the provider.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -439,6 +441,7 @@ def discover_features_from_texts(
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of distinct features to request from the
             provider.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -616,6 +619,7 @@ def discover_features_from_tabular(
             dataset.
         min_features: Minimum number of distinct features to request from the
             provider.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         The same return shape as

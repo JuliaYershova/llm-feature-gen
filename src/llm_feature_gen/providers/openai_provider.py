@@ -73,12 +73,12 @@ class OpenAIProvider:
         default_deployment_name: Optional[str] = None,
         max_retries: int = 5,
         temperature: float = 0.0,
-        max_completion_tokens: int = 2048,
+        max_completion_tokens: Optional[int] = None,
         max_tokens: Optional[int] = None,
         reasoning_effort: Optional[str] = None,
         default_audio_model: Optional[str] = None,
     ) -> None:
-        if max_tokens is not None and max_tokens != max_completion_tokens:
+        if max_tokens is not None and max_completion_tokens is not None:
             raise ValueError("Pass only one of max_completion_tokens or max_tokens.")
 
         # -------------------------------------------------
@@ -150,10 +150,17 @@ class OpenAIProvider:
         # -------------------------------------------------
         self.max_retries = max_retries
         self.temperature = temperature
-        self.max_completion_tokens = max_tokens if max_tokens is not None else max_completion_tokens
+        self.max_completion_tokens = (
+            max_completion_tokens
+            if max_completion_tokens is not None
+            else max_tokens
+            if max_tokens is not None
+            else 2048
+        )
         self.max_tokens = self.max_completion_tokens
         self.reasoning_effort = reasoning_effort
         self._completion_token_parameter = "max_completion_tokens"
+        self._response_schema_support: Dict[str, bool] = {}
 
     # -----------------------
     # Low-level helper
@@ -175,6 +182,13 @@ class OpenAIProvider:
     def _uses_reasoning_effort(self) -> bool:
         effort = getattr(self, "reasoning_effort", None)
         return effort is not None and str(effort).lower() != "none"
+
+    def _should_fallback_to_json_mode(self, exc: Exception) -> bool:
+        bad_request_error = getattr(openai, "BadRequestError", None)
+        if bad_request_error is None or not isinstance(exc, bad_request_error):
+            return False
+        message = str(exc).lower()
+        return "json_schema" in message or "response_format" in message
 
     def _validate_feature_discovery_payload(self, payload: Dict[str, Any]) -> None:
         if not isinstance(payload, dict):
@@ -250,12 +264,14 @@ class OpenAIProvider:
         if json_mode and "JSON" not in system_prompt:
             system_prompt += " Respond in strict JSON format."
 
+        schema_support = getattr(self, "_response_schema_support", {})
+        use_response_schema = response_schema is not None and schema_support.get(deployment_name, True)
         kwargs = {}
-        if response_schema is not None:
+        if use_response_schema:
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "feature_discovery",
+                    "name": "feature_response",
                     "schema": response_schema,
                     "strict": True,
                 },
@@ -279,7 +295,18 @@ class OpenAIProvider:
                 if not self._uses_reasoning_effort():
                     request["temperature"] = self.temperature
 
-                resp = self._create_chat_completion(deployment_name, request)
+                try:
+                    resp = self._create_chat_completion(deployment_name, request)
+                except Exception as exc:
+                    if not use_response_schema or not self._should_fallback_to_json_mode(exc):
+                        raise
+                    schema_support[deployment_name] = False
+                    self._response_schema_support = schema_support
+                    if json_mode:
+                        request["response_format"] = {"type": "json_object"}
+                    else:
+                        request.pop("response_format", None)
+                    resp = self._create_chat_completion(deployment_name, request)
                 text = resp.choices[0].message.content
                 try:
                     parsed = json.loads(text)
@@ -288,7 +315,7 @@ class OpenAIProvider:
                     if response_schema is not None:
                         raise ProviderResponseError("Invalid JSON response for requested schema.")
                     return {"features": text}
-                if response_schema is FEATURE_DISCOVERY_SCHEMA:
+                if response_schema == FEATURE_DISCOVERY_SCHEMA:
                     self._validate_feature_discovery_payload(parsed)
                 return parsed
             except openai.RateLimitError as e:

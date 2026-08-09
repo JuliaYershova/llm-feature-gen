@@ -51,6 +51,8 @@ class LocalProvider:
     Provider is configured via environment variables.
     """
 
+    supports_response_schema = False
+
     def __init__(
             self,
             base_url: Optional[str] = None,

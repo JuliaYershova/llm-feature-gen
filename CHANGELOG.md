@@ -18,6 +18,9 @@ All notable changes to this project will be documented in this file.
 - Project metadata now makes platform and interpreter support claims explicit for publication and review.
 - Optional text-parser failures now raise clearer dependency guidance for PDF, DOCX, and HTML inputs.
 - Provider response handling now uses a shared feature-value contract so generation rejects error and invalid payloads consistently.
+- OpenAI and Azure providers now prefer structured outputs while falling back to JSON-object mode for deployments that do not support JSON Schema.
+- `max_completion_tokens` is the preferred completion limit; `max_tokens` remains a compatible alias.
+- Discovery and generation helpers accept custom system prompts, and invalid batch responses are no longer cached.
 
 ### Fixed
 

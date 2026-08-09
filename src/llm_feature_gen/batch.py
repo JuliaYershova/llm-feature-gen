@@ -77,6 +77,12 @@ class BatchTextCache:
         if persist:
             self.save()
 
+    def delete(self, text: str, features_hash: str, *, persist: bool = True) -> None:
+        """Remove a cached response when it no longer matches the schema."""
+        self._store.pop(self._make_key(text, features_hash), None)
+        if persist:
+            self.save()
+
     def __len__(self) -> int:
         return len(self._store)
 
@@ -109,6 +115,13 @@ def _normalise_provider_response(response: Any) -> Dict[str, Any]:
         return inner if isinstance(inner, dict) else {}
 
     return {}
+
+
+def _validated_provider_response(response: Any, discovered_features: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize one provider response and ensure it matches the discovered schema."""
+    inner = _normalise_provider_response(response)
+    _validate_generation_features(inner, discovered_features)
+    return inner
 
 
 def generate_features_batch(
@@ -146,14 +159,24 @@ def generate_features_batch(
 
     indices_to_process: List[int] = []
     cached_results: Dict[int, Dict[str, Any]] = {}
+    cache_changed = False
 
     for index, text in enumerate(texts):
         if cache is not None:
             cached = cache.get(text, features_hash)
             if cached is not None:
-                cached_results[index] = cached
-                continue
+                try:
+                    _validate_generation_features(cached, discovered_features)
+                except ValueError:
+                    cache.delete(text, features_hash, persist=False)
+                    cache_changed = True
+                else:
+                    cached_results[index] = cached
+                    continue
         indices_to_process.append(index)
+
+    if cache is not None and cache_changed:
+        cache.save()
 
     if cached_results:
         print(f"Cache hits: {len(cached_results)} / {len(texts)}")
@@ -169,6 +192,7 @@ def generate_features_batch(
         batch_indices = indices_to_process[batch_start: batch_start + batch_size]
         batch_texts = [texts[index] for index in batch_indices]
 
+        batch_failed = False
         try:
             responses = _call_provider_batch(provider, batch_texts, full_prompt, response_schema)
         except Exception as exc:
@@ -179,16 +203,34 @@ def generate_features_batch(
             except Exception as retry_exc:
                 print(f"Batch failed again: {retry_exc}. Skipping batch.")
                 responses = [{}] * len(batch_texts)
+                batch_failed = True
 
         cache_changed = False
         for local_pos, global_index in enumerate(batch_indices):
             parsed = responses[local_pos] if local_pos < len(responses) else {}
-            inner = _normalise_provider_response(parsed)
             try:
-                _validate_generation_features(inner, discovered_features)
+                inner = _validated_provider_response(parsed, discovered_features)
             except ValueError as exc:
                 print(f"Invalid batch response for text_{global_index}: {exc}")
-                inner = {}
+                if batch_failed:
+                    inner = None
+                else:
+                    try:
+                        retry_response = _call_provider_batch(
+                            provider,
+                            [texts[global_index]],
+                            full_prompt,
+                            response_schema,
+                        )[0]
+                        inner = _validated_provider_response(retry_response, discovered_features)
+                    except Exception as retry_exc:
+                        print(f"Retry failed for text_{global_index}: {retry_exc}")
+                        inner = None
+
+            if inner is None:
+                batch_responses[global_index] = {}
+                continue
+
             batch_responses[global_index] = inner
 
             if cache is not None:

@@ -444,6 +444,7 @@ def assign_feature_values_from_folder(
             label for row-level outputs.
         failure_threshold: Number of consecutive provider/output failures after
             which generation aborts. Pass ``None`` or ``0`` to disable.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         The path to the generated per-class CSV file.
@@ -706,6 +707,7 @@ def generate_features(
         label_column: Optional row-level label override for tabular generation.
         failure_threshold: Number of consecutive provider/output failures after
             which generation aborts. Pass ``None`` or ``0`` to disable.
+        system_prompt: Optional custom system instruction for the provider.
 
     Returns:
         A mapping from class name to generated CSV path. When
@@ -780,5 +782,4 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
-
 

@@ -58,6 +58,9 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     assert provider.max_tokens == 2048
     assert provider.reasoning_effort is None
 
+    assert openai_mod.OpenAIProvider(max_tokens=4096).max_completion_tokens == 4096
+    assert openai_mod.OpenAIProvider(max_completion_tokens=1024).max_completion_tokens == 1024
+
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
     provider = openai_mod.OpenAIProvider()
     assert provider.is_azure is True
@@ -145,18 +148,44 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     client, create = make_chat_client(
         [
             DummyBadRequestError("response_format json_schema is unsupported"),
+            '{"proposed_features": []}',
         ]
     )
     provider.client = client
-    with pytest.raises(ProviderResponseError, match="json_schema is unsupported"):
-        provider._chat_json(
-            "m",
-            "system",
-            [{"type": "text", "text": "u"}],
-            json_mode=True,
-            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
-        )
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == {"proposed_features": []}
     assert create.calls[0]["response_format"]["type"] == "json_schema"
+    assert create.calls[1]["response_format"] == {"type": "json_object"}
+    assert provider._response_schema_support["m"] is False
+    assert provider._should_fallback_to_json_mode(RuntimeError("response_format unsupported")) is False
+
+    client, create = make_chat_client(['{"proposed_features": []}'])
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=dict(openai_mod.FEATURE_DISCOVERY_SCHEMA),
+    ) == {"proposed_features": []}
+    assert create.calls[0]["response_format"] == {"type": "json_object"}
+
+    client, create = make_chat_client(
+        [DummyBadRequestError("response_format unsupported"), '{"ok": true}']
+    )
+    provider.client = client
+    assert provider._chat_json(
+        "no-json-mode",
+        "system",
+        [{"type": "text", "text": "u"}],
+        response_schema={"type": "object"},
+    ) == {"ok": True}
+    assert "response_format" not in create.calls[1]
 
     client, _ = make_chat_client(
         [
@@ -181,7 +210,7 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
             "system",
             [{"type": "text", "text": "u"}],
             json_mode=True,
-            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+            response_schema=dict(openai_mod.FEATURE_DISCOVERY_SCHEMA),
         )
 
     client, _ = make_chat_client(["not-json"])
@@ -393,6 +422,7 @@ def test_openai_provider_validates_discovery_schema_payload():
 
 
 def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
+    assert local_mod.LocalProvider.supports_response_schema is False
     monkeypatch.setattr(local_mod, "OpenAI", lambda **kwargs: "client")
     provider = local_mod.LocalProvider()
 
