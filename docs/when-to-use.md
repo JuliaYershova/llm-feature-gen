@@ -17,6 +17,8 @@ Against manual feature engineering, the difference is who writes the schema: her
 
 Against zero-shot classification, the difference is what survives the call: instead of a bare label, you keep a tabular dataset. You can train any model on it, measure feature importance, hand it to a colleague, or re-model it later without paying the LLM again.
 
+For text, that dataset never has to leave memory: `LLMFeatureTransformer` puts the whole step inside a scikit-learn pipeline, so the comparison above is a one-line swap against a `TfidfVectorizer` or a sentence-transformer encoder. See the [quickstart](quickstart.md).
+
 ## Good fits
 
 - Small-to-medium datasets (hundreds to low tens of thousands of items) where interpretability matters: clinical notes, support tickets, product reviews, curated image sets.

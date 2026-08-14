@@ -8,6 +8,22 @@ Install the published package:
 pip install llm-feature-gen
 ```
 
+### scikit-learn integration
+
+`LLMFeatureTransformer` itself runs on the plain install — scikit-learn is not a required dependency, and the transformer falls back to its own `BaseEstimator` when scikit-learn is absent. You only need the extra to compose it with scikit-learn's own estimators, as the [quickstart](quickstart.md) pipeline does:
+
+```bash
+pip install "llm-feature-gen[sklearn]"
+```
+
+Quote the argument. Square brackets are glob characters in zsh — the default shell on macOS — so the unquoted form fails before pip ever runs:
+
+```
+zsh: no matches found: llm-feature-gen[sklearn]
+```
+
+`'llm-feature-gen[sklearn]'` and `llm-feature-gen\[sklearn\]` work equally well.
+
 ### Jupyter notebooks
 
 When installing from inside a notebook, run the install command in its own cell

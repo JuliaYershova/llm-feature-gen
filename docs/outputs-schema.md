@@ -23,12 +23,12 @@ Typical joint-discovery structure:
   {
     "proposed_features": [
       {
-        "feature": "spice level",
+        "feature": "issue category",
         "type": "categorical",
-        "description": "How spicy the dish appears or is described to be"
+        "description": "The subsystem the ticket concerns"
       },
       {
-        "feature": "presentation style",
+        "feature": "urgency",
         "type": "categorical"
       }
     ]
@@ -60,8 +60,8 @@ Column layout:
 Example:
 
 ```csv
-File,Class,spice level,presentation style,raw_llm_output
-review1.txt,positive,high,refined,"{""features"": {""spice level"": ""high"", ""presentation style"": ""refined""}}"
+File,Class,issue category,urgency,raw_llm_output
+ticket1.txt,billing,billing,medium,"{""features"": {""issue category"": ""billing"", ""urgency"": ""medium""}}"
 ```
 
 If `merge_to_single_csv=True`, the package also writes `outputs/all_feature_values.csv` unless you override `merged_csv_name`.

@@ -6,7 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- `LLMFeatureTransformer`, a scikit-learn compatible transformer that turns raw texts into discovered feature columns inside a `Pipeline`. Install with the new `sklearn` extra: `pip install "llm-feature-gen[sklearn]"`.
 - `num_frames` parameter exposed in the video generation pipeline.
+
+### Changed
+
+- Documentation leads with a scikit-learn quickstart: README, docs landing page, and the quickstart guide now open with a runnable pipeline before the two-step discover/generate workflow.
 
 ### Changed
 
