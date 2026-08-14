@@ -26,6 +26,7 @@ from .multiclass import (
     run_multiclass_pipeline,
 )
 from .providers import LocalProvider, OpenAIProvider
+from .sklearn import LLMFeatureTransformer
 
 try:
     __version__ = version("llm-feature-gen")
@@ -34,6 +35,7 @@ except PackageNotFoundError:  # pragma: no cover
 
 __all__ = [
     "LocalProvider",
+    "LLMFeatureTransformer",
     "MultiClassDiscoveryPromptBuilder",
     "OpenAIProvider",
     "__version__",
