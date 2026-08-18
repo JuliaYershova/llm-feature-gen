@@ -44,7 +44,7 @@ class ReplayTextProvider:
         self.feature_lookup = self._load_feature_lookup(merged_df)
 
     def text_features(self, text_list: List[str], prompt: str | None = None) -> List[Dict[str, Any]]:
-        if prompt and "DISOVERED_FEATURES_SPEC" in prompt:
+        if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
             outputs = []
             for text in text_list:
                 key = self._normalize_text(text)

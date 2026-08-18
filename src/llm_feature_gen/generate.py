@@ -274,7 +274,7 @@ def _build_prompt_for_generation(base_prompt: str, discovered_features: Dict[str
     """Append the discovered schema to a base generation prompt."""
     return (
             base_prompt.rstrip()
-            + "\n\nDISOVERED_FEATURES_SPEC:\n"
+            + "\n\nDISCOVERED_FEATURES_SPEC:\n"
             + json.dumps(discovered_features, ensure_ascii=False, indent=2)
     )
 
@@ -397,8 +397,9 @@ def assign_feature_values_from_folder(
 
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
-    if not csv_path.exists():
-        pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
+    if csv_path.exists() and csv_path.stat().st_size > 0:
+        print(f"Overwriting {csv_path.name} left by a previous run.")
+    pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
 
     consecutive_failures = 0
 
@@ -685,5 +686,3 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
-
-

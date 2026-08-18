@@ -244,6 +244,32 @@ generate_features_from_texts(
 )
 ```
 
+### scikit-learn Transformer
+
+Install the optional extra when you want to use generated features inside an sklearn pipeline:
+
+```bash
+pip install "llm-feature-gen[sklearn]"
+```
+
+```python
+from llm_feature_gen import LLMFeatureTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.linear_model import LogisticRegression
+
+pipe = Pipeline([
+    ("llm_features", LLMFeatureTransformer()),
+    ("onehot", OneHotEncoder(handle_unknown="ignore")),
+    ("classifier", LogisticRegression()),
+])
+
+pipe.fit(train_texts, train_labels)
+predictions = pipe.predict(test_texts)
+```
+
+By default, each `fit()` discovers a new feature schema, which incurs an LLM call and can vary between runs. For cross-validation or parameter search, pass a saved `discovered_features` schema to avoid repeated discovery and schema changes.
+
 ### Images
 
 ```python

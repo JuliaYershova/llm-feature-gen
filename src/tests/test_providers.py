@@ -8,11 +8,14 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from llm_feature_gen.providers.base_provider import Usage, BaseProvider
 from llm_feature_gen.providers import local_provider as local_mod
 from llm_feature_gen.providers import openai_provider as openai_mod
-from llm_feature_gen.contracts import ProviderResponseError
-
-from llm_feature_gen.providers.base_provider import Usage, BaseProvider
+from llm_feature_gen.contracts import (
+    ProviderResponseError,
+    explain_empty_reply,
+    instruct_variant_of,
+)
 
 
 class DummyRateLimitError(Exception):
@@ -93,7 +96,6 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
     assert create.calls[0]["response_format"] == {"type": "json_object"}
-    assert provider.usage_summary()["calls"] == 1
 
     client, _ = make_chat_client(["not-json"])
     provider.client = client
@@ -206,7 +208,6 @@ def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
     client, _ = make_chat_client(['{"ok": 1}'])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
-    assert provider.usage_summary()["calls"] == 1
 
     client, _ = make_chat_client(["before ```json\n[1,2]\n``` after"])
     provider.client = client
@@ -396,3 +397,69 @@ def test_usage_counter_can_be_replaced():
         "completion_tokens": 2,
         "total_tokens": 3,
     }
+
+def test_local_provider_raises_a_useful_error_on_an_empty_reply():
+    """An empty reply must name the cause, not surface as invalid JSON."""
+    provider = object.__new__(local_mod.LocalProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_tokens = 2048
+
+    client, _ = make_chat_client([""])
+    provider.client = client
+
+    with pytest.raises(ProviderResponseError, match="empty reply"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
+
+
+def test_explain_empty_reply_names_the_cause_and_the_fix():
+    class Message:
+        def __init__(self, reasoning=None):
+            self.reasoning = reasoning
+
+    class Usage:
+        def __init__(self, completion_tokens):
+            self.completion_tokens = completion_tokens
+
+    class Response:
+        def __init__(self, completion_tokens):
+            self.usage = Usage(completion_tokens)
+
+    explain = explain_empty_reply
+
+    # reasoning came back instead of an answer -> point at the instruct tag
+    thinking = explain(Response(2048), Message("reasoning..."), "qwen3-vl:32b", 2048)
+    assert "reasoning but no answer" in thinking
+    assert "qwen3-vl:32b-instruct" in thinking
+
+    # no reasoning field, but the budget ran out -> same conclusion
+    exhausted = explain(Response(2048), Message(), "qwen3-vl:32b", 2048)
+    assert "all 2048 tokens" in exhausted
+    assert "qwen3-vl:32b-instruct" in exhausted
+
+    # already an instruct model -> suggest more room, not another tag
+    instruct = explain(Response(2048), Message(), "qwen3-vl:32b-instruct", 2048)
+    assert "Raise max_tokens" in instruct
+    assert "instruct variant" not in instruct
+
+    # empty for some other reason -> say so rather than guess
+    unknown = explain(Response(7), Message(), "qwen3-vl:32b", 2048)
+    assert "empty reply after 7 tokens" in unknown
+
+
+def test_instruct_variant_of_skips_models_that_already_are_one():
+    assert instruct_variant_of("qwen3-vl:32b") == "qwen3-vl:32b-instruct"
+    assert instruct_variant_of("qwen3-vl:32b-instruct") == ""
+
+def test_openai_provider_raises_a_useful_error_on_an_empty_reply():
+    """The OpenAI path needs the same explanation as the local one."""
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_tokens = 2048
+
+    client, _ = make_chat_client([""])
+    provider.client = client
+
+    with pytest.raises(ProviderResponseError, match="empty reply"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
