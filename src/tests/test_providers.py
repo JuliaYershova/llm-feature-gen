@@ -8,6 +8,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from llm_feature_gen.providers.base_provider import Usage, BaseProvider
 from llm_feature_gen.providers import local_provider as local_mod
 from llm_feature_gen.providers import openai_provider as openai_mod
 from llm_feature_gen.contracts import (
@@ -320,6 +321,82 @@ def test_local_provider_module_can_import_with_fake_faster_whisper(monkeypatch: 
     assert reloaded.HAS_LOCAL_WHISPER is True
     monkeypatch.delitem(sys.modules, "faster_whisper", raising=False)
     importlib.reload(local_mod)
+
+
+class _Usage:
+    def __init__(self, prompt_tokens=0, completion_tokens=0):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+
+
+class _Response:
+    def __init__(self, usage=None):
+        self.usage = usage
+
+
+class _Tracker(BaseProvider):
+    """Bare mixin user — deliberately no __init__, to prove the lazy counter."""
+
+
+def test_usage_dataclass_reports_totals():
+    usage = Usage(calls=2, prompt_tokens=100, completion_tokens=25)
+    assert usage.total_tokens == 125
+    assert usage.as_dict() == {
+        "calls": 2,
+        "prompt_tokens": 100,
+        "completion_tokens": 25,
+        "total_tokens": 125,
+    }
+
+
+def test_record_usage_accumulates_across_calls():
+    tracker = _Tracker()
+    assert tracker.usage_summary()["calls"] == 0
+
+    tracker._record_usage(_Response(_Usage(100, 25)))
+    tracker._record_usage(_Response(_Usage(40, 10)))
+
+    assert tracker.usage_summary() == {
+        "calls": 2,
+        "prompt_tokens": 140,
+        "completion_tokens": 35,
+        "total_tokens": 175,
+    }
+
+
+def test_record_usage_counts_calls_without_token_payload():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(usage=None))
+    tracker._record_usage(_Response(_Usage(None, None)))
+
+    summary = tracker.usage_summary()
+    assert summary["calls"] == 2
+    assert summary["total_tokens"] == 0
+
+
+def test_reset_usage_clears_counters():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(_Usage(10, 5)))
+    tracker.reset_usage()
+    assert tracker.usage_summary() == {
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+
+def test_usage_counter_can_be_replaced():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(_Usage(10, 5)))
+
+    tracker._usage = Usage(calls=7, prompt_tokens=1, completion_tokens=2)
+
+    assert tracker.usage_summary() == {
+        "calls": 7,
+        "prompt_tokens": 1,
+        "completion_tokens": 2,
+        "total_tokens": 3,
+    }
 
 def test_local_provider_raises_a_useful_error_on_an_empty_reply():
     """An empty reply must name the cause, not surface as invalid JSON."""

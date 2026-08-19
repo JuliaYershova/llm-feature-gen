@@ -7,6 +7,7 @@ import time
 import re
 from typing import Any, Dict, List, Optional, Union
 from dotenv import load_dotenv
+from .base_provider import BaseProvider
 
 # OpenAI SDK (used as client for Local endpoints)
 import openai
@@ -25,7 +26,7 @@ except ImportError:
 load_dotenv()
 
 
-class LocalProvider:
+class LocalProvider(BaseProvider):
     """
     Thin adapter around OpenAI-compatible LOCAL endpoints.
         Supports:
@@ -195,6 +196,8 @@ class LocalProvider:
                     max_tokens=self.max_tokens,
                     **kwargs,
                 )
+
+                self._record_usage(resp)
 
                 message = resp.choices[0].message
                 text = message.content or ""

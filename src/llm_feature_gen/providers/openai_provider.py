@@ -7,7 +7,7 @@ import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from ..contracts import ProviderResponseError, explain_empty_reply
-
+from .base_provider import BaseProvider
 # OpenAI SDK (Azure)
 import openai
 from openai import OpenAI, AzureOpenAI
@@ -15,7 +15,7 @@ from openai import OpenAI, AzureOpenAI
 load_dotenv()
 
 
-class OpenAIProvider:
+class OpenAIProvider(BaseProvider):
     """
     Thin adapter around  OpenAI (Azure or personal) for feature discovery/generation.
         Supports:
@@ -162,6 +162,8 @@ class OpenAIProvider:
                     max_tokens=self.max_tokens,
                     **kwargs,
                 )
+                self._record_usage(resp)
+
                 message = resp.choices[0].message
                 text = message.content or ""
 
