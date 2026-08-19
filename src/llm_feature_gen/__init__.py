@@ -40,7 +40,6 @@ __all__ = [
     "LocalProvider",
     "DiscoveryPromptBuilder",
     "LLMFeatureTransformer",
-    "MultiClassDiscoveryPromptBuilder",
     "OpenAIProvider",
     "__version__",
     "assign_feature_values_from_folder",
