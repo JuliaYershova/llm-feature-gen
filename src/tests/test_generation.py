@@ -181,7 +181,12 @@ def test_feature_values_contract_rejects_invalid_shapes():
 
 def test_generation_prompts_enumeration_and_raw_json_instructions():
     """Shipped generation prompts constrain enums and forbid markdown-wrapped JSON."""
-    for body in (gen.text_generation_prompt, gen.image_generation_prompt):
+    for body in (
+        gen.text_generation_prompt,
+        gen.image_generation_prompt,
+        gen.video_generation_prompt,
+        gen.tabular_generation_prompt,
+        ):
         assert "DISCOVERED_FEATURES_SPEC" in body
         assert "`possible_values`" in body or "possible_values" in body
         assert "`allowed_values`" in body or "allowed_values" in body

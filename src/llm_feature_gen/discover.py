@@ -23,7 +23,7 @@ from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, extract_audio_track, downsample_batch
 from .providers.openai_provider import OpenAIProvider
-from .prompts import image_discovery_prompt, text_discovery_prompt
+from .prompts import DiscoveryPromptBuilder
 
 # Load environment variables automatically
 load_dotenv()
@@ -33,22 +33,41 @@ DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".html"}
 
 
-def _validate_min_features(min_features: int) -> None:
-    """Validate the requested minimum number of discovered features."""
-    if not isinstance(min_features, int) or min_features < 1:
-        raise ValueError("min_features must be a positive integer.")
 
+def _resolve_discovery_prompt(
+    modality: str,
+    prompt: Optional[str],
+    num_classes: Optional[int],
+    min_features: Optional[int],
+) -> str:
+    """Return the prompt to send, filling in placeholders where there are any.
 
-def _apply_min_features_to_prompt(prompt: str, min_features: int, *, distinct: bool) -> str:
-    """Replace the default feature-count instruction in a discovery prompt."""
-    _validate_min_features(min_features)
-    noun = "distinct features" if distinct else "features"
-    replacement = f"Provide at least {min_features} {noun}."
-    return (
-        prompt
-        .replace("Provide at least 10 distinct features.", replacement)
-        .replace("Provide at least 10 features.", replacement)
-    )
+    Without ``prompt`` this is the bundled template for the modality. With one,
+    it is treated as a template too, so a caller can reuse the ``{n_classes}``,
+    ``{class_list}`` and ``{min_features}`` placeholders. A custom prompt
+    without placeholders is sent verbatim, and then those two options cannot
+    take effect, so passing them is an error rather than a silent no-op.
+    """
+    placeholders = ("{n_classes}", "{class_list}", "{min_features}")
+    if prompt is not None and not any(name in prompt for name in placeholders):
+        unused = [
+            name
+            for name, value in (("num_classes", num_classes), ("min_features", min_features))
+            if value is not None
+        ]
+        if unused:
+            raise ValueError(
+                f"{' and '.join(unused)} cannot be applied: the supplied prompt has "
+                f"none of the placeholders {', '.join(placeholders)}."
+            )
+        return prompt
+
+    return DiscoveryPromptBuilder(
+        modality=modality,
+        n_classes=num_classes,
+        min_features=min_features,
+        template=prompt,
+    ).build()
 
 
 def _looks_like_text_path(value: str) -> bool:
@@ -72,12 +91,13 @@ def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
 
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
-        prompt: str = image_discovery_prompt,
+        prompt: Optional[str] = None,
         provider: Optional[OpenAIProvider] = None,
         as_set: bool = True,  # <- default TRUE for discovery
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
-        min_features: int = 10,
+        num_classes: Optional[int] = None,
+        min_features: Optional[int] = None,
 ) -> DiscoveryResult:
     """Discover features from image files and persist the provider response.
 
@@ -108,7 +128,8 @@ def discover_features_from_images(
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
-    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=False)
+
+    prompt = _resolve_discovery_prompt("image", prompt, num_classes, min_features)
 
     # 2) collect image paths
     if isinstance(image_paths_or_folder, (str, Path)):
@@ -190,7 +211,7 @@ def discover_features_from_images(
 
 def discover_features_from_videos(
         videos_or_folder: str | List[str],
-        prompt: str = image_discovery_prompt,
+        prompt: Optional[str] = None,
         provider: Optional[OpenAIProvider] = None,
         as_set: bool = True,  # stejné chování jako image/text
         num_frames: int = 5,
@@ -200,7 +221,8 @@ def discover_features_from_videos(
         max_videos_to_sample: int = 5,
         max_total_frames_payload: int = 15,
         random_seed: Optional[int] = None,
-        min_features: int = 10,
+        num_classes: Optional[int] = None,
+        min_features: Optional[int] = None,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -251,7 +273,8 @@ def discover_features_from_videos(
     # 1) init provider
     # -------------------------------------------------
     provider = provider or OpenAIProvider()
-    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=False)
+
+    prompt = _resolve_discovery_prompt("video", prompt, num_classes, min_features)
 
     # -------------------------------------------------
     # 2) collect video paths
@@ -392,13 +415,13 @@ def discover_features_from_videos(
 
 def discover_features_from_texts(
         texts_or_file: str | List[str],  # input is text(s)
-        prompt: str = text_discovery_prompt,
+        prompt: Optional[str] = None,
         provider: Optional[OpenAIProvider] = None,
         as_set: bool = True,  # same semantics as image version
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         num_classes: Optional[int] = None,
-        min_features: int = 10,
+        min_features: Optional[int] = None,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -432,19 +455,8 @@ def discover_features_from_texts(
 
     # 1) init provider
     provider = provider or OpenAIProvider()
-    prompt = _apply_min_features_to_prompt(prompt, min_features, distinct=True)
-    # Adjust prompt for num_classes if specified
-    if num_classes is not None and num_classes != 2:
-        prompt = prompt.replace(
-            "two hidden text categories",
-            f"{num_classes} hidden text categories"
-        ).replace(
-            "two unknown categories (two classes)",
-            f"{num_classes} unknown categories ({num_classes} classes)"
-        ).replace(
-            "distinguish two distinct categories",
-            f"distinguish {num_classes} distinct categories"
-        )
+
+    prompt = _resolve_discovery_prompt("text", prompt, num_classes, min_features)
 
     # -------------------------------------------------
     # 2) collect texts
@@ -564,12 +576,13 @@ def discover_features_from_tabular(
         file_or_folder: str | Path,
         text_column: str,
         provider: Optional[OpenAIProvider] = None,
-        prompt: str = text_discovery_prompt,
+        prompt: Optional[str] = None,
         as_set: bool = True,
         output_dir: str | Path = "outputs",
         output_filename: Optional[str] = None,
         max_rows: Optional[int] = None,
-        min_features: int = 10,
+        num_classes: Optional[int] = None,
+        min_features: Optional[int] = None,
         ) -> DiscoveryResult:
     """Discover features from tabular datasets by projecting a text column.
 
@@ -583,7 +596,8 @@ def discover_features_from_tabular(
         text_column: Column name whose values should be used as textual input
             for discovery.
         provider: Optional provider instance.
-        prompt: Prompt passed through to the provider.
+        prompt: Prompt passed through to the provider. Built from the bundled
+            template for this modality when not given.
         as_set: Whether to discover one shared schema across all sampled rows or
             process rows independently.
         output_dir: Directory where the JSON artifact should be written.
@@ -591,8 +605,11 @@ def discover_features_from_tabular(
             ``discovered_tabular_features.json``.
         max_rows: Optional cap on how many rows are used from the concatenated
             dataset.
-        min_features: Minimum number of distinct features to request from the
-            provider.
+        num_classes: How many hidden classes the default prompt mentions
+            (2 when not given). Ignored when a custom prompt is passed.
+        min_features: Minimum feature count asked for in the default prompt,
+            max(10, 3 * num_classes) when not given. Ignored when a custom
+            prompt is passed.
 
     Returns:
         The same return shape as
@@ -605,6 +622,9 @@ def discover_features_from_tabular(
     """
     import pandas as pd
     provider = provider or OpenAIProvider()
+
+    prompt = _resolve_discovery_prompt("tabular", prompt, num_classes, min_features)
+
     path = Path(file_or_folder)
 
     if not path.exists():
@@ -658,5 +678,4 @@ def discover_features_from_tabular(
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename or "discovered_tabular_features.json",
-        min_features=min_features,
     )
