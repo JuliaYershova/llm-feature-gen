@@ -41,6 +41,37 @@ def test_llm_feature_transformer_discovers_and_transforms_texts(tmp_path):
     assert (tmp_path / "discovered_text_features.json").exists()
 
 
+def test_llm_feature_transformer_discovers_with_multiclass_labels(tmp_path, monkeypatch):
+    captured = {}
+
+    def fake_discover_features_multiclass(**kwargs):
+        captured.update(kwargs)
+        return {"proposed_features": [{"feature": "topic"}]}
+
+    monkeypatch.setattr(
+        sklearn_mod,
+        "discover_features_multiclass",
+        fake_discover_features_multiclass,
+    )
+
+    transformer = LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        output_dir=tmp_path,
+        min_features=3,
+    )
+
+    transformer.fit(
+        ["refund needed", "cannot login", "invoice issue"],
+        y=["billing", "access", "billing"],
+    )
+
+    assert captured["texts_or_file"] == ["refund needed", "cannot login", "invoice issue"]
+    assert captured["classes"] == ["billing", "access"]
+    assert captured["output_dir"] == tmp_path
+    assert captured["output_filename"] == "discovered_text_features.json"
+    assert captured["min_features"] == 3
+
+
 def test_llm_feature_transformer_uses_supplied_schema_and_dataframe_column():
     provider = FakeTextProvider()
     transformer = LLMFeatureTransformer(
