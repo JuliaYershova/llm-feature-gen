@@ -71,6 +71,15 @@ def test_llm_feature_transformer_discovers_with_multiclass_labels(tmp_path, monk
     assert captured["output_filename"] == "discovered_text_features.json"
     assert captured["min_features"] == 3
 
+    transformer = LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        classes=["spam", "ham"],
+    )
+
+    transformer.fit(["limited offer", "hello"], y=["ignored", "ignored"])
+
+    assert captured["classes"] == ["spam", "ham"]
+
 
 def test_llm_feature_transformer_uses_supplied_schema_and_dataframe_column():
     provider = FakeTextProvider()
