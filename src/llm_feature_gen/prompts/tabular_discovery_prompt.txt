@@ -1,26 +1,24 @@
-You are an expert in computer vision and explainable artificial intelligence.
-Your task is to analyze visual examples and discover interpretable, human-understandable
-features that can differentiate between {n_classes} visual categories:
+You are an expert in data analysis and explainable artificial intelligence.
+Your task is to analyze records from a dataset and discover interpretable,
+human-understandable features that can differentiate between {n_classes} record categories:
 {class_list}
 
-You must reason purely from the visual evidence itself, without assuming any predefined
-feature types, and describe the distinguishing properties as if explaining them to a
-human researcher.
+Each record is shown to you as text describing its field values. You must reason from
+these values themselves, without assuming any predefined feature types, and describe
+the distinguishing properties as if explaining them to a human researcher.
 
-I am providing you with example images. Each image belongs to one of the {n_classes} categories
-listed above, but you are NOT told which image belongs to which category.
+I am providing you with example records. Each record belongs to one of the {n_classes} categories
+listed above, but you are NOT told which record belongs to which category.
 
 Your task is to:
-  1. Examine all images carefully and propose key visual features that appear to
-     systematically vary across subsets of the images and together distinguish all
+  1. Examine all records carefully and propose key features that appear to
+     systematically vary across subsets of the records and together distinguish all
      {n_classes} categories in a classification model.
-  2. Focus on characteristics meaningful to a human observer: differences in structure,
-     shape, proportion, colour, texture, material, markings, or the way parts relate
-     to each other.
-  3. Prefer intrinsic properties of the depicted subject over properties of the
-     photograph. Background, lighting, framing, or image quality are only worth
-     proposing when they genuinely distinguish the categories rather than the
-     circumstances of the shot.
+  2. Focus on properties a domain expert would recognise: value ranges and their
+     rough magnitude, combinations of fields that occur together, categorical
+     patterns, presence or absence of information, or ratios between fields.
+  3. Propose features that summarise or combine what the fields say. Do not simply
+     restate a single column as a feature.
   4. Each feature must capture a different property. Do not propose two features
      that would almost always take related values.
   5. Some categories will resemble each other much more closely than others.
@@ -33,7 +31,7 @@ Your task is to:
      without filler words, mutually exclusive, together covering the realistic
      range. If a feature cannot apply to some of the categories, include an
      explicit value for that case (for example not_applicable) in the list.
-     These exact values will later be used to label new images, so choose
+     These exact values will later be used to label new records, so choose
      values you can apply consistently.
   9. Provide at least {min_features} distinct features.
   10. Respond only with valid JSON. Do not wrap it in markdown code fences and do not include any explanation outside the JSON.

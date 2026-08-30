@@ -79,3 +79,43 @@ def normalize_feature_values_response(raw: Any) -> FeatureValuesPayload:
         raise ProviderResponseError("Feature response must contain a non-empty feature object")
 
     return {"features": features}
+
+def instruct_variant_of(model: str) -> str:
+    """The instruct tag for a model, or an empty string if it already is one."""
+    if "instruct" in model.lower():
+        return ""
+    return f"{model}-instruct"
+
+
+def explain_empty_reply(response: Any, message: Any, model: str, max_tokens: int) -> str:
+    """Say why the model sent nothing back, and what to do about it.
+
+    Nearly always this is a "thinking" model variant: it reasons until the
+    token budget runs out and never reaches an answer. There is nothing to
+    parse in that case, so the useful thing to do is name the cause and the fix.
+    """
+    reasoning = getattr(message, "reasoning", None) or getattr(message, "reasoning_content", None)
+    tokens_used = getattr(getattr(response, "usage", None), "completion_tokens", 0) or 0
+
+    if not reasoning and tokens_used < max_tokens:
+        return (
+            f"The model '{model}' returned an empty reply after {tokens_used} tokens. "
+            "Check that the model is loaded and that it supports the requested "
+            "JSON output format."
+        )
+
+    cause = (
+        "it returned reasoning but no answer"
+        if reasoning
+        else f"it used all {max_tokens} tokens without reaching an answer"
+    )
+    instruct = instruct_variant_of(model)
+    fix = (
+        f"Use the instruct variant instead ('{instruct}'), or raise max_tokens."
+        if instruct
+        else "Raise max_tokens so it has room to finish."
+    )
+    return (
+        f"The model '{model}' returned no content: {cause}. "
+        f"That is how 'thinking' model variants behave. {fix}"
+    )

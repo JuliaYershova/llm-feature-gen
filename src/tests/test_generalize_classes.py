@@ -62,14 +62,14 @@ def test_discover_prompt_updated_for_multiple_classes(mock_provider, tmp_path):
     )
 
     assert len(captured_prompts) > 0
-    assert "3 hidden text categories" in captured_prompts[0]
-    assert "3 unknown categories" in captured_prompts[0]
+    assert "3 text categories" in captured_prompts[0]
+    assert "  - category_3" in captured_prompts[0]
 
 
 def test_discover_prompt_unchanged_for_two_classes(mock_provider, tmp_path):
     """Test that prompt is unchanged when num_classes=2 (default behavior)."""
     from llm_feature_gen.discover import discover_features_from_texts
-    from llm_feature_gen.prompts import text_discovery_prompt
+    from llm_feature_gen.prompts import DiscoveryPromptBuilder
 
     texts = ["I am sad", "I am happy"]
     captured_prompts = []
@@ -89,4 +89,5 @@ def test_discover_prompt_unchanged_for_two_classes(mock_provider, tmp_path):
     )
 
     assert len(captured_prompts) > 0
-    assert captured_prompts[0] == text_discovery_prompt
+    assert captured_prompts[0] == DiscoveryPromptBuilder(n_classes=2, modality="text").build()
+    assert "2 text categories" in captured_prompts[0]

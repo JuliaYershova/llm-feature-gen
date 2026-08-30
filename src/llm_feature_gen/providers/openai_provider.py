@@ -6,8 +6,8 @@ import json
 import time
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
-from ..contracts import ProviderResponseError
-
+from ..contracts import ProviderResponseError, explain_empty_reply
+from .base_provider import BaseProvider
 # OpenAI SDK (Azure)
 import openai
 from openai import OpenAI, AzureOpenAI
@@ -40,7 +40,7 @@ FEATURE_DISCOVERY_SCHEMA: Dict[str, Any] = {
 }
 
 
-class OpenAIProvider:
+class OpenAIProvider(BaseProvider):
     """
     Thin adapter around  OpenAI (Azure or personal) for feature discovery/generation.
         Supports:
@@ -307,7 +307,18 @@ class OpenAIProvider:
                     else:
                         request.pop("response_format", None)
                     resp = self._create_chat_completion(deployment_name, request)
-                text = resp.choices[0].message.content
+
+                self._record_usage(resp)
+
+                message = resp.choices[0].message
+                text = message.content or ""
+
+                # An empty reply has nothing to parse; say what happened
+                # instead of wrapping the emptiness and passing it on.
+                if not text.strip():
+                    raise ProviderResponseError(
+                        explain_empty_reply(resp, message, deployment_name, self.max_tokens)
+                    )
                 try:
                     parsed = json.loads(text)
                 except Exception:

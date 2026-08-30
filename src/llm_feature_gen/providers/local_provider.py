@@ -7,10 +7,13 @@ import time
 import re
 from typing import Any, Dict, List, Optional, Union
 from dotenv import load_dotenv
+from .base_provider import BaseProvider
 
 # OpenAI SDK (used as client for Local endpoints)
 import openai
 from openai import OpenAI, BadRequestError
+
+from ..contracts import ProviderResponseError, explain_empty_reply
 
 # Optional: Local Whisper
 try:
@@ -23,7 +26,7 @@ except ImportError:
 load_dotenv()
 
 
-class LocalProvider:
+class LocalProvider(BaseProvider):
     """
     Thin adapter around OpenAI-compatible LOCAL endpoints.
         Supports:
@@ -196,7 +199,17 @@ class LocalProvider:
                     **kwargs,
                 )
 
-                text = resp.choices[0].message.content or ""
+                self._record_usage(resp)
+
+                message = resp.choices[0].message
+                text = message.content or ""
+
+                # An empty reply has nothing to parse; say what happened
+                # instead of wrapping the emptiness and passing it on.
+                if not text.strip():
+                    raise ProviderResponseError(
+                        explain_empty_reply(resp, message, deployment_name, self.max_tokens)
+                    )
 
                 try:
                     return json.loads(text)

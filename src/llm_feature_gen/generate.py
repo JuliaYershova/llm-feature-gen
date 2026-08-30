@@ -18,7 +18,12 @@ import numpy as np
 
 from .providers.openai_provider import OpenAIProvider
 from .utils.image import image_to_base64
-from .prompts import image_generation_prompt, text_generation_prompt
+from .prompts import (
+    image_generation_prompt,
+    tabular_generation_prompt,
+    text_generation_prompt,
+    video_generation_prompt,
+)
 from .contracts import ProviderResponseError, normalize_feature_values_response, parse_json_object_from_markdown
 
 try:
@@ -274,7 +279,7 @@ def _build_prompt_for_generation(base_prompt: str, discovered_features: Dict[str
     """Append the discovered schema to a base generation prompt."""
     return (
             base_prompt.rstrip()
-            + "\n\nDISOVERED_FEATURES_SPEC:\n"
+            + "\n\nDISCOVERED_FEATURES_SPEC:\n"
             + json.dumps(discovered_features, ensure_ascii=False, indent=2)
     )
 
@@ -485,8 +490,9 @@ def assign_feature_values_from_folder(
 
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
-    if not csv_path.exists():
-        pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
+    if csv_path.exists() and csv_path.stat().st_size > 0:
+        print(f"Overwriting {csv_path.name} left by a previous run.")
+    pd.DataFrame(columns=all_columns).to_csv(csv_path, index=False)
 
     consecutive_failures = 0
 
@@ -510,7 +516,7 @@ def assign_feature_values_from_folder(
                 )
 
                 full_prompt = _build_prompt_for_generation(
-                    text_generation_prompt,
+                    tabular_generation_prompt,
                     discovered_features
                 )
 
@@ -556,7 +562,7 @@ def assign_feature_values_from_folder(
             # STANDARD FILE-LEVEL HANDLING
             # =========================================================
             if ext in video_exts:
-                full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
+                full_prompt = _build_prompt_for_generation(video_generation_prompt, discovered_features)
                 b64_list, transcript_context = _prepare_video_inputs(
                     file_path,
                     use_audio,
@@ -782,4 +788,3 @@ def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
 
     kwargs.setdefault("use_audio", True)
     return generate_features(*args, **kwargs)
-

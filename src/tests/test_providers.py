@@ -8,9 +8,14 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from llm_feature_gen.providers.base_provider import Usage, BaseProvider
 from llm_feature_gen.providers import local_provider as local_mod
 from llm_feature_gen.providers import openai_provider as openai_mod
-from llm_feature_gen.contracts import ProviderResponseError
+from llm_feature_gen.contracts import (
+    ProviderResponseError,
+    explain_empty_reply,
+    instruct_variant_of,
+)
 
 
 class DummyRateLimitError(Exception):
@@ -560,3 +565,145 @@ def test_local_provider_module_can_import_with_fake_faster_whisper(monkeypatch: 
     assert reloaded.HAS_LOCAL_WHISPER is True
     monkeypatch.delitem(sys.modules, "faster_whisper", raising=False)
     importlib.reload(local_mod)
+
+
+class _Usage:
+    def __init__(self, prompt_tokens=0, completion_tokens=0):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+
+
+class _Response:
+    def __init__(self, usage=None):
+        self.usage = usage
+
+
+class _Tracker(BaseProvider):
+    """Bare mixin user — deliberately no __init__, to prove the lazy counter."""
+
+
+def test_usage_dataclass_reports_totals():
+    usage = Usage(calls=2, prompt_tokens=100, completion_tokens=25)
+    assert usage.total_tokens == 125
+    assert usage.as_dict() == {
+        "calls": 2,
+        "prompt_tokens": 100,
+        "completion_tokens": 25,
+        "total_tokens": 125,
+    }
+
+
+def test_record_usage_accumulates_across_calls():
+    tracker = _Tracker()
+    assert tracker.usage_summary()["calls"] == 0
+
+    tracker._record_usage(_Response(_Usage(100, 25)))
+    tracker._record_usage(_Response(_Usage(40, 10)))
+
+    assert tracker.usage_summary() == {
+        "calls": 2,
+        "prompt_tokens": 140,
+        "completion_tokens": 35,
+        "total_tokens": 175,
+    }
+
+
+def test_record_usage_counts_calls_without_token_payload():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(usage=None))
+    tracker._record_usage(_Response(_Usage(None, None)))
+
+    summary = tracker.usage_summary()
+    assert summary["calls"] == 2
+    assert summary["total_tokens"] == 0
+
+
+def test_reset_usage_clears_counters():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(_Usage(10, 5)))
+    tracker.reset_usage()
+    assert tracker.usage_summary() == {
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+    }
+
+def test_usage_counter_can_be_replaced():
+    tracker = _Tracker()
+    tracker._record_usage(_Response(_Usage(10, 5)))
+
+    tracker._usage = Usage(calls=7, prompt_tokens=1, completion_tokens=2)
+
+    assert tracker.usage_summary() == {
+        "calls": 7,
+        "prompt_tokens": 1,
+        "completion_tokens": 2,
+        "total_tokens": 3,
+    }
+
+def test_local_provider_raises_a_useful_error_on_an_empty_reply():
+    """An empty reply must name the cause, not surface as invalid JSON."""
+    provider = object.__new__(local_mod.LocalProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_tokens = 2048
+
+    client, _ = make_chat_client([""])
+    provider.client = client
+
+    with pytest.raises(ProviderResponseError, match="empty reply"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
+
+
+def test_explain_empty_reply_names_the_cause_and_the_fix():
+    class Message:
+        def __init__(self, reasoning=None):
+            self.reasoning = reasoning
+
+    class Usage:
+        def __init__(self, completion_tokens):
+            self.completion_tokens = completion_tokens
+
+    class Response:
+        def __init__(self, completion_tokens):
+            self.usage = Usage(completion_tokens)
+
+    explain = explain_empty_reply
+
+    # reasoning came back instead of an answer -> point at the instruct tag
+    thinking = explain(Response(2048), Message("reasoning..."), "qwen3-vl:32b", 2048)
+    assert "reasoning but no answer" in thinking
+    assert "qwen3-vl:32b-instruct" in thinking
+
+    # no reasoning field, but the budget ran out -> same conclusion
+    exhausted = explain(Response(2048), Message(), "qwen3-vl:32b", 2048)
+    assert "all 2048 tokens" in exhausted
+    assert "qwen3-vl:32b-instruct" in exhausted
+
+    # already an instruct model -> suggest more room, not another tag
+    instruct = explain(Response(2048), Message(), "qwen3-vl:32b-instruct", 2048)
+    assert "Raise max_tokens" in instruct
+    assert "instruct variant" not in instruct
+
+    # empty for some other reason -> say so rather than guess
+    unknown = explain(Response(7), Message(), "qwen3-vl:32b", 2048)
+    assert "empty reply after 7 tokens" in unknown
+
+
+def test_instruct_variant_of_skips_models_that_already_are_one():
+    assert instruct_variant_of("qwen3-vl:32b") == "qwen3-vl:32b-instruct"
+    assert instruct_variant_of("qwen3-vl:32b-instruct") == ""
+
+def test_openai_provider_raises_a_useful_error_on_an_empty_reply():
+    """The OpenAI path needs the same explanation as the local one."""
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_tokens = 2048
+
+    client, _ = make_chat_client([""])
+    provider.client = client
+
+    with pytest.raises(ProviderResponseError, match="empty reply"):
+        provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
