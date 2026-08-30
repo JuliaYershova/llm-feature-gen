@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
 
 import llm_feature_gen.sklearn as sklearn_mod
+from llm_feature_gen.providers.openai_provider import OpenAIProvider
 from llm_feature_gen.sklearn import LLMFeatureTransformer
 
 
@@ -13,8 +15,15 @@ class FakeTextProvider:
     def __init__(self) -> None:
         self.calls = []
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+        self.calls.append(
+            {
+                "texts": list(text_list),
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+                "response_schema": response_schema,
+            }
+        )
         if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
             include_length = '"feature": "length"' in prompt
             responses = []
@@ -78,6 +87,74 @@ def test_llm_feature_transformer_discovers_with_multiclass_labels(tmp_path, monk
     transformer.fit(["limited offer", "hello"], y=["ignored", "ignored"])
 
     assert captured["classes"] == ["spam", "ham"]
+
+
+def test_llm_feature_transformer_supports_openai_structured_outputs(tmp_path):
+    discovery = {
+        "proposed_features": [
+            {
+                "feature": "topic",
+                "description": "Primary request topic",
+                "possible_values": ["billing", "access"],
+            }
+        ]
+    }
+    responses = [discovery, {"topic": "billing"}, {"topic": "access"}]
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        content = json.dumps(responses.pop(0))
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=content, refusal=None))]
+        )
+
+    provider = object.__new__(OpenAIProvider)
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    provider.default_model = "gpt-test"
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_completion_tokens = 256
+    provider.max_tokens = 256
+    provider.reasoning_effort = None
+    provider._completion_token_parameter = "max_completion_tokens"
+    provider._response_schema_support = {}
+
+    transformer = LLMFeatureTransformer(
+        provider=provider,
+        output_dir=tmp_path,
+        min_features=1,
+        batch_size=2,
+    )
+    result = transformer.fit_transform(["need invoice", "cannot log in"])
+
+    assert result.to_dict(orient="records") == [{"topic": "billing"}, {"topic": "access"}]
+    assert calls[0]["response_format"]["json_schema"]["schema"]["required"] == ["proposed_features"]
+    assert calls[1]["response_format"]["json_schema"]["schema"]["required"] == ["topic"]
+    assert calls[2]["response_format"]["json_schema"]["schema"]["required"] == ["topic"]
+    assert provider.usage_summary()["calls"] == 3
+
+
+def test_llm_feature_transformer_forwards_openai_prompts(tmp_path):
+    provider = FakeTextProvider()
+    transformer = LLMFeatureTransformer(
+        provider=provider,
+        output_dir=tmp_path,
+        min_features=2,
+        discovery_prompt="Discover {min_features} features for {n_classes} groups:\n{class_list}",
+        discovery_system_prompt="discovery instructions",
+        generation_prompt="custom generation task",
+        generation_system_prompt="generation instructions",
+    )
+
+    transformer.fit_transform(["need invoice"])
+
+    assert provider.calls[0]["system_prompt"] == "discovery instructions"
+    assert provider.calls[0]["prompt"].startswith("Discover 2 features for 2 groups")
+    assert provider.calls[1]["system_prompt"] == "generation instructions"
+    assert provider.calls[1]["prompt"].startswith("custom generation task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.calls[1]["prompt"]
+    assert transformer.get_params()["generation_prompt"] == "custom generation task"
 
 
 def test_llm_feature_transformer_uses_supplied_schema_and_dataframe_column():

@@ -110,7 +110,9 @@ def discover_features_from_images(
     Args:
         image_paths_or_folder: A single image path, a folder containing images,
             or a list of image file paths.
-        prompt: System-style prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled
+            image prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         provider: Optional provider instance. When omitted, an
             [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider] is
             created from environment variables.
@@ -122,7 +124,8 @@ def discover_features_from_images(
             ``discovered_image_features.json``.
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -243,7 +246,9 @@ def discover_features_from_videos(
     Args:
         videos_or_folder: A single video path, a folder containing videos, or a
             list of video file paths.
-        prompt: Prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled
+            video prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         provider: Optional provider instance implementing ``image_features``
             and, when ``use_audio=True``, optionally ``transcribe_audio``.
         as_set: When ``True``, all extracted frames are analyzed together to
@@ -269,7 +274,8 @@ def discover_features_from_videos(
             reproducible across runs.
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -444,7 +450,9 @@ def discover_features_from_texts(
             single supported document path, or a directory containing supported
             text documents. String inputs are treated as paths only when they
             already exist on disk or look path-like, such as ``notes/file.txt``.
-        prompt: Prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled text
+            prompt. Templates may use ``{n_classes}``, ``{class_list}``, and
+            ``{min_features}`` placeholders.
         provider: Optional provider instance. Defaults to
             [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
         as_set: When ``True``, all extracted text is combined into a single
@@ -456,7 +464,8 @@ def discover_features_from_texts(
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of distinct features to request from the
             provider.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -613,8 +622,9 @@ def discover_features_from_tabular(
         text_column: Column name whose values should be used as textual input
             for discovery.
         provider: Optional provider instance.
-        prompt: Prompt passed through to the provider. Built from the bundled
-            tabular template when omitted.
+        prompt: Optional discovery task or template replacing the bundled
+            tabular prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         as_set: Whether to discover one shared schema across all sampled rows or
             process rows independently.
         output_dir: Directory where the JSON artifact should be written.
@@ -624,7 +634,8 @@ def discover_features_from_tabular(
             dataset.
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of distinct features to request from the provider.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         The same return shape as

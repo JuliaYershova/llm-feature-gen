@@ -430,6 +430,7 @@ def assign_feature_values_from_folder(
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
         system_prompt: Optional[str] = None,
+        prompt: Optional[str] = None,
 ) -> Path:
     """Generate feature values for every supported file in one class folder.
 
@@ -449,7 +450,12 @@ def assign_feature_values_from_folder(
             label for row-level outputs.
         failure_threshold: Number of consecutive provider/output failures after
             which generation aborts. Pass ``None`` or ``0`` to disable.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace the task
+            prompt or discovered feature specification.
+        prompt: Optional task instructions replacing the bundled
+            modality-specific generation prompt. The discovered feature
+            specification is appended automatically.
 
     Returns:
         The path to the generated per-class CSV file.
@@ -516,7 +522,7 @@ def assign_feature_values_from_folder(
                 )
 
                 full_prompt = _build_prompt_for_generation(
-                    tabular_generation_prompt,
+                    prompt if prompt is not None else tabular_generation_prompt,
                     discovered_features
                 )
 
@@ -562,7 +568,10 @@ def assign_feature_values_from_folder(
             # STANDARD FILE-LEVEL HANDLING
             # =========================================================
             if ext in video_exts:
-                full_prompt = _build_prompt_for_generation(video_generation_prompt, discovered_features)
+                full_prompt = _build_prompt_for_generation(
+                    prompt if prompt is not None else video_generation_prompt,
+                    discovered_features,
+                )
                 b64_list, transcript_context = _prepare_video_inputs(
                     file_path,
                     use_audio,
@@ -589,7 +598,10 @@ def assign_feature_values_from_folder(
                     continue
 
             elif ext in image_exts:
-                full_prompt = _build_prompt_for_generation(image_generation_prompt, discovered_features)
+                full_prompt = _build_prompt_for_generation(
+                    prompt if prompt is not None else image_generation_prompt,
+                    discovered_features,
+                )
                 b64_list, _ = _prepare_image_inputs(file_path)
                 try:
                     llm_resp = provider.image_features(
@@ -605,7 +617,10 @@ def assign_feature_values_from_folder(
                     continue
 
             elif ext in text_exts:
-                full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
+                full_prompt = _build_prompt_for_generation(
+                    prompt if prompt is not None else text_generation_prompt,
+                    discovered_features,
+                )
                 texts = _prepare_text_inputs(file_path)
                 combined_text = "\n\n---\n\n".join(texts)
                 try:
@@ -693,6 +708,7 @@ def generate_features(
         label_column: Optional[str] = None,
         failure_threshold: Optional[int] = 3,
         system_prompt: Optional[str] = None,
+        prompt: Optional[str] = None,
 ) -> Dict[str, str]:
     """Run the full feature-generation pipeline for a class-organized dataset.
 
@@ -713,7 +729,12 @@ def generate_features(
         label_column: Optional row-level label override for tabular generation.
         failure_threshold: Number of consecutive provider/output failures after
             which generation aborts. Pass ``None`` or ``0`` to disable.
-        system_prompt: Optional custom system instruction for the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace the task
+            prompt or discovered feature specification.
+        prompt: Optional task instructions replacing the bundled
+            modality-specific generation prompt. The discovered feature
+            specification is appended automatically.
 
     Returns:
         A mapping from class name to generated CSV path. When
@@ -743,6 +764,7 @@ def generate_features(
             failure_threshold=failure_threshold,
             num_frames=num_frames,
             system_prompt=system_prompt,
+            prompt=prompt,
         )
         csv_paths[cls] = str(csv_path)
 
@@ -761,28 +783,48 @@ def generate_features(
 # modality-specific wrappers
 # ----------------------------
 def generate_features_from_tabular(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_tabular_features.json`` by default."""
+    """Generate tabular features with an optional task and system prompt.
+
+    ``prompt`` replaces the bundled task instructions; ``system_prompt``
+    controls model behavior. The discovered feature specification is always
+    appended to the task prompt.
+    """
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_tabular_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_texts(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_text_features.json`` by default."""
+    """Generate text features with an optional task and system prompt.
+
+    ``prompt`` replaces the bundled task instructions; ``system_prompt``
+    controls model behavior. The discovered feature specification is always
+    appended to the task prompt.
+    """
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_text_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_images(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_image_features.json`` by default."""
+    """Generate image features with an optional task and system prompt.
+
+    ``prompt`` replaces the bundled task instructions; ``system_prompt``
+    controls model behavior. The discovered feature specification is always
+    appended to the task prompt.
+    """
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_image_features.json"
     return generate_features(*args, **kwargs)
 
 
 def generate_features_from_videos(*args, **kwargs) -> Dict[str, str]:
-    """Generate features using ``outputs/discovered_video_features.json`` by default."""
+    """Generate video features with an optional task and system prompt.
+
+    ``prompt`` replaces the bundled task instructions; ``system_prompt``
+    controls model behavior. The discovered feature specification is always
+    appended to the task prompt.
+    """
     if "discovered_features_path" not in kwargs:
         kwargs["discovered_features_path"] = "outputs/discovered_video_features.json"
 

@@ -39,6 +39,10 @@ FEATURE_DISCOVERY_SCHEMA: Dict[str, Any] = {
     "additionalProperties": False,
 }
 
+REASONING_EFFORTS = frozenset(
+    {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+)
+
 
 class OpenAIProvider(BaseProvider):
     """
@@ -75,11 +79,17 @@ class OpenAIProvider(BaseProvider):
         temperature: float = 0.0,
         max_completion_tokens: Optional[int] = None,
         max_tokens: Optional[int] = None,
-        reasoning_effort: Optional[str] = None,
+        reasoning_effort: Optional[str] = "none",
         default_audio_model: Optional[str] = None,
     ) -> None:
         if max_tokens is not None and max_completion_tokens is not None:
             raise ValueError("Pass only one of max_completion_tokens or max_tokens.")
+        if reasoning_effort is not None:
+            reasoning_effort = str(reasoning_effort).lower()
+            if reasoning_effort not in REASONING_EFFORTS:
+                raise ValueError(
+                    f"reasoning_effort must be one of {sorted(REASONING_EFFORTS)} or None."
+                )
 
         # -------------------------------------------------
         # detect whether we are using Azure or not
@@ -161,6 +171,7 @@ class OpenAIProvider(BaseProvider):
         self.reasoning_effort = reasoning_effort
         self._completion_token_parameter = "max_completion_tokens"
         self._response_schema_support: Dict[str, bool] = {}
+        self._reasoning_effort_support: Dict[str, bool] = {}
 
     # -----------------------
     # Low-level helper
@@ -181,7 +192,7 @@ class OpenAIProvider(BaseProvider):
 
     def _uses_reasoning_effort(self) -> bool:
         effort = getattr(self, "reasoning_effort", None)
-        return effort is not None and str(effort).lower() != "none"
+        return effort is not None
 
     def _should_fallback_to_json_mode(self, exc: Exception) -> bool:
         bad_request_error = getattr(openai, "BadRequestError", None)
@@ -189,6 +200,12 @@ class OpenAIProvider(BaseProvider):
             return False
         message = str(exc).lower()
         return "json_schema" in message or "response_format" in message
+
+    def _should_fallback_without_reasoning_effort(self, exc: Exception) -> bool:
+        bad_request_error = getattr(openai, "BadRequestError", None)
+        if bad_request_error is None or not isinstance(exc, bad_request_error):
+            return False
+        return "reasoning_effort" in str(exc).lower()
 
     def _validate_feature_discovery_payload(self, payload: Dict[str, Any]) -> None:
         if not isinstance(payload, dict):
@@ -278,7 +295,12 @@ class OpenAIProvider(BaseProvider):
             }
         elif json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        if self._uses_reasoning_effort():
+        reasoning_support = getattr(self, "_reasoning_effort_support", {})
+        use_reasoning_effort = (
+            self._uses_reasoning_effort()
+            and reasoning_support.get(deployment_name, True)
+        )
+        if use_reasoning_effort:
             kwargs["reasoning_effort"] = self.reasoning_effort
 
         backoff = 2
@@ -292,26 +314,43 @@ class OpenAIProvider(BaseProvider):
                     ],
                     **kwargs,
                 }
-                if not self._uses_reasoning_effort():
+                if not use_reasoning_effort:
                     request["temperature"] = self.temperature
 
-                try:
-                    resp = self._create_chat_completion(deployment_name, request)
-                except Exception as exc:
-                    if not use_response_schema or not self._should_fallback_to_json_mode(exc):
+                while True:
+                    try:
+                        resp = self._create_chat_completion(deployment_name, request)
+                        break
+                    except Exception as exc:
+                        if use_response_schema and self._should_fallback_to_json_mode(exc):
+                            schema_support[deployment_name] = False
+                            self._response_schema_support = schema_support
+                            use_response_schema = False
+                            if json_mode:
+                                request["response_format"] = {"type": "json_object"}
+                            else:
+                                request.pop("response_format", None)
+                            continue
+                        if (
+                            use_reasoning_effort
+                            and self._should_fallback_without_reasoning_effort(exc)
+                        ):
+                            reasoning_support[deployment_name] = False
+                            self._reasoning_effort_support = reasoning_support
+                            use_reasoning_effort = False
+                            request.pop("reasoning_effort", None)
+                            request["temperature"] = self.temperature
+                            continue
                         raise
-                    schema_support[deployment_name] = False
-                    self._response_schema_support = schema_support
-                    if json_mode:
-                        request["response_format"] = {"type": "json_object"}
-                    else:
-                        request.pop("response_format", None)
-                    resp = self._create_chat_completion(deployment_name, request)
 
                 self._record_usage(resp)
 
                 message = resp.choices[0].message
                 text = message.content or ""
+
+                refusal = getattr(message, "refusal", None)
+                if refusal:
+                    raise ProviderResponseError(f"Model refused the request: {refusal}")
 
                 # An empty reply has nothing to parse; say what happened
                 # instead of wrapping the emptiness and passing it on.
@@ -362,7 +401,10 @@ class OpenAIProvider(BaseProvider):
         - If as_set=True: sends ALL images in ONE request (for comparative / discovery
           prompts) and returns a list with a single dict.
 
-        `feature_gen=True` can be used to enforce a strict JSON schema prompt on the system side.
+        When ``feature_gen=True`` and ``system_prompt`` is omitted, the provider
+        uses its JSON-focused default system instruction.
+        ``prompt`` contains the task instructions sent with the images;
+        ``system_prompt`` overrides the model's role and behavioral instructions.
         """
         deployment = deployment_name or self.default_model
 
@@ -433,8 +475,11 @@ class OpenAIProvider(BaseProvider):
     ) -> List[Dict[str, Any]]:
         """
         For each text, ask the LLM to extract features.
-        If `feature_gen=True`, a JSON-only system prompt is enforced and your custom prompt
-        is appended (preserving your colleagues’ behavior).
+        When ``feature_gen=True`` and ``system_prompt`` is omitted, the provider
+        uses its JSON-focused default system instruction and appends a custom
+        task prompt when supplied.
+        ``prompt`` contains the task instructions; ``system_prompt`` overrides
+        the model's role and behavioral instructions.
         """
         results: List[Dict[str, Any]] = []
         deployment = deployment_name or self.default_model

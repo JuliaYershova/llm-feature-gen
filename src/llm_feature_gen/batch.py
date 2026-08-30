@@ -98,12 +98,38 @@ def _call_provider_batch(
     texts: List[str],
     prompt: str,
     response_schema: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     return provider.text_features(
         texts,
         prompt=prompt,
-        **_provider_call_kwargs(provider, None, response_schema),
+        **_provider_call_kwargs(provider, system_prompt, response_schema),
     )
+
+
+def _generation_cache_hash(
+    provider: Any,
+    prompt: str,
+    system_prompt: Optional[str],
+) -> str:
+    """Fingerprint the prompt and common provider settings that affect outputs."""
+    provider_identity = {
+        "type": f"{type(provider).__module__}.{type(provider).__qualname__}",
+        "model": getattr(provider, "default_model", None),
+        "text_model": getattr(provider, "text_model", None),
+        "endpoint": getattr(provider, "endpoint", None),
+        "base_url": getattr(provider, "base_url", None),
+        "temperature": getattr(provider, "temperature", None),
+        "max_completion_tokens": getattr(provider, "max_completion_tokens", None),
+        "max_tokens": getattr(provider, "max_tokens", None),
+        "reasoning_effort": getattr(provider, "reasoning_effort", None),
+    }
+    payload = {
+        "prompt": prompt,
+        "system_prompt": system_prompt,
+        "provider": provider_identity,
+    }
+    return BatchTextCache._hash(json.dumps(payload, sort_keys=True, default=str))
 
 
 def _normalise_provider_response(response: Any) -> Dict[str, Any]:
@@ -133,8 +159,19 @@ def generate_features_batch(
     output_csv: Optional[Union[str, Path]] = None,
     cache: Optional[BatchTextCache] = None,
     retry_delay: float = 1.0,
+    system_prompt: Optional[str] = None,
+    prompt: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Generate text feature values in batches."""
+    """Generate validated text features in chunks with optional caching.
+
+    ``prompt`` replaces the bundled generation task while ``system_prompt``
+    controls model behavior. The discovered feature specification is appended
+    to the task prompt automatically.
+
+    Cache entries are scoped to the prompt, system instruction, provider type,
+    model, endpoint, and common generation settings so a transformer can safely
+    reuse one cache across differently configured providers.
+    """
     provider = provider or OpenAIProvider()
     texts = list(texts)
     labels = list(labels)
@@ -152,8 +189,11 @@ def generate_features_batch(
     if not feature_names:
         raise ValueError("No feature names found in discovered_features.")
 
-    features_hash = BatchTextCache._hash(json.dumps(discovered_features, sort_keys=True))
-    full_prompt = _build_prompt_for_generation(text_generation_prompt, discovered_features)
+    full_prompt = _build_prompt_for_generation(
+        prompt if prompt is not None else text_generation_prompt,
+        discovered_features,
+    )
+    features_hash = _generation_cache_hash(provider, full_prompt, system_prompt)
     response_schema = _build_generation_response_schema(discovered_features)
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
@@ -194,12 +234,24 @@ def generate_features_batch(
 
         batch_failed = False
         try:
-            responses = _call_provider_batch(provider, batch_texts, full_prompt, response_schema)
+            responses = _call_provider_batch(
+                provider,
+                batch_texts,
+                full_prompt,
+                response_schema,
+                system_prompt,
+            )
         except Exception as exc:
             print(f"Batch error ({exc}), retrying after {retry_delay}s...")
             time.sleep(retry_delay)
             try:
-                responses = _call_provider_batch(provider, batch_texts, full_prompt, response_schema)
+                responses = _call_provider_batch(
+                    provider,
+                    batch_texts,
+                    full_prompt,
+                    response_schema,
+                    system_prompt,
+                )
             except Exception as retry_exc:
                 print(f"Batch failed again: {retry_exc}. Skipping batch.")
                 responses = [{}] * len(batch_texts)
@@ -221,6 +273,7 @@ def generate_features_batch(
                             [texts[global_index]],
                             full_prompt,
                             response_schema,
+                            system_prompt,
                         )[0]
                         inner = _validated_provider_response(retry_response, discovered_features)
                     except Exception as retry_exc:
@@ -273,8 +326,14 @@ def generate_features_from_texts_cached(
     merged_csv_name: str = "all_feature_values.csv",
     batch_size: int = 8,
     cache_file: Optional[Union[str, Path]] = None,
+    system_prompt: Optional[str] = None,
+    prompt: Optional[str] = None,
 ) -> Dict[str, str]:
-    """Generate text feature CSVs using batched provider calls and caching."""
+    """Generate cached text features with optional task and system prompts.
+
+    ``prompt`` replaces the bundled generation task; ``system_prompt`` controls
+    model behavior. The discovered feature specification remains automatic.
+    """
     root_folder = Path(root_folder)
     output_dir = Path(output_dir)
     provider = provider or OpenAIProvider()
@@ -306,6 +365,8 @@ def generate_features_from_texts_cached(
             batch_size=batch_size,
             output_csv=class_csv,
             cache=cache,
+            system_prompt=system_prompt,
+            prompt=prompt,
         )
         df["File"] = [file.name for file in files]
         df.to_csv(class_csv, index=False)

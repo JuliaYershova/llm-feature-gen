@@ -273,12 +273,15 @@ def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monk
         output_dir=tmp_path / "out",
         text_column="text",
         label_column="label",
+        prompt="custom tabular task",
     )
 
     df = pd.read_csv(csv_path)
     assert list(df["Class"]) == ["L1"]
     assert list(df["feat1"]) == ["row-value"]
     assert list(df["feat2"]) == ["common"]
+    assert provider.text_calls[0]["prompt"].startswith("custom tabular task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.text_calls[0]["prompt"]
 
     csv_path = gen.assign_feature_values_from_folder(
         folder_path=root,
@@ -309,9 +312,12 @@ def test_assign_feature_values_forwards_custom_system_prompt(tmp_path: Path, mon
         provider=provider,
         output_dir=tmp_path / "out",
         system_prompt="custom generation system",
+        prompt="custom generation task",
     )
 
     assert provider.text_calls[0]["system_prompt"] == "custom generation system"
+    assert provider.text_calls[0]["prompt"].startswith("custom generation task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.text_calls[0]["prompt"]
 
 
 def test_assign_feature_values_uses_strict_schema_for_schema_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -474,11 +480,14 @@ def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: P
         provider=provider,
         output_dir=tmp_path / "out",
         use_audio=True,
+        prompt="custom multimodal task",
     )
 
     df = pd.read_csv(csv_path)
     assert sorted(df["File"].tolist()) == ["clip.mp4", "img.jpg", "note.txt"]
     assert set(df["feat1"]) == {"img", "txt"}
+    assert all(call["prompt"].startswith("custom multimodal task") for call in provider.image_calls)
+    assert provider.text_calls[0]["prompt"].startswith("custom multimodal task")
 
 
 def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exceptions(
@@ -913,6 +922,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         label_column,
         failure_threshold,
         system_prompt,
+        prompt,
     ):
         csv_path = Path(output_dir) / f"{class_name}.csv"
         pd.DataFrame([{"File": f"{class_name}.txt", "Class": class_name, "feat1": "x", "raw_llm_output": "{}"}]).to_csv(
@@ -925,6 +935,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
             "label_column": label_column,
             "failure_threshold": failure_threshold,
             "system_prompt": system_prompt,
+            "prompt": prompt,
         }
         return csv_path
 
@@ -940,6 +951,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         text_column="body",
         label_column="label",
         system_prompt="custom generation system",
+        prompt="custom generation task",
     )
 
     assert set(result) == {"c1", "c2", "__merged__"}
@@ -947,6 +959,7 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
     assert generated["c1"]["text_column"] == "body"
     assert generated["c1"]["failure_threshold"] == 3
     assert generated["c1"]["system_prompt"] == "custom generation system"
+    assert generated["c1"]["prompt"] == "custom generation task"
 
     result = gen.generate_features(
         root_folder=root,

@@ -263,6 +263,8 @@ class LocalProvider(BaseProvider):
 
         - If as_set=False (default): behaves as before — one request per image.
         - If as_set=True: sends ALL images in ONE request.
+        ``prompt`` contains the task instructions sent with the images;
+        ``system_prompt`` overrides the model's role and behavioral instructions.
         """
         deployment = deployment_name or self.vision_model
 
@@ -321,7 +323,10 @@ class LocalProvider(BaseProvider):
     ) -> List[Dict[str, Any]]:
         """
         For each text, ask the LLM to extract features.
-        If `feature_gen=True`, a JSON-only system prompt is enforced.
+        When ``feature_gen=True`` and ``system_prompt`` is omitted, the provider
+        uses its JSON-focused default system instruction.
+        ``prompt`` contains the task instructions; ``system_prompt`` overrides
+        the model's role and behavioral instructions.
         """
         results: List[Dict[str, Any]] = []
         deployment = deployment_name or self.text_model

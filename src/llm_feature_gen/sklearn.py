@@ -42,6 +42,14 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
 
     This is intentionally a transformer, not a classifier. Use it as the first
     step in a sklearn pipeline, then add encoders and any estimator you want.
+    Discovery happens during :meth:`fit`; validated feature generation happens
+    during :meth:`transform`. Separate discovery and generation prompts let
+    callers customize both phases without bypassing output validation.
+
+    ``discovery_prompt`` and ``generation_prompt`` control the task performed
+    in each phase. Their corresponding ``*_system_prompt`` values control the
+    model's role and behavior. Generation always appends the discovered feature
+    specification to the selected task prompt.
     """
 
     def __init__(
@@ -57,6 +65,10 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         output_dir: Union[str, Path] = "outputs",
         output_filename: str = "discovered_text_features.json",
         retry_delay: float = 1.0,
+        discovery_prompt: Optional[str] = None,
+        discovery_system_prompt: Optional[str] = None,
+        generation_system_prompt: Optional[str] = None,
+        generation_prompt: Optional[str] = None,
     ) -> None:
         self.provider = provider
         self.discovered_features = discovered_features
@@ -69,6 +81,10 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         self.output_dir = output_dir
         self.output_filename = output_filename
         self.retry_delay = retry_delay
+        self.discovery_prompt = discovery_prompt
+        self.discovery_system_prompt = discovery_system_prompt
+        self.generation_system_prompt = generation_system_prompt
+        self.generation_prompt = generation_prompt
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
@@ -80,9 +96,11 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
                 texts_or_file=texts,
                 classes=self._classes_from_y(y),
                 provider=self.provider_,
+                prompt=self.discovery_prompt,
                 output_dir=self.output_dir,
                 output_filename=self.output_filename,
                 min_features=self.min_features,
+                system_prompt=self.discovery_system_prompt,
             )
         elif isinstance(self.discovered_features, (str, Path)):
             self.discovered_features_ = load_discovered_features(self.discovered_features)
@@ -110,6 +128,8 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             batch_size=self.batch_size,
             cache=self.cache,
             retry_delay=self.retry_delay,
+            system_prompt=self.generation_system_prompt,
+            prompt=self.generation_prompt,
         )
         return df.loc[:, self.feature_names_]
 
@@ -122,6 +142,8 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             batch_size=1,
             cache=self.cache,
             retry_delay=self.retry_delay,
+            system_prompt=self.generation_system_prompt,
+            prompt=self.generation_prompt,
         )
         return df.loc[:, self.feature_names_]
 

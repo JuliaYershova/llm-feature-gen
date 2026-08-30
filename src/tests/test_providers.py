@@ -48,6 +48,8 @@ def make_chat_client(responses):
 def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     with pytest.raises(ValueError, match="only one"):
         openai_mod.OpenAIProvider(max_completion_tokens=100, max_tokens=50)
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        openai_mod.OpenAIProvider(reasoning_effort="turbo")
 
     fake_azure_client = object()
     monkeypatch.setattr(openai_mod.openai, "AzureOpenAI", lambda **kwargs: fake_azure_client)
@@ -61,10 +63,13 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     assert provider.client is fake_azure_client
     assert provider.max_completion_tokens == 2048
     assert provider.max_tokens == 2048
-    assert provider.reasoning_effort is None
+    assert provider.reasoning_effort == "none"
+    assert provider._reasoning_effort_support == {}
 
     assert openai_mod.OpenAIProvider(max_tokens=4096).max_completion_tokens == 4096
     assert openai_mod.OpenAIProvider(max_completion_tokens=1024).max_completion_tokens == 1024
+    assert openai_mod.OpenAIProvider(reasoning_effort="HIGH").reasoning_effort == "high"
+    assert openai_mod.OpenAIProvider(reasoning_effort=None).reasoning_effort is None
 
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
     provider = openai_mod.OpenAIProvider()
@@ -233,8 +238,8 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     client, create = make_chat_client(['{"ok": true}'])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"ok": True}
-    assert create.calls[0]["temperature"] == 0.1
-    assert "reasoning_effort" not in create.calls[0]
+    assert create.calls[0]["reasoning_effort"] == "none"
+    assert "temperature" not in create.calls[0]
 
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
@@ -392,6 +397,50 @@ def test_openai_provider_retries_completion_token_parameter(monkeypatch: pytest.
     assert provider._chat_json("modern-alias", "system", [{"type": "text", "text": "u"}]) == {"modern": True}
     assert create.calls[1]["max_completion_tokens"] == 50
     assert provider._completion_token_parameter == "max_completion_tokens"
+
+
+def test_openai_provider_falls_back_when_reasoning_effort_is_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.25
+    provider.max_completion_tokens = 50
+    provider.reasoning_effort = "none"
+
+    assert provider._should_fallback_without_reasoning_effort(
+        RuntimeError("reasoning_effort unsupported")
+    ) is False
+    assert provider._should_fallback_without_reasoning_effort(
+        DummyBadRequestError("another bad request")
+    ) is False
+
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError("Unsupported parameter: reasoning_effort"),
+            '{"ok": true}',
+        ]
+    )
+    provider.client = client
+
+    assert provider._chat_json(
+        "legacy-model", "system", [{"type": "text", "text": "u"}]
+    ) == {"ok": True}
+    assert create.calls[0]["reasoning_effort"] == "none"
+    assert "temperature" not in create.calls[0]
+    assert "reasoning_effort" not in create.calls[1]
+    assert create.calls[1]["temperature"] == 0.25
+    assert provider._reasoning_effort_support["legacy-model"] is False
+
+    client, create = make_chat_client(['{"remembered": true}'])
+    provider.client = client
+    assert provider._chat_json(
+        "legacy-model", "system", [{"type": "text", "text": "u"}]
+    ) == {"remembered": True}
+    assert "reasoning_effort" not in create.calls[0]
+    assert create.calls[0]["temperature"] == 0.25
 
 
 def test_openai_provider_validates_discovery_schema_payload():
@@ -707,3 +756,29 @@ def test_openai_provider_raises_a_useful_error_on_an_empty_reply():
 
     with pytest.raises(ProviderResponseError, match="empty reply"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
+
+
+def test_openai_provider_surfaces_structured_output_refusals():
+    provider = object.__new__(openai_mod.OpenAIProvider)
+    provider.max_retries = 1
+    provider.temperature = 0.0
+    provider.max_completion_tokens = 128
+    provider.reasoning_effort = None
+
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=None, refusal="unsafe request"))]
+    )
+    provider.client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=lambda **kwargs: response)
+        )
+    )
+
+    with pytest.raises(ProviderResponseError, match="Model refused.*unsafe request"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        )
