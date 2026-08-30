@@ -17,6 +17,9 @@ Be concise, consistent, and context-aware, using language that would be interpre
 
 Output format:
 - Return one JSON object only, mapping each feature name to a string value.
+- Return exactly one key for every feature listed in DISCOVERED_FEATURES_SPEC.
+- Do not omit any listed feature.
+- Do not add keys that are not listed in DISCOVERED_FEATURES_SPEC.
 - Do not wrap the JSON in markdown code fences. Do not add any text before or after the JSON.
 
 Example shape:

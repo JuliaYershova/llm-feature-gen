@@ -14,8 +14,8 @@ class FakeBatchProvider:
         self.calls = []
         self.fail_first = fail_first
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, response_schema=None):
+        self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
         if self.fail_first:
             self.fail_first = False
             raise RuntimeError("temporary failure")
@@ -30,8 +30,8 @@ class AlwaysFailProvider:
     def __init__(self) -> None:
         self.calls = []
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, response_schema=None):
+        self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
         raise RuntimeError("permanent failure")
 
 
@@ -49,6 +49,11 @@ def discovered_features():
     return {"proposed_features": [{"feature": "topic"}, {"feature": "length"}]}
 
 
+def generation_cache_hash(provider, schema, system_prompt=None):
+    prompt = batch_mod._build_prompt_for_generation(batch_mod.text_generation_prompt, schema)
+    return batch_mod._generation_cache_hash(provider, prompt, system_prompt)
+
+
 def test_batch_cache_round_trip_and_clear(tmp_path: Path):
     cache_file = tmp_path / "cache.json"
     cache = batch_mod.BatchTextCache(cache_file)
@@ -58,6 +63,10 @@ def test_batch_cache_round_trip_and_clear(tmp_path: Path):
     assert reloaded.get("hello", "schema") == {"topic": "greeting"}
     assert reloaded.get("other", "schema") is None
     assert len(reloaded) == 1
+
+    reloaded.delete("hello", "schema")
+    assert reloaded.get("hello", "schema") is None
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {}
 
     reloaded.clear()
     assert len(reloaded) == 0
@@ -114,6 +123,116 @@ def test_generate_features_batch_batches_provider_calls_and_saves_cache_once_per
     assert pd.read_csv(output_csv).shape[0] == 3
 
 
+def test_generate_features_batch_uses_schema_for_schema_provider(tmp_path: Path):
+    class StrictBatchProvider:
+        supports_response_schema = True
+
+        def __init__(self):
+            self.calls = []
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            self.calls.append({"texts": list(text_list), "prompt": prompt, "response_schema": response_schema})
+            return [
+                {"topic": "value", "length": str(len(text))}
+                for text in text_list
+            ]
+
+    provider = StrictBatchProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=provider,
+    )
+
+    assert provider.calls[0]["response_schema"]["required"] == ["topic", "length"]
+    assert list(df["topic"]) == ["value"]
+
+
+def test_generate_features_batch_forwards_system_prompt_and_scopes_cache(tmp_path: Path):
+    class ConfiguredProvider:
+        supports_response_schema = True
+
+        def __init__(self, model):
+            self.default_model = model
+            self.temperature = 0.0
+            self.max_completion_tokens = 128
+            self.reasoning_effort = "low"
+            self.calls = []
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            self.calls.append(
+                {
+                    "prompt": prompt,
+                    "system_prompt": system_prompt,
+                    "response_schema": response_schema,
+                }
+            )
+            return [{"topic": "value", "length": str(len(text))} for text in text_list]
+
+    schema = discovered_features()
+    provider = ConfiguredProvider("model-a")
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+        system_prompt="generation instructions",
+        prompt="custom generation task",
+    )
+
+    assert list(df["topic"]) == ["value"]
+    assert provider.calls[0]["system_prompt"] == "generation instructions"
+    assert provider.calls[0]["prompt"].startswith("custom generation task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.calls[0]["prompt"]
+    assert provider.calls[0]["response_schema"]["required"] == ["topic", "length"]
+    custom_prompt = batch_mod._build_prompt_for_generation("custom generation task", schema)
+    assert batch_mod._generation_cache_hash(
+        provider, custom_prompt, "generation instructions"
+    ) != generation_cache_hash(provider, schema, "generation instructions")
+    assert generation_cache_hash(provider, schema, "generation instructions") != generation_cache_hash(
+        ConfiguredProvider("model-b"),
+        schema,
+        "generation instructions",
+    )
+
+
+def test_generate_features_batch_rejects_invalid_schema_provider_response(tmp_path: Path):
+    class BadStrictBatchProvider:
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            return [{"topic": "value", "extra": "bad"}]
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=BadStrictBatchProvider(),
+    )
+
+    assert list(df["topic"]) == ["not given by LLM"]
+    assert list(df["length"]) == ["not given by LLM"]
+
+
+def test_generate_features_batch_rejects_invalid_response_without_schema_support(tmp_path: Path):
+    class DiscoveryShapedBatchProvider:
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            return [{"features": {"proposed_features": [{"feature": "topic"}]}}]
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=discovered_features(),
+        provider=DiscoveryShapedBatchProvider(),
+    )
+
+    assert list(df["topic"]) == ["not given by LLM"]
+    assert list(df["length"]) == ["not given by LLM"]
+
+
 def test_generate_features_batch_loads_schema_from_path_and_uses_default_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -137,10 +256,10 @@ def test_generate_features_batch_loads_schema_from_path_and_uses_default_provide
 def test_generate_features_batch_reuses_cached_results_and_skips_provider(tmp_path: Path):
     cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
     schema = discovered_features()
-    features_hash = batch_mod.BatchTextCache._hash(json.dumps(schema, sort_keys=True))
+    provider = FakeBatchProvider()
+    features_hash = generation_cache_hash(provider, schema)
     cache.set("alpha", features_hash, {"topic": "cached", "length": "5"})
 
-    provider = FakeBatchProvider()
     df = batch_mod.generate_features_batch(
         texts=["alpha"],
         labels=["A"],
@@ -153,6 +272,53 @@ def test_generate_features_batch_reuses_cached_results_and_skips_provider(tmp_pa
     assert provider.calls == []
     assert list(df["topic"]) == ["cached"]
     assert list(df["length"]) == ["5"]
+
+
+def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):
+    class InvalidThenValidProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def text_features(self, text_list, prompt=None, response_schema=None):
+            self.calls += 1
+            if self.calls == 1:
+                return [{"topic": "bad"}]
+            return [{"topic": "good", "length": "5"}]
+
+    schema = discovered_features()
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    provider = InvalidThenValidProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert provider.calls == 2
+    assert list(df["topic"]) == ["good"]
+    features_hash = generation_cache_hash(provider, schema)
+    assert cache.get("alpha", features_hash) == {"topic": "good", "length": "5"}
+
+
+def test_generate_features_batch_replaces_invalid_cached_results(tmp_path: Path):
+    schema = discovered_features()
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    provider = FakeBatchProvider()
+    features_hash = generation_cache_hash(provider, schema)
+    cache.set("alpha", features_hash, {"topic": "stale"})
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert len(provider.calls) == 1
+    assert list(df["topic"]) == ["value-0"]
+    assert cache.get("alpha", features_hash) == {"topic": "value-0", "length": "5"}
 
 
 def test_generate_features_batch_validates_inputs_and_retries_once(tmp_path: Path):
@@ -229,7 +395,7 @@ def test_generate_features_batch_handles_second_retry_failure_and_short_response
     )
 
     assert seen == {"values": [0], "desc": "Batch generation", "unit": "batch", "total": 1}
-    assert list(df["topic"]) == ["only-first", "not given by LLM"]
+    assert list(df["topic"]) == ["only-first", "only-first"]
 
 
 def test_generate_features_from_texts_cached_writes_per_class_and_merged_csv(tmp_path: Path):
@@ -244,18 +410,21 @@ def test_generate_features_from_texts_cached_writes_per_class_and_merged_csv(tmp
     discovered_path = tmp_path / "discovered.json"
     discovered_path.write_text(json.dumps(discovered_features()), encoding="utf-8")
 
+    provider = FakeBatchProvider()
     result = batch_mod.generate_features_from_texts_cached(
         root_folder=root,
         discovered_features_path=discovered_path,
-        provider=FakeBatchProvider(),
+        provider=provider,
         output_dir=tmp_path / "out",
         batch_size=1,
+        prompt="custom cached task",
     )
 
     assert set(result) == {"A", "B", "__merged__"}
     assert pd.read_csv(result["A"])["File"].tolist() == ["a1.txt"]
     assert pd.read_csv(result["B"])["File"].tolist() == ["b1.txt"]
     assert pd.read_csv(result["__merged__"]).shape[0] == 2
+    assert all(call["prompt"].startswith("custom cached task") for call in provider.calls)
 
 
 def test_generate_features_from_texts_cached_uses_default_provider_and_custom_cache_without_merge(
