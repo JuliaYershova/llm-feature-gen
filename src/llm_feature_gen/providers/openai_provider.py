@@ -77,10 +77,11 @@ class OpenAIProvider(BaseProvider):
         default_deployment_name: Optional[str] = None,
         max_retries: int = 5,
         temperature: float = 0.0,
-        max_completion_tokens: Optional[int] = None,
         max_tokens: Optional[int] = None,
-        reasoning_effort: Optional[str] = "none",
         default_audio_model: Optional[str] = None,
+        *,
+        max_completion_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> None:
         if max_tokens is not None and max_completion_tokens is not None:
             raise ValueError("Pass only one of max_completion_tokens or max_tokens.")
@@ -191,15 +192,14 @@ class OpenAIProvider(BaseProvider):
         return None
 
     def _uses_reasoning_effort(self) -> bool:
-        effort = getattr(self, "reasoning_effort", None)
-        return effort is not None
+        return self.reasoning_effort is not None
 
     def _should_fallback_to_json_mode(self, exc: Exception) -> bool:
         bad_request_error = getattr(openai, "BadRequestError", None)
         if bad_request_error is None or not isinstance(exc, bad_request_error):
             return False
         message = str(exc).lower()
-        return "json_schema" in message or "response_format" in message
+        return "json_schema" in message and ("unsupported" in message or "not supported" in message)
 
     def _should_fallback_without_reasoning_effort(self, exc: Exception) -> bool:
         bad_request_error = getattr(openai, "BadRequestError", None)
@@ -249,7 +249,7 @@ class OpenAIProvider(BaseProvider):
                     f"Feature possible_values at index {index} must be a list of strings."
                 )
 
-    def _create_chat_completion(self, deployment_name: str, kwargs: Dict[str, Any]) -> Any:
+    def _create_chat_completion(self, kwargs: Dict[str, Any]) -> Any:
         token_parameter = getattr(self, "_completion_token_parameter", "max_completion_tokens")
         token_limit = getattr(self, "max_completion_tokens", getattr(self, "max_tokens", 2048))
         request_kwargs = {**kwargs, token_parameter: token_limit}
@@ -319,7 +319,7 @@ class OpenAIProvider(BaseProvider):
 
                 while True:
                     try:
-                        resp = self._create_chat_completion(deployment_name, request)
+                        resp = self._create_chat_completion(request)
                         break
                     except Exception as exc:
                         if use_response_schema and self._should_fallback_to_json_mode(exc):
@@ -363,7 +363,9 @@ class OpenAIProvider(BaseProvider):
                 except Exception:
                     # Not strict JSON—wrap it so callers have something consistent
                     if response_schema is not None:
-                        raise ProviderResponseError("Invalid JSON response for requested schema.")
+                        raise ProviderResponseError(
+                            f"Invalid JSON response for requested schema: {text!r}"
+                        )
                     return {"features": text}
                 if response_schema == FEATURE_DISCOVERY_SCHEMA:
                     self._validate_feature_discovery_payload(parsed)
@@ -374,6 +376,8 @@ class OpenAIProvider(BaseProvider):
                     backoff *= 2
                     continue
                 raise ProviderResponseError("Rate limit exceeded. Please try again later.")
+            except ProviderResponseError:
+                raise
             except Exception as e:
                 raise ProviderResponseError(str(e)) from e
 
@@ -412,7 +416,11 @@ class OpenAIProvider(BaseProvider):
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
 
         # System prompt
-        resolved_system_prompt = system_prompt or "You are a feature extraction assistant for images."
+        resolved_system_prompt = (
+            system_prompt
+            if system_prompt is not None
+            else "You are a feature extraction assistant for images."
+        )
         if feature_gen and system_prompt is None:
             resolved_system_prompt = (
                 "You are a feature extraction assistant for images. "
@@ -487,7 +495,7 @@ class OpenAIProvider(BaseProvider):
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
 
-        resolved_system_prompt = system_prompt or base_prompt
+        resolved_system_prompt = system_prompt if system_prompt is not None else base_prompt
         if feature_gen and system_prompt is None:
             resolved_system_prompt = (
                 "You are a feature extraction assistant for text documents. "
@@ -506,7 +514,7 @@ class OpenAIProvider(BaseProvider):
                 resolved_system_prompt += str(prompt)
 
         for txt in text_list:
-            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt else txt
+            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt is not None else txt
             user_content: List[Dict[str, Any]] = [{"type": "text", "text": user_text}]
             out = self._chat_json(
                 deployment,

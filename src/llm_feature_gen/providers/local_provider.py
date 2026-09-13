@@ -272,7 +272,11 @@ class LocalProvider(BaseProvider):
         base_prompt = prompt or "Extract meaningful features from this image for tabular dataset construction."
 
         # System prompt
-        resolved_system_prompt = system_prompt or "You are a feature extraction assistant for images."
+        resolved_system_prompt = (
+            system_prompt
+            if system_prompt is not None
+            else "You are a feature extraction assistant for images."
+        )
         if feature_gen and system_prompt is None:
             resolved_system_prompt = (
                 "You are a feature extraction assistant for images. "
@@ -334,7 +338,7 @@ class LocalProvider(BaseProvider):
         # base prompt if none provided
         base_prompt = prompt or "Extract meaningful features from this text for tabular dataset construction."
 
-        resolved_system_prompt = system_prompt or base_prompt
+        resolved_system_prompt = system_prompt if system_prompt is not None else base_prompt
         if feature_gen and system_prompt is None:
             resolved_system_prompt = (
                 "You are a feature extraction assistant for text documents. "
@@ -356,7 +360,7 @@ class LocalProvider(BaseProvider):
         use_json_mode = True
 
         for txt in text_list:
-            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt else txt
+            user_text = f"{base_prompt}\n\nTEXT:\n{txt}" if system_prompt is not None else txt
             user_content: List[Dict[str, Any]] = [{"type": "text", "text": user_text}]
             out = self._chat_json(deployment, resolved_system_prompt, user_content, json_mode=use_json_mode)
             results.append(out)

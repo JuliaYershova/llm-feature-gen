@@ -22,6 +22,7 @@ from .utils.image import image_to_base64
 from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, extract_audio_track, downsample_batch
+from .generate import _provider_call_kwargs
 from .providers.openai_provider import FEATURE_DISCOVERY_SCHEMA, OpenAIProvider
 from .prompts import DiscoveryPromptBuilder
 
@@ -79,19 +80,6 @@ def _looks_like_text_path(value: str) -> bool:
 def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
     """Return text chunks that contain non-whitespace content."""
     return [chunk for chunk in chunks if chunk.strip()]
-
-
-def _provider_call_kwargs(
-    provider: Any,
-    system_prompt: Optional[str],
-    response_schema: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    kwargs: Dict[str, Any] = {}
-    if system_prompt is not None:
-        kwargs["system_prompt"] = system_prompt
-    if response_schema is not None and getattr(provider, "supports_response_schema", False) is True:
-        kwargs["response_schema"] = response_schema
-    return kwargs
 
 
 def discover_features_from_images(

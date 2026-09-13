@@ -138,14 +138,21 @@ def test_generate_features_batch_uses_schema_for_schema_provider(tmp_path: Path)
             ]
 
     provider = StrictBatchProvider()
+    schema = {
+        "proposed_features": [
+            {"feature": "topic", "possible_values": ["value"]},
+            {"feature": "length"},
+        ]
+    }
     df = batch_mod.generate_features_batch(
         texts=["alpha"],
         labels=["A"],
-        discovered_features=discovered_features(),
+        discovered_features=schema,
         provider=provider,
     )
 
     assert provider.calls[0]["response_schema"]["required"] == ["topic", "length"]
+    assert batch_mod.MISSING_FEATURE_VALUE in provider.calls[0]["response_schema"]["properties"]["topic"]["enum"]
     assert list(df["topic"]) == ["value"]
 
 
@@ -188,15 +195,17 @@ def test_generate_features_batch_forwards_system_prompt_and_scopes_cache(tmp_pat
     assert provider.calls[0]["prompt"].startswith("custom generation task")
     assert "DISCOVERED_FEATURES_SPEC" in provider.calls[0]["prompt"]
     assert provider.calls[0]["response_schema"]["required"] == ["topic", "length"]
-    custom_prompt = batch_mod._build_prompt_for_generation("custom generation task", schema)
-    assert batch_mod._generation_cache_hash(
-        provider, custom_prompt, "generation instructions"
-    ) != generation_cache_hash(provider, schema, "generation instructions")
-    assert generation_cache_hash(provider, schema, "generation instructions") != generation_cache_hash(
-        ConfiguredProvider("model-b"),
-        schema,
-        "generation instructions",
+    second_provider = ConfiguredProvider("model-b")
+    batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=second_provider,
+        cache=cache,
+        system_prompt="generation instructions",
+        prompt="custom generation task",
     )
+    assert len(second_provider.calls) == 1
 
 
 def test_generate_features_batch_rejects_invalid_schema_provider_response(tmp_path: Path):
@@ -219,18 +228,48 @@ def test_generate_features_batch_rejects_invalid_schema_provider_response(tmp_pa
 
 def test_generate_features_batch_rejects_invalid_response_without_schema_support(tmp_path: Path):
     class DiscoveryShapedBatchProvider:
+        def __init__(self):
+            self.received_schemas = []
+
         def text_features(self, text_list, prompt=None, response_schema=None):
+            self.received_schemas.append(response_schema)
             return [{"features": {"proposed_features": [{"feature": "topic"}]}}]
 
+    provider = DiscoveryShapedBatchProvider()
     df = batch_mod.generate_features_batch(
         texts=["alpha"],
         labels=["A"],
         discovered_features=discovered_features(),
-        provider=DiscoveryShapedBatchProvider(),
+        provider=provider,
     )
 
+    assert provider.received_schemas == [None, None]
     assert list(df["topic"]) == ["not given by LLM"]
     assert list(df["length"]) == ["not given by LLM"]
+
+
+def test_generate_features_batch_normalizes_inapplicable_enum_without_retry(tmp_path: Path):
+    class LocalProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def text_features(self, text_list, prompt=None):
+            self.calls += 1
+            return [{"topic": "not_applicable", "length": "5"}]
+
+    provider = LocalProvider()
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features={"proposed_features": [
+            {"feature": "topic", "possible_values": ["business", "personal"]},
+            {"feature": "length"},
+        ]},
+        provider=provider,
+    )
+
+    assert provider.calls == 1
+    assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE]
 
 
 def test_generate_features_batch_loads_schema_from_path_and_uses_default_provider(
@@ -272,6 +311,26 @@ def test_generate_features_batch_reuses_cached_results_and_skips_provider(tmp_pa
     assert provider.calls == []
     assert list(df["topic"]) == ["cached"]
     assert list(df["length"]) == ["5"]
+
+
+def test_generate_features_batch_normalizes_cached_inapplicable_enum(tmp_path: Path):
+    schema = {"proposed_features": [{"feature": "topic", "possible_values": ["business"]}]}
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    provider = FakeBatchProvider()
+    features_hash = generation_cache_hash(provider, schema)
+    cache.set("alpha", features_hash, {"topic": "not_applicable"})
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert provider.calls == []
+    assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE]
+    assert cache.get("alpha", features_hash) == {"topic": batch_mod.MISSING_FEATURE_VALUE}
 
 
 def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):

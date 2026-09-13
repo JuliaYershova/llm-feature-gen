@@ -199,7 +199,7 @@ def test_generation_prompts_enumeration_and_raw_json_instructions():
         assert "`possible_values`" in body or "possible_values" in body
         assert "`allowed_values`" in body or "allowed_values" in body
         assert "markdown code fences" in body.lower()
-        assert "exactly one string from that array" in body.lower()
+        assert '"not given by llm"' in body.lower()
 
 
 def test_build_generation_prompt_embeds_enum_lists_in_spec():
@@ -231,29 +231,59 @@ def test_generation_response_schema_and_validation():
     schema = gen._build_generation_response_schema(spec)
     assert schema["required"] == ["risk", "status", "summary"]
     assert schema["additionalProperties"] is False
-    assert schema["properties"]["risk"]["enum"] == ["low", "high"]
-    assert schema["properties"]["status"]["enum"] == ["approved", "denied"]
+    assert schema["properties"]["risk"]["enum"] == ["low", "high", gen.MISSING_FEATURE_VALUE]
+    assert schema["properties"]["status"]["enum"] == ["approved", "denied", gen.MISSING_FEATURE_VALUE]
     assert schema["properties"]["summary"] == {"type": "string"}
 
-    gen._validate_generation_features(
+    assert gen._validate_generation_features(
         {"risk": "low", "status": "approved", "summary": "short phrase"},
         spec,
-    )
+    ) == {"risk": "low", "status": "approved", "summary": "short phrase"}
 
     invalid_outputs = [
         {"risk": "low", "status": "approved"},
         {"risk": "low", "status": "approved", "summary": "ok", "extra": "x"},
-        {"risk": "medium", "status": "approved", "summary": "ok"},
         {"risk": "low", "status": "approved", "summary": 1},
     ]
     for output in invalid_outputs:
         with pytest.raises(ValueError):
             gen._validate_generation_features(output, spec)
 
+    assert gen._validate_generation_features(
+        {"risk": "not_applicable", "status": "not_visible", "summary": "ok"}, spec
+    ) == {"risk": gen.MISSING_FEATURE_VALUE, "status": gen.MISSING_FEATURE_VALUE, "summary": "ok"}
+
+    assert gen._build_generation_response_schema(
+        {"proposed_features": [{"feature": "already_missing", "possible_values": [gen.MISSING_FEATURE_VALUE]}]}
+    )["properties"]["already_missing"]["enum"] == [gen.MISSING_FEATURE_VALUE]
+
     duplicate_schema = gen._build_generation_response_schema(
         [{"feature": "topic"}, "length", {"ignored": "x"}, {"feature": "topic"}]
     )
     assert duplicate_schema["required"] == ["topic", "length"]
+
+
+def test_generation_writes_missing_value_for_inapplicable_enum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "birds"
+    class_dir.mkdir(parents=True)
+    (class_dir / "bird.txt").write_text("The bird is perched.", encoding="utf-8")
+
+    class InapplicableProvider:
+        def text_features(self, *args, **kwargs):
+            return [{"flight_posture": "not_applicable"}]
+
+    monkeypatch.setattr(gen, "tqdm", lambda files, desc=None, unit=None: files)
+    csv_path = gen.assign_feature_values_from_folder(
+        root,
+        "birds",
+        {"proposed_features": [{"feature": "flight_posture", "possible_values": ["gliding", "flapping"]}]},
+        provider=InapplicableProvider(),
+        output_dir=tmp_path / "out",
+        failure_threshold=1,
+    )
+
+    assert pd.read_csv(csv_path)["flight_posture"].tolist() == [gen.MISSING_FEATURE_VALUE]
 
 
 def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -357,7 +387,9 @@ def test_assign_feature_values_uses_strict_schema_for_schema_provider(tmp_path: 
         output_dir=tmp_path / "out",
     )
 
-    assert provider.text_calls[0]["response_schema"]["properties"]["topic"]["enum"] == ["yes", "no"]
+    assert provider.text_calls[0]["response_schema"]["properties"]["topic"]["enum"] == [
+        "yes", "no", gen.MISSING_FEATURE_VALUE
+    ]
     df = pd.read_csv(csv_path)
     assert list(df["topic"]) == ["yes"]
     assert list(df["kind"]) == ["exercise"]

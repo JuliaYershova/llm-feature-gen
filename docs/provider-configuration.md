@@ -37,7 +37,7 @@ Both expose the same high-level methods used by the discovery and generation hel
 
 Use `max_completion_tokens` to set the completion limit. `max_tokens` remains a backwards-compatible alias, but the two options cannot be passed together.
 
-`reasoning_effort` defaults to `"none"`. Users can select `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`, subject to the levels supported by their chosen model. Passing `None` omits the parameter entirely. If an older OpenAI or Azure deployment rejects the parameter, the provider retries without it and remembers that result for later requests to the same deployment.
+`reasoning_effort` defaults to `None`, which omits the parameter and preserves `temperature`. Users can select `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`, subject to the levels supported by their chosen model. If an older OpenAI or Azure deployment rejects the parameter, the provider retries without it and remembers that result for later requests to the same deployment.
 
 `OpenAIProvider` prefers JSON Schema responses and automatically retries in JSON-object mode when the selected OpenAI or Azure deployment does not support schemas. `LocalProvider` uses the JSON response shape embedded in the prompts instead.
 

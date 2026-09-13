@@ -164,11 +164,11 @@ from llm_feature_gen.providers import OpenAIProvider
 
 provider = OpenAIProvider(
     max_completion_tokens=4096,
-    reasoning_effort="low",  # defaults to "none"
+    reasoning_effort="low",  # opt in for reasoning models
 )
 ```
 
-`reasoning_effort` defaults to `"none"` for the lowest reasoning latency. You can choose `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"` when the selected model supports that level; pass `None` to omit the API parameter. Deployments that reject `reasoning_effort` are retried without it. `max_tokens` remains a supported alias for `max_completion_tokens`; do not pass both. OpenAI and Azure providers use JSON Schema when the selected deployment supports it and automatically fall back to JSON-object mode otherwise. Local and other compatible providers use the JSON shape included in the prompts.
+`reasoning_effort` defaults to `None`, so requests use `temperature` unless reasoning is explicitly enabled. You can choose `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"` when the selected model supports that level. Deployments that reject `reasoning_effort` are retried without it. `max_tokens` remains a supported alias for `max_completion_tokens`; do not pass both. OpenAI and Azure providers use JSON Schema when the selected deployment supports it and automatically fall back to JSON-object mode otherwise. Local and other compatible providers use the JSON shape included in the prompts.
 
 All discovery and generation helpers accept both `prompt` and `system_prompt`.
 Use `prompt` for the discovery or generation task and `system_prompt` for the
@@ -279,7 +279,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.linear_model import LogisticRegression
 
-provider = OpenAIProvider(reasoning_effort="low")  # default: "none"
+provider = OpenAIProvider(reasoning_effort="low")
 
 pipe = Pipeline([
     ("llm_features", LLMFeatureTransformer(

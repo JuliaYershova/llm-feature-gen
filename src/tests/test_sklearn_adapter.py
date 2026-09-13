@@ -8,6 +8,7 @@ import pytest
 
 import llm_feature_gen.sklearn as sklearn_mod
 from llm_feature_gen.providers.openai_provider import OpenAIProvider
+from llm_feature_gen.providers import openai_provider as openai_mod
 from llm_feature_gen.sklearn import LLMFeatureTransformer
 
 
@@ -89,7 +90,7 @@ def test_llm_feature_transformer_discovers_with_multiclass_labels(tmp_path, monk
     assert captured["classes"] == ["spam", "ham"]
 
 
-def test_llm_feature_transformer_supports_openai_structured_outputs(tmp_path):
+def test_llm_feature_transformer_supports_openai_structured_outputs(tmp_path, monkeypatch):
     discovery = {
         "proposed_features": [
             {
@@ -109,16 +110,14 @@ def test_llm_feature_transformer_supports_openai_structured_outputs(tmp_path):
             choices=[SimpleNamespace(message=SimpleNamespace(content=content, refusal=None))]
         )
 
-    provider = object.__new__(OpenAIProvider)
+    monkeypatch.setattr(openai_mod, "OpenAI", lambda api_key: object())
+    provider = OpenAIProvider(
+        api_key="test-key",
+        default_deployment_name="gpt-test",
+        max_retries=1,
+        max_completion_tokens=256,
+    )
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-    provider.default_model = "gpt-test"
-    provider.max_retries = 1
-    provider.temperature = 0.0
-    provider.max_completion_tokens = 256
-    provider.max_tokens = 256
-    provider.reasoning_effort = None
-    provider._completion_token_parameter = "max_completion_tokens"
-    provider._response_schema_support = {}
 
     transformer = LLMFeatureTransformer(
         provider=provider,

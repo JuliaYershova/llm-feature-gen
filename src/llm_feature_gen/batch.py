@@ -14,6 +14,7 @@ from .generate import (
     _build_prompt_for_generation,
     _build_generation_response_schema,
     _extract_feature_names,
+    MISSING_FEATURE_VALUE,
     _provider_call_kwargs,
     _validate_generation_features,
     load_discovered_features,
@@ -146,8 +147,7 @@ def _normalise_provider_response(response: Any) -> Dict[str, Any]:
 def _validated_provider_response(response: Any, discovered_features: Dict[str, Any]) -> Dict[str, Any]:
     """Normalize one provider response and ensure it matches the discovered schema."""
     inner = _normalise_provider_response(response)
-    _validate_generation_features(inner, discovered_features)
-    return inner
+    return _validate_generation_features(inner, discovered_features)
 
 
 def generate_features_batch(
@@ -206,12 +206,15 @@ def generate_features_batch(
             cached = cache.get(text, features_hash)
             if cached is not None:
                 try:
-                    _validate_generation_features(cached, discovered_features)
+                    validated_cached = _validate_generation_features(cached, discovered_features)
                 except ValueError:
                     cache.delete(text, features_hash, persist=False)
                     cache_changed = True
                 else:
-                    cached_results[index] = cached
+                    cached_results[index] = validated_cached
+                    if validated_cached != cached:
+                        cache.set(text, features_hash, validated_cached, persist=False)
+                        cache_changed = True
                     continue
         indices_to_process.append(index)
 

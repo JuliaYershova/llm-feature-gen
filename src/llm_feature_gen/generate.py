@@ -40,6 +40,9 @@ class GenerationCircuitBreakerError(RuntimeError):
     """Raised when repeated provider/output failures make a run unlikely to recover."""
 
 
+MISSING_FEATURE_VALUE = "not given by LLM"
+
+
 def _format_generation_failure(source: str, reason: str) -> str:
     """Build a compact, user-facing failure message."""
     return f"{source}: {reason}"
@@ -358,7 +361,7 @@ def _build_generation_response_schema(discovered_features: Any) -> Dict[str, Any
         schema: Dict[str, Any] = {"type": "string"}
         values = _enum_values(feature_spec)
         if values:
-            schema["enum"] = values
+            schema["enum"] = values + ([] if MISSING_FEATURE_VALUE in values else [MISSING_FEATURE_VALUE])
         properties[name] = schema
         required.append(name)
 
@@ -370,7 +373,11 @@ def _build_generation_response_schema(discovered_features: Any) -> Dict[str, Any
     }
 
 
-def _validate_generation_features(features: Dict[str, Any], discovered_features: Any) -> None:
+def _validate_generation_features(
+    features: Dict[str, Any], discovered_features: Any
+) -> Dict[str, Any]:
+    """Validate feature keys and strings, normalizing inapplicable enum values."""
+    features = dict(features)
     specs = _iter_feature_specs(discovered_features)
     expected = [spec["feature"] for spec in specs]
     expected_set = set(expected)
@@ -392,9 +399,9 @@ def _validate_generation_features(features: Dict[str, Any], discovered_features:
 
         values = _enum_values(spec)
         if values and value not in values:
-            raise ValueError(
-                f"Generation value for '{name}' must be one of {values}, got {value!r}."
-            )
+            features[name] = MISSING_FEATURE_VALUE
+
+    return features
 
 
 def _normalize_generation_payload(payload: Any) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -538,7 +545,7 @@ def assign_feature_values_from_folder(
                         )
 
                         parsed, inner = _normalize_generation_payload(llm_resp[0])
-                        _validate_generation_features(inner, discovered_features)
+                        inner = _validate_generation_features(inner, discovered_features)
 
                         row_dict: Dict[str, Any] = {
                             "File": f"{filename}__row_{idx}",
@@ -662,7 +669,7 @@ def assign_feature_values_from_folder(
         # =========================================================
         try:
             parsed, inner = _normalize_generation_payload(parsed)
-            _validate_generation_features(inner, discovered_features)
+            inner = _validate_generation_features(inner, discovered_features)
         except Exception as e:
             consecutive_failures += 1
             last_failure = _format_generation_failure(filename, str(e))
