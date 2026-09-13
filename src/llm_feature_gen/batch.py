@@ -212,9 +212,8 @@ def generate_features_batch(
                     cache_changed = True
                 else:
                     cached_results[index] = validated_cached
-                    if validated_cached != cached:
-                        cache.set(text, features_hash, validated_cached, persist=False)
-                        cache_changed = True
+                    cache.set(text, features_hash, validated_cached, persist=False)
+                    cache_changed = True
                     continue
         indices_to_process.append(index)
 
