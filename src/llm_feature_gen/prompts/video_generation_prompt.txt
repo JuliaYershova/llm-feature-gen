@@ -7,10 +7,10 @@ Given:
 Task:
 - For each feature, output a value that best characterizes the video for that feature.
 - Judge features about motion, action, or change over time from how the frames differ across the sequence, not from any single frame.
-- If a feature entry includes a non-empty `possible_values` or `allowed_values` array, you MUST set the value to exactly one string from that array, copying spelling and capitalization exactly as listed. Do not invent synonyms, paraphrases, or new labels outside those lists. If the video is ambiguous, pick the single closest listed option rather than creating a new value.
+- If a feature entry includes a non-empty `possible_values` or `allowed_values` array, set the value to exactly one listed string, or to "not given by LLM" when none applies or it cannot be observed. Copy spelling and capitalization exactly.
 - If neither list is present or the list is empty, use a short descriptive phrase (about 2–5 words).
 - Do NOT answer with “yes/no” or “true/false.”
-- If a feature does not apply or cannot be observed, use an appropriate neutral term like “not visible” when no enum applies, or “not applicable” when the feature type does not fit the video; when an enum is required, choose the closest listed value instead of inventing a new one.
+- If a feature has no enum and does not apply or cannot be observed, use an appropriate neutral term such as “not visible” or “not applicable”.
 
 Be concise, consistent, and context-aware.
 

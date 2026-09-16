@@ -45,7 +45,21 @@ def make_chat_client(responses):
     return client, create
 
 
+def make_openai_provider(monkeypatch: pytest.MonkeyPatch, **kwargs):
+    monkeypatch.setattr(openai_mod, "OpenAI", lambda api_key: object())
+    return openai_mod.OpenAIProvider(
+        api_key="test-key",
+        default_deployment_name="model",
+        **kwargs,
+    )
+
+
 def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
+    with pytest.raises(ValueError, match="only one"):
+        openai_mod.OpenAIProvider(max_completion_tokens=100, max_tokens=50)
+    with pytest.raises(ValueError, match="reasoning_effort"):
+        openai_mod.OpenAIProvider(reasoning_effort="turbo")
+
     fake_azure_client = object()
     monkeypatch.setattr(openai_mod.openai, "AzureOpenAI", lambda **kwargs: fake_azure_client)
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "k")
@@ -56,10 +70,25 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
     provider = openai_mod.OpenAIProvider()
     assert provider.is_azure is True
     assert provider.client is fake_azure_client
+    assert provider.max_completion_tokens == 2048
+    assert provider.max_tokens == 2048
+    assert provider.reasoning_effort is None
+    assert provider._reasoning_effort_support == {}
+
+    assert openai_mod.OpenAIProvider(max_tokens=4096).max_completion_tokens == 4096
+    assert openai_mod.OpenAIProvider(max_completion_tokens=1024).max_completion_tokens == 1024
+    assert openai_mod.OpenAIProvider(reasoning_effort="HIGH").reasoning_effort == "high"
+    assert openai_mod.OpenAIProvider(reasoning_effort=None).reasoning_effort is None
+    positional_audio = openai_mod.OpenAIProvider(
+        None, None, None, None, 5, 0.0, 512, "legacy-whisper"
+    )
+    assert positional_audio.max_completion_tokens == 512
+    assert positional_audio.audio_model == "legacy-whisper"
 
     monkeypatch.delenv("AZURE_OPENAI_WHISPER_DEPLOYMENT")
-    with pytest.raises(EnvironmentError):
-        openai_mod.OpenAIProvider()
+    provider = openai_mod.OpenAIProvider()
+    assert provider.is_azure is True
+    assert provider.audio_model is None
 
     monkeypatch.delenv("AZURE_OPENAI_API_KEY")
     with pytest.raises(EnvironmentError):
@@ -85,17 +114,38 @@ def test_openai_provider_init_paths(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    provider = object.__new__(openai_mod.OpenAIProvider)
-    provider.max_retries = 2
-    provider.temperature = 0.1
-    provider.max_tokens = 50
-    provider.default_model = "model"
-    provider.audio_model = "audio-model"
+    assert openai_mod.OpenAIProvider.supports_response_schema is True
+
+    provider = make_openai_provider(
+        monkeypatch,
+        max_retries=2,
+        temperature=0.1,
+        max_completion_tokens=50,
+        reasoning_effort="low",
+        default_audio_model="audio-model",
+    )
 
     client, create = make_chat_client(['{"ok": 1}'])
     provider.client = client
     assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True) == {"ok": 1}
     assert create.calls[0]["response_format"] == {"type": "json_object"}
+    assert create.calls[0]["max_completion_tokens"] == 50
+    assert create.calls[0]["reasoning_effort"] == "low"
+    assert "temperature" not in create.calls[0]
+
+    client, create = make_chat_client(['{"proposed_features": []}'])
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == {"proposed_features": []}
+    response_format = create.calls[0]["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    assert response_format["json_schema"]["schema"]["required"] == ["proposed_features"]
 
     client, _ = make_chat_client(["not-json"])
     provider.client = client
@@ -119,18 +169,118 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     with pytest.raises(ProviderResponseError, match="boom"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}])
 
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError("response_format json_schema is unsupported"),
+            '{"proposed_features": []}',
+        ]
+    )
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == {"proposed_features": []}
+    assert create.calls[0]["response_format"]["type"] == "json_schema"
+    assert create.calls[1]["response_format"] == {"type": "json_object"}
+    assert provider._response_schema_support["m"] is False
+    assert provider._should_fallback_to_json_mode(RuntimeError("response_format unsupported")) is False
+
+    client, create = make_chat_client(['{"proposed_features": []}'])
+    provider.client = client
+    assert provider._chat_json(
+        "m",
+        "system",
+        [{"type": "text", "text": "u"}],
+        json_mode=True,
+        response_schema=dict(openai_mod.FEATURE_DISCOVERY_SCHEMA),
+    ) == {"proposed_features": []}
+    assert create.calls[0]["response_format"] == {"type": "json_object"}
+
+    client, create = make_chat_client([DummyBadRequestError("response_format has invalid schema")])
+    provider.client = client
+    with pytest.raises(ProviderResponseError, match="invalid schema"):
+        provider._chat_json(
+            "no-json-mode",
+            "system",
+            [{"type": "text", "text": "u"}],
+            response_schema={"type": "object"},
+        )
+    assert len(create.calls) == 1
+
+    client, create = make_chat_client(
+        [DummyBadRequestError("json_schema is unsupported"), '{"ok": true}']
+    )
+    provider.client = client
+    assert provider._chat_json(
+        "no-json-mode",
+        "system",
+        [{"type": "text", "text": "u"}],
+        response_schema={"type": "object"},
+    ) == {"ok": True}
+    assert "response_format" not in create.calls[1]
+
+    client, _ = make_chat_client(
+        [
+            json.dumps(
+                {
+                    "proposed_features": [
+                        {
+                            "name": "task_type",
+                            "feature": "task_type",
+                            "description": "desc",
+                            "possible_values": [],
+                        }
+                    ]
+                }
+            )
+        ]
+    )
+    provider.client = client
+    with pytest.raises(ProviderResponseError, match="unexpected keys"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema=dict(openai_mod.FEATURE_DISCOVERY_SCHEMA),
+        )
+
+    client, _ = make_chat_client(["not-json"])
+    provider.client = client
+    with pytest.raises(ProviderResponseError, match="Invalid JSON.*not-json") as error:
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+        )
+    assert error.value.__cause__ is None
+
+    provider.reasoning_effort = "none"
+    client, create = make_chat_client(['{"ok": true}'])
+    provider.client = client
+    assert provider._chat_json("m", "system", [{"type": "text", "text": "u"}]) == {"ok": True}
+    assert create.calls[0]["reasoning_effort"] == "none"
+    assert "temperature" not in create.calls[0]
+
     provider.max_retries = 0
     provider.client = make_chat_client(['{"unused": true}'])[0]
     with pytest.raises(ProviderResponseError, match="Unknown failure"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
 
     captured = []
-    provider._chat_json = lambda deployment, system_prompt, user_content, json_mode=False: captured.append(
+    provider._chat_json = lambda deployment, system_prompt, user_content, json_mode=False, response_schema=None: captured.append(
         {
             "deployment": deployment,
             "system_prompt": system_prompt,
             "user_content": user_content,
             "json_mode": json_mode,
+            "response_schema": response_schema,
         }
     ) or {"features": "x"}
     assert provider.image_features(["a", "b"], feature_gen=True) == [{"features": "x"}, {"features": "x"}]
@@ -150,12 +300,48 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
     captured.clear()
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
     assert captured[0]["system_prompt"] == "plain"
+    assert captured[0]["response_schema"] is None
+
+    captured.clear()
+    assert provider.text_features(["hello"], prompt='{"proposed_features": []}') == [{"features": "x"}]
+    assert captured[0]["response_schema"] is None
+
+    captured.clear()
+    assert provider.text_features(
+        ["hello"],
+        prompt='{"proposed_features": []}',
+        response_schema=openai_mod.FEATURE_DISCOVERY_SCHEMA,
+    ) == [{"features": "x"}]
+    assert captured[0]["response_schema"] == openai_mod.FEATURE_DISCOVERY_SCHEMA
+
+    captured.clear()
+    assert provider.image_features(["a"], prompt="image task", system_prompt="custom vision system") == [{"features": "x"}]
+    assert captured[0]["system_prompt"] == "custom vision system"
+    assert captured[0]["user_content"][-1]["text"] == "image task"
+
+    captured.clear()
+    assert provider.text_features(["hello"], prompt="text task", system_prompt="custom text system") == [{"features": "x"}]
+    assert captured[0]["system_prompt"] == "custom text system"
+    assert captured[0]["user_content"][0]["text"] == "text task\n\nTEXT:\nhello"
+
+    captured.clear()
+    assert provider.text_features(["hello"], prompt="text task", system_prompt="") == [{"features": "x"}]
+    assert captured[0]["system_prompt"] == ""
+    assert captured[0]["user_content"][0]["text"] == "text task\n\nTEXT:\nhello"
 
     with pytest.raises(FileNotFoundError, match="not found"):
         provider.transcribe_audio(str(tmp_path / "missing.wav"))
 
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
+
+    provider.is_azure = True
+    provider.audio_model = None
+    with pytest.raises(EnvironmentError, match="WHISPER"):
+        provider.transcribe_audio(str(audio_path))
+
+    provider.is_azure = False
+    provider.audio_model = "audio-model"
     provider.client = SimpleNamespace(
         audio=SimpleNamespace(
             transcriptions=SimpleNamespace(
@@ -186,7 +372,142 @@ def test_openai_provider_chat_and_public_methods(monkeypatch: pytest.MonkeyPatch
         provider.transcribe_audio(str(audio_path))
 
 
+def test_openai_provider_retries_completion_token_parameter(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+
+    provider = make_openai_provider(monkeypatch, max_retries=1, max_completion_tokens=50)
+
+    assert provider._token_limit_fallback(
+        "max_completion_tokens",
+        RuntimeError("not a bad request"),
+    ) is None
+    assert provider._token_limit_fallback(
+        "max_completion_tokens",
+        DummyBadRequestError("different bad request"),
+    ) is None
+    assert provider._token_limit_fallback(
+        "other",
+        DummyBadRequestError("max_tokens max_completion_tokens"),
+    ) is None
+
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError(
+                "Unsupported parameter: 'max_completion_tokens'. Use 'max_tokens' instead."
+            ),
+            '{"ok": true}',
+        ]
+    )
+    provider.client = client
+
+    assert provider._chat_json("deployment-alias", "system", [{"type": "text", "text": "u"}]) == {"ok": True}
+    assert "max_completion_tokens" in create.calls[0]
+    assert "max_tokens" not in create.calls[0]
+    assert "max_completion_tokens" not in create.calls[1]
+    assert create.calls[1]["max_tokens"] == 50
+    assert provider._completion_token_parameter == "max_tokens"
+
+    client, create = make_chat_client(['{"remembered": true}'])
+    provider.client = client
+    assert provider._chat_json("another-alias", "system", [{"type": "text", "text": "u"}]) == {"remembered": True}
+    assert "max_completion_tokens" not in create.calls[0]
+    assert create.calls[0]["max_tokens"] == 50
+
+    provider._completion_token_parameter = "max_tokens"
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError(
+                "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."
+            ),
+            '{"modern": true}',
+        ]
+    )
+    provider.client = client
+    assert provider._chat_json("modern-alias", "system", [{"type": "text", "text": "u"}]) == {"modern": True}
+    assert create.calls[1]["max_completion_tokens"] == 50
+    assert provider._completion_token_parameter == "max_completion_tokens"
+
+
+def test_openai_provider_falls_back_when_reasoning_effort_is_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(openai_mod.openai, "BadRequestError", DummyBadRequestError)
+
+    provider = make_openai_provider(
+        monkeypatch,
+        max_retries=1,
+        temperature=0.25,
+        max_completion_tokens=50,
+        reasoning_effort="none",
+    )
+
+    assert provider._should_fallback_without_reasoning_effort(
+        RuntimeError("reasoning_effort unsupported")
+    ) is False
+    assert provider._should_fallback_without_reasoning_effort(
+        DummyBadRequestError("another bad request")
+    ) is False
+
+    client, create = make_chat_client(
+        [
+            DummyBadRequestError("Unsupported parameter: reasoning_effort"),
+            '{"ok": true}',
+        ]
+    )
+    provider.client = client
+
+    assert provider._chat_json(
+        "legacy-model", "system", [{"type": "text", "text": "u"}]
+    ) == {"ok": True}
+    assert create.calls[0]["reasoning_effort"] == "none"
+    assert "temperature" not in create.calls[0]
+    assert "reasoning_effort" not in create.calls[1]
+    assert create.calls[1]["temperature"] == 0.25
+    assert provider._reasoning_effort_support["legacy-model"] is False
+
+    client, create = make_chat_client(['{"remembered": true}'])
+    provider.client = client
+    assert provider._chat_json(
+        "legacy-model", "system", [{"type": "text", "text": "u"}]
+    ) == {"remembered": True}
+    assert "reasoning_effort" not in create.calls[0]
+    assert create.calls[0]["temperature"] == 0.25
+
+
+def test_openai_provider_validates_discovery_schema_payload(monkeypatch: pytest.MonkeyPatch):
+    provider = make_openai_provider(monkeypatch)
+
+    provider._validate_feature_discovery_payload(
+        {
+            "proposed_features": [
+                {
+                    "feature": "task_type",
+                    "description": "desc",
+                    "possible_values": ["a", "b"],
+                }
+            ]
+        }
+    )
+
+    invalid_payloads = [
+        [],
+        {"unexpected": []},
+        {"proposed_features": "not a list"},
+        {"proposed_features": ["not an object"]},
+        {"proposed_features": [{"feature": "x", "description": "desc", "possible_values": [], "type": "extra"}]},
+        {"proposed_features": [{"feature": "x", "description": "desc"}]},
+        {"proposed_features": [{"feature": 1, "description": "desc", "possible_values": []}]},
+        {"proposed_features": [{"feature": "x", "description": 1, "possible_values": []}]},
+        {"proposed_features": [{"feature": "x", "description": "desc", "possible_values": [1]}]},
+    ]
+
+    for payload in invalid_payloads:
+        with pytest.raises(ProviderResponseError):
+            provider._validate_feature_discovery_payload(payload)
+
+
 def test_local_provider_extract_json_and_chat(monkeypatch: pytest.MonkeyPatch):
+    assert local_mod.LocalProvider.supports_response_schema is False
     monkeypatch.setattr(local_mod, "OpenAI", lambda **kwargs: "client")
     provider = local_mod.LocalProvider()
 
@@ -273,6 +594,13 @@ def test_local_provider_public_methods_and_transcription(monkeypatch: pytest.Mon
     assert captured[-1]["deployment"] == "txt-model"
     assert provider.text_features(["hello"], feature_gen=True) == [{"features": "x"}]
     assert provider.text_features(["hello"], prompt="plain", feature_gen=False) == [{"features": "x"}]
+    assert provider.text_features(["hello"], prompt="task", system_prompt="local custom") == [{"features": "x"}]
+    assert captured[-1]["system_prompt"] == "local custom"
+    assert captured[-1]["user_content"][0]["text"] == "task\n\nTEXT:\nhello"
+
+    assert provider.text_features(["hello"], prompt="task", system_prompt="") == [{"features": "x"}]
+    assert captured[-1]["system_prompt"] == ""
+    assert captured[-1]["user_content"][0]["text"] == "task\n\nTEXT:\nhello"
 
     monkeypatch.setattr(local_mod, "HAS_LOCAL_WHISPER", False)
     with pytest.raises(ImportError, match="not installed"):
@@ -398,12 +726,10 @@ def test_usage_counter_can_be_replaced():
         "total_tokens": 3,
     }
 
-def test_local_provider_raises_a_useful_error_on_an_empty_reply():
+def test_local_provider_raises_a_useful_error_on_an_empty_reply(monkeypatch: pytest.MonkeyPatch):
     """An empty reply must name the cause, not surface as invalid JSON."""
-    provider = object.__new__(local_mod.LocalProvider)
-    provider.max_retries = 1
-    provider.temperature = 0.0
-    provider.max_tokens = 2048
+    monkeypatch.setattr(local_mod, "OpenAI", lambda **kwargs: object())
+    provider = local_mod.LocalProvider(max_retries=1)
 
     client, _ = make_chat_client([""])
     provider.client = client
@@ -451,15 +777,34 @@ def test_instruct_variant_of_skips_models_that_already_are_one():
     assert instruct_variant_of("qwen3-vl:32b") == "qwen3-vl:32b-instruct"
     assert instruct_variant_of("qwen3-vl:32b-instruct") == ""
 
-def test_openai_provider_raises_a_useful_error_on_an_empty_reply():
+def test_openai_provider_raises_a_useful_error_on_an_empty_reply(monkeypatch: pytest.MonkeyPatch):
     """The OpenAI path needs the same explanation as the local one."""
-    provider = object.__new__(openai_mod.OpenAIProvider)
-    provider.max_retries = 1
-    provider.temperature = 0.0
-    provider.max_tokens = 2048
+    provider = make_openai_provider(monkeypatch, max_retries=1)
 
     client, _ = make_chat_client([""])
     provider.client = client
 
     with pytest.raises(ProviderResponseError, match="empty reply"):
         provider._chat_json("m", "system", [{"type": "text", "text": "u"}], json_mode=True)
+
+
+def test_openai_provider_surfaces_structured_output_refusals(monkeypatch: pytest.MonkeyPatch):
+    provider = make_openai_provider(monkeypatch, max_retries=1, max_completion_tokens=128)
+
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=None, refusal="unsafe request"))]
+    )
+    provider.client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(create=lambda **kwargs: response)
+        )
+    )
+
+    with pytest.raises(ProviderResponseError, match="Model refused.*unsafe request"):
+        provider._chat_json(
+            "m",
+            "system",
+            [{"type": "text", "text": "u"}],
+            json_mode=True,
+            response_schema={"type": "object", "properties": {}, "additionalProperties": False},
+        )

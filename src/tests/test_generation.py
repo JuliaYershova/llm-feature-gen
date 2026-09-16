@@ -18,22 +18,30 @@ class FakeProvider:
         self.image_calls = []
         self.text_calls = []
 
-    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+    def _response_features(self, prompt, prefix):
+        features = {"feat1": prefix}
+        if prompt and '"feat2"' in prompt:
+            features["feat2"] = "common"
+        return features
+
+    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None, response_schema=None):
         self.image_calls.append(
             {
                 "images": list(image_base64_list),
                 "prompt": prompt,
                 "as_set": as_set,
                 "extra_context": extra_context,
+                "system_prompt": system_prompt,
+                "response_schema": response_schema,
             }
         )
-        return [{"features": {"feat1": "img", "feat2": "common"}}]
+        return [{"features": self._response_features(prompt, "img")}]
 
-    def text_features(self, text_list, prompt=None):
-        self.text_calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+        self.text_calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt, "response_schema": response_schema})
         if len(text_list) == 1 and "row-text" in text_list[0]:
-            return [{"features": '{"feat1": "row-value"}'}]
-        return [{"features": {"feat1": "txt", "feat2": "common"}}]
+            return [{"features": json.dumps(self._response_features(prompt, "row-value"))}]
+        return [{"features": self._response_features(prompt, "txt")}]
 
     def transcribe_audio(self, audio_path: str) -> str:
         return f"audio:{audio_path}"
@@ -191,7 +199,7 @@ def test_generation_prompts_enumeration_and_raw_json_instructions():
         assert "`possible_values`" in body or "possible_values" in body
         assert "`allowed_values`" in body or "allowed_values" in body
         assert "markdown code fences" in body.lower()
-        assert "exactly one string from that array" in body.lower()
+        assert '"not given by llm"' in body.lower()
 
 
 def test_build_generation_prompt_embeds_enum_lists_in_spec():
@@ -211,6 +219,73 @@ def test_build_generation_prompt_embeds_enum_lists_in_spec():
     assert "low" in built and "approved" in built
 
 
+def test_generation_response_schema_and_validation():
+    spec = {
+        "proposed_features": [
+            {"feature": "risk", "possible_values": ["low", "high"]},
+            {"feature": "status", "allowed_values": ["approved", "denied"]},
+            {"feature": "summary"},
+        ]
+    }
+
+    schema = gen._build_generation_response_schema(spec)
+    assert schema["required"] == ["risk", "status", "summary"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["risk"]["enum"] == ["low", "high", gen.MISSING_FEATURE_VALUE]
+    assert schema["properties"]["status"]["enum"] == ["approved", "denied", gen.MISSING_FEATURE_VALUE]
+    assert schema["properties"]["summary"] == {"type": "string"}
+
+    assert gen._validate_generation_features(
+        {"risk": "low", "status": "approved", "summary": "short phrase"},
+        spec,
+    ) == {"risk": "low", "status": "approved", "summary": "short phrase"}
+
+    invalid_outputs = [
+        {"risk": "low", "status": "approved"},
+        {"risk": "low", "status": "approved", "summary": "ok", "extra": "x"},
+        {"risk": "low", "status": "approved", "summary": 1},
+    ]
+    for output in invalid_outputs:
+        with pytest.raises(ValueError):
+            gen._validate_generation_features(output, spec)
+
+    assert gen._validate_generation_features(
+        {"risk": "not_applicable", "status": "not_visible", "summary": "ok"}, spec
+    ) == {"risk": gen.MISSING_FEATURE_VALUE, "status": gen.MISSING_FEATURE_VALUE, "summary": "ok"}
+
+    assert gen._build_generation_response_schema(
+        {"proposed_features": [{"feature": "already_missing", "possible_values": [gen.MISSING_FEATURE_VALUE]}]}
+    )["properties"]["already_missing"]["enum"] == [gen.MISSING_FEATURE_VALUE]
+
+    duplicate_schema = gen._build_generation_response_schema(
+        [{"feature": "topic"}, "length", {"ignored": "x"}, {"feature": "topic"}]
+    )
+    assert duplicate_schema["required"] == ["topic", "length"]
+
+
+def test_generation_writes_missing_value_for_inapplicable_enum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "birds"
+    class_dir.mkdir(parents=True)
+    (class_dir / "bird.txt").write_text("The bird is perched.", encoding="utf-8")
+
+    class InapplicableProvider:
+        def text_features(self, *args, **kwargs):
+            return [{"flight_posture": "not_applicable"}]
+
+    monkeypatch.setattr(gen, "tqdm", lambda files, desc=None, unit=None: files)
+    csv_path = gen.assign_feature_values_from_folder(
+        root,
+        "birds",
+        {"proposed_features": [{"feature": "flight_posture", "possible_values": ["gliding", "flapping"]}]},
+        provider=InapplicableProvider(),
+        output_dir=tmp_path / "out",
+        failure_threshold=1,
+    )
+
+    assert pd.read_csv(csv_path)["flight_posture"].tolist() == [gen.MISSING_FEATURE_VALUE]
+
+
 def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "root"
     class_dir = root / "classA"
@@ -228,12 +303,15 @@ def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monk
         output_dir=tmp_path / "out",
         text_column="text",
         label_column="label",
+        prompt="custom tabular task",
     )
 
     df = pd.read_csv(csv_path)
     assert list(df["Class"]) == ["L1"]
     assert list(df["feat1"]) == ["row-value"]
-    assert list(df["feat2"]) == ["not given by LLM"]
+    assert list(df["feat2"]) == ["common"]
+    assert provider.text_calls[0]["prompt"].startswith("custom tabular task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.text_calls[0]["prompt"]
 
     csv_path = gen.assign_feature_values_from_folder(
         folder_path=root,
@@ -245,6 +323,167 @@ def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monk
         label_column="label",
     )
     assert csv_path.exists()
+
+
+def test_assign_feature_values_forwards_custom_system_prompt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classPrompt"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+    provider = FakeProvider()
+
+    gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classPrompt",
+        discovered_features={"proposed_features": [{"feature": "feat1"}]},
+        provider=provider,
+        output_dir=tmp_path / "out",
+        system_prompt="custom generation system",
+        prompt="custom generation task",
+    )
+
+    assert provider.text_calls[0]["system_prompt"] == "custom generation system"
+    assert provider.text_calls[0]["prompt"].startswith("custom generation task")
+    assert "DISCOVERED_FEATURES_SPEC" in provider.text_calls[0]["prompt"]
+
+
+def test_assign_feature_values_uses_strict_schema_for_schema_provider(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classStrict"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class StrictProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            self.text_calls.append(
+                {
+                    "texts": list(text_list),
+                    "prompt": prompt,
+                    "system_prompt": system_prompt,
+                    "response_schema": response_schema,
+                }
+            )
+            return [{"topic": "yes", "kind": "exercise"}]
+
+    provider = StrictProvider()
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classStrict",
+        discovered_features={
+            "proposed_features": [
+                {"feature": "topic", "possible_values": ["yes", "no"]},
+                {"feature": "kind"},
+            ]
+        },
+        provider=provider,
+        output_dir=tmp_path / "out",
+    )
+
+    assert provider.text_calls[0]["response_schema"]["properties"]["topic"]["enum"] == [
+        "yes", "no", gen.MISSING_FEATURE_VALUE
+    ]
+    df = pd.read_csv(csv_path)
+    assert list(df["topic"]) == ["yes"]
+    assert list(df["kind"]) == ["exercise"]
+
+
+def test_assign_feature_values_validates_strict_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classRows"
+    class_dir.mkdir(parents=True)
+    (class_dir / "rows.csv").write_text("text\nrow-text\n", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class StrictRowProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [{"topic": "yes"}]
+
+    csv_path = gen.assign_feature_values_from_folder(
+        folder_path=root,
+        class_name="classRows",
+        discovered_features={"proposed_features": [{"feature": "topic", "possible_values": ["yes", "no"]}]},
+        provider=StrictRowProvider(),
+        output_dir=tmp_path / "out",
+        text_column="text",
+    )
+
+    assert pd.read_csv(csv_path)["topic"].tolist() == ["yes"]
+
+
+def test_assign_feature_values_rejects_invalid_strict_generation_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "root"
+    class_dir = root / "classBad"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class BadStrictProvider(FakeProvider):
+        supports_response_schema = True
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [{"topic": "maybe", "extra": "x"}]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="unexpected feature keys"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classBad",
+            discovered_features={"proposed_features": [{"feature": "topic", "possible_values": ["yes", "no"]}]},
+            provider=BadStrictProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
+
+
+def test_assign_feature_values_rejects_invalid_generation_output_without_schema_support(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "root"
+    class_dir = root / "classBadShape"
+    class_dir.mkdir(parents=True)
+    (class_dir / "note.txt").write_text("body", encoding="utf-8")
+
+    monkeypatch.setattr(gen, "_prepare_text_inputs", lambda path: ["text body"])
+    monkeypatch.setattr(gen, "tqdm", None)
+
+    class DiscoveryShapedProvider(FakeProvider):
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            return [
+                {
+                    "features": {
+                        "proposed_features": [
+                            {
+                                "feature": "topic",
+                                "description": "program_output_prediction",
+                                "possible_values": ["program_output_prediction"],
+                            }
+                        ]
+                    }
+                }
+            ]
+
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="missing feature keys"):
+        gen.assign_feature_values_from_folder(
+            folder_path=root,
+            class_name="classBadShape",
+            discovered_features={"proposed_features": [{"feature": "topic"}]},
+            provider=DiscoveryShapedProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
 
 
 def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -273,11 +512,14 @@ def test_assign_feature_values_from_folder_for_modalities_and_errors(tmp_path: P
         provider=provider,
         output_dir=tmp_path / "out",
         use_audio=True,
+        prompt="custom multimodal task",
     )
 
     df = pd.read_csv(csv_path)
     assert sorted(df["File"].tolist()) == ["clip.mp4", "img.jpg", "note.txt"]
     assert set(df["feat1"]) == {"img", "txt"}
+    assert all(call["prompt"].startswith("custom multimodal task") for call in provider.image_calls)
+    assert provider.text_calls[0]["prompt"].startswith("custom multimodal task")
 
 
 def test_assign_feature_values_circuit_breaker_stops_repeated_provider_exceptions(
@@ -711,6 +953,8 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         text_column,
         label_column,
         failure_threshold,
+        system_prompt,
+        prompt,
     ):
         csv_path = Path(output_dir) / f"{class_name}.csv"
         pd.DataFrame([{"File": f"{class_name}.txt", "Class": class_name, "feat1": "x", "raw_llm_output": "{}"}]).to_csv(
@@ -722,6 +966,8 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
             "text_column": text_column,
             "label_column": label_column,
             "failure_threshold": failure_threshold,
+            "system_prompt": system_prompt,
+            "prompt": prompt,
         }
         return csv_path
 
@@ -736,12 +982,16 @@ def test_generate_features_and_wrappers(tmp_path: Path, monkeypatch: pytest.Monk
         merge_to_single_csv=True,
         text_column="body",
         label_column="label",
+        system_prompt="custom generation system",
+        prompt="custom generation task",
     )
 
     assert set(result) == {"c1", "c2", "__merged__"}
     assert Path(result["__merged__"]).exists()
     assert generated["c1"]["text_column"] == "body"
     assert generated["c1"]["failure_threshold"] == 3
+    assert generated["c1"]["system_prompt"] == "custom generation system"
+    assert generated["c1"]["prompt"] == "custom generation task"
 
     result = gen.generate_features(
         root_folder=root,
@@ -957,6 +1207,7 @@ def test_assign_feature_values_from_folder_starts_each_run_clean(
     assert "Overwriting" in capsys.readouterr().out
 
     # different schema: the header must follow the new schema
+    monkeypatch.setattr(provider, "_response_features", lambda prompt, prefix: {"other": prefix})
     csv_path = run([{"feature": "other"}])
     df = pd.read_csv(csv_path)
     assert len(df) == 1

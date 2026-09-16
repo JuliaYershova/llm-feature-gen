@@ -195,6 +195,8 @@ def test_discover_features_multiclass_delegates_with_formatted_prompt(
         output_filename="features.json",
         as_set=False,
         min_features=5,
+        prompt="Custom {n_classes}:\n{class_list}\nMinimum {min_features}",
+        system_prompt="custom discovery system",
     )
 
     assert result == {"proposed_features": [{"feature": "intent"}]}
@@ -203,8 +205,8 @@ def test_discover_features_multiclass_delegates_with_formatted_prompt(
     assert captured["output_dir"] == tmp_path
     assert captured["output_filename"] == "features.json"
     assert captured["as_set"] is False
-    assert "3 text categories" in captured["prompt"]
-    assert "at least 5 distinct features" in captured["prompt"]
+    assert captured["prompt"] == "Custom 3:\n  - A\n  - B\n  - C\nMinimum 5"
+    assert captured["system_prompt"] == "custom discovery system"
 
 
 def test_discover_features_multiclass_images_delegates_with_formatted_prompt(
@@ -341,6 +343,8 @@ def test_generate_features_multiclass_validates_classes_and_delegates_path_input
         output_dir=tmp_path / "out",
         merge_to_single_csv=False,
         merged_csv_name="merged.csv",
+        prompt="custom generation task",
+        system_prompt="custom generation system",
     )
 
     assert result == {"A": "a.csv", "B": "b.csv"}
@@ -351,6 +355,8 @@ def test_generate_features_multiclass_validates_classes_and_delegates_path_input
     assert captured["output_dir"] == tmp_path / "out"
     assert captured["merge_to_single_csv"] is False
     assert captured["merged_csv_name"] == "merged.csv"
+    assert captured["prompt"] == "custom generation task"
+    assert captured["system_prompt"] == "custom generation system"
 
 
 def test_generate_features_multiclass_writes_dict_schema_to_temp_file(
@@ -434,6 +440,10 @@ def test_run_multiclass_pipeline_orchestrates_discovery_train_and_test(
         provider="provider",
         output_dir=tmp_path / "out",
         min_features=9,
+        discovery_prompt="discovery task",
+        discovery_system_prompt="discovery system",
+        generation_prompt="generation task",
+        generation_system_prompt="generation system",
     )
 
     assert result["discovered_features"] == {"proposed_features": [{"feature": "intent"}]}
@@ -443,12 +453,18 @@ def test_run_multiclass_pipeline_orchestrates_discovery_train_and_test(
     assert calls[0][0] == "discover"
     assert calls[0][1]["min_features"] == 9
     assert calls[0][1]["output_filename"] == "discovered_text_features.json"
+    assert calls[0][1]["prompt"] == "discovery task"
+    assert calls[0][1]["system_prompt"] == "discovery system"
 
     assert calls[1][0] == "generate"
     assert calls[1][1]["root_folder"] == tmp_path / "train"
     assert calls[1][1]["discovered_features"] == tmp_path / "out" / "discovered_text_features.json"
     assert calls[1][1]["merged_csv_name"] == "train_feature_values.csv"
+    assert calls[1][1]["prompt"] == "generation task"
+    assert calls[1][1]["system_prompt"] == "generation system"
 
     assert calls[2][0] == "generate"
     assert calls[2][1]["root_folder"] == tmp_path / "test"
     assert calls[2][1]["merged_csv_name"] == "test_feature_values.csv"
+    assert calls[2][1]["prompt"] == "generation task"
+    assert calls[2][1]["system_prompt"] == "generation system"

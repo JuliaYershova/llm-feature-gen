@@ -12,8 +12,8 @@ class TextProvider:
     def __init__(self) -> None:
         self.calls = []
 
-    def text_features(self, text_list, prompt=None):
-        self.calls.append({"texts": list(text_list), "prompt": prompt})
+    def text_features(self, text_list, prompt=None, system_prompt=None):
+        self.calls.append({"texts": list(text_list), "prompt": prompt, "system_prompt": system_prompt})
         return [{"proposed_features": [{"feature": "x"}]} for _ in text_list]
 
 
@@ -21,13 +21,14 @@ class ImageProvider:
     def __init__(self) -> None:
         self.calls = []
 
-    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None):
+    def image_features(self, image_base64_list, prompt=None, as_set=False, extra_context=None, system_prompt=None):
         self.calls.append(
             {
                 "images": list(image_base64_list),
                 "prompt": prompt,
                 "as_set": as_set,
                 "extra_context": extra_context,
+                "system_prompt": system_prompt,
             }
         )
         return [{"proposed_features": [{"feature": "img"}]} for _ in image_base64_list] if not as_set else [{"proposed_features": [{"feature": "img"}]}]
@@ -111,6 +112,7 @@ def test_discover_texts_allows_custom_min_features(tmp_path: Path):
 
     assert "Provide at least 3 distinct features." in provider.calls[0]["prompt"]
     assert "Provide at least 10 distinct features." not in provider.calls[0]["prompt"]
+    assert '"proposed_features"' in provider.calls[0]["prompt"]
 
     with pytest.raises(ValueError, match="min_features"):
         discover_mod.discover_features_from_texts(
@@ -119,6 +121,59 @@ def test_discover_texts_allows_custom_min_features(tmp_path: Path):
             min_features=0,
             output_dir=tmp_path / "bad",
         )
+
+
+def test_discovery_forwards_custom_system_prompt(tmp_path: Path):
+    text_provider = TextProvider()
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        provider=text_provider,
+        output_dir=tmp_path / "text_out",
+        system_prompt="custom discovery system",
+    )
+    assert text_provider.calls[0]["system_prompt"] == "custom discovery system"
+
+    image_path = tmp_path / "one.png"
+    from PIL import Image
+    Image.new("RGB", (8, 8), color=(10, 20, 30)).save(image_path)
+
+    image_provider = ImageProvider()
+    discover_mod.discover_features_from_images(
+        image_path,
+        provider=image_provider,
+        output_dir=tmp_path / "image_out",
+        system_prompt="custom vision discovery system",
+    )
+    assert image_provider.calls[0]["system_prompt"] == "custom vision discovery system"
+
+
+def test_discovery_passes_schema_to_schema_capable_provider(tmp_path: Path):
+    class SchemaTextProvider:
+        supports_response_schema = True
+
+        def __init__(self):
+            self.calls = []
+
+        def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+            self.calls.append(
+                {
+                    "texts": list(text_list),
+                    "prompt": prompt,
+                    "system_prompt": system_prompt,
+                    "response_schema": response_schema,
+                }
+            )
+            return [{"proposed_features": [{"feature": "x"}]}]
+
+    provider = SchemaTextProvider()
+    discover_mod.discover_features_from_texts(
+        "raw text",
+        prompt="custom prompt without magic schema key",
+        provider=provider,
+        output_dir=tmp_path / "schema_out",
+    )
+
+    assert provider.calls[0]["response_schema"] is discover_mod.FEATURE_DISCOVERY_SCHEMA
 
 
 def test_discover_texts_warns_and_errors_when_only_file_is_empty(tmp_path: Path):
@@ -485,10 +540,19 @@ def test_discover_tabular_supports_multiple_formats_and_validation(tmp_path: Pat
 
     captured = {}
 
-    def fake_discover_texts(texts_or_file, prompt, provider, as_set, output_dir, output_filename):
+    def fake_discover_texts(
+        texts_or_file,
+        prompt,
+        provider,
+        as_set,
+        output_dir,
+        output_filename,
+        system_prompt=None,
+    ):
         captured["texts"] = texts_or_file
         captured["output_filename"] = output_filename
         captured["prompt"] = prompt
+        captured["system_prompt"] = system_prompt
         return {"ok": True}
 
     monkeypatch.setattr(discover_mod, "discover_features_from_texts", fake_discover_texts)

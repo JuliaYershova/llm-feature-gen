@@ -22,7 +22,8 @@ from .utils.image import image_to_base64
 from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, extract_audio_track, downsample_batch
-from .providers.openai_provider import OpenAIProvider
+from .generate import _provider_call_kwargs
+from .providers.openai_provider import FEATURE_DISCOVERY_SCHEMA, OpenAIProvider
 from .prompts import DiscoveryPromptBuilder
 
 # Load environment variables automatically
@@ -33,21 +34,13 @@ DiscoveryResult = Union[DiscoveryPayload, List[DiscoveryPayload]]
 SUPPORTED_TEXT_SUFFIXES = {".txt", ".md", ".pdf", ".docx", ".html"}
 
 
-
 def _resolve_discovery_prompt(
     modality: str,
     prompt: Optional[str],
     num_classes: Optional[int],
     min_features: Optional[int],
 ) -> str:
-    """Return the prompt to send, filling in placeholders where there are any.
-
-    Without ``prompt`` this is the bundled template for the modality. With one,
-    it is treated as a template too, so a caller can reuse the ``{n_classes}``,
-    ``{class_list}`` and ``{min_features}`` placeholders. A custom prompt
-    without placeholders is sent verbatim, and then those two options cannot
-    take effect, so passing them is an error rather than a silent no-op.
-    """
+    """Build the bundled or caller-supplied discovery prompt template."""
     placeholders = ("{n_classes}", "{class_list}", "{min_features}")
     if prompt is not None and not any(name in prompt for name in placeholders):
         unused = [
@@ -98,13 +91,16 @@ def discover_features_from_images(
         output_filename: Optional[str] = None,
         num_classes: Optional[int] = None,
         min_features: Optional[int] = None,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from image files and persist the provider response.
 
     Args:
         image_paths_or_folder: A single image path, a folder containing images,
             or a list of image file paths.
-        prompt: System-style prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled
+            image prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         provider: Optional provider instance. When omitted, an
             [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider] is
             created from environment variables.
@@ -114,7 +110,10 @@ def discover_features_from_images(
         output_dir: Directory where the JSON artifact should be written.
         output_filename: Custom filename for the saved artifact. Defaults to
             ``discovered_image_features.json``.
+        num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -128,7 +127,6 @@ def discover_features_from_images(
     """
     # 1) init provider
     provider = provider or OpenAIProvider()
-
     prompt = _resolve_discovery_prompt("image", prompt, num_classes, min_features)
 
     # 2) collect image paths
@@ -170,6 +168,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=True,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # per-image behavior
@@ -177,6 +176,7 @@ def discover_features_from_images(
             b64_list,
             prompt=prompt,
             as_set=False,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving
@@ -223,6 +223,7 @@ def discover_features_from_videos(
         random_seed: Optional[int] = None,
         num_classes: Optional[int] = None,
         min_features: Optional[int] = None,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -233,7 +234,9 @@ def discover_features_from_videos(
     Args:
         videos_or_folder: A single video path, a folder containing videos, or a
             list of video file paths.
-        prompt: Prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled
+            video prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         provider: Optional provider instance implementing ``image_features``
             and, when ``use_audio=True``, optionally ``transcribe_audio``.
         as_set: When ``True``, all extracted frames are analyzed together to
@@ -257,7 +260,10 @@ def discover_features_from_videos(
         random_seed: Optional seed used when folder inputs need to sample a
             subset of videos. Pass a value here to make the sampled subset
             reproducible across runs.
+        num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -273,7 +279,6 @@ def discover_features_from_videos(
     # 1) init provider
     # -------------------------------------------------
     provider = provider or OpenAIProvider()
-
     prompt = _resolve_discovery_prompt("video", prompt, num_classes, min_features)
 
     # -------------------------------------------------
@@ -372,6 +377,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=True,
             extra_context=final_context,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # per-frame discovery
@@ -380,6 +386,7 @@ def discover_features_from_videos(
             prompt=prompt,
             as_set=False,
             extra_context=final_context,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving
@@ -422,6 +429,7 @@ def discover_features_from_texts(
         output_filename: Optional[str] = None,
         num_classes: Optional[int] = None,
         min_features: Optional[int] = None,
+        system_prompt: Optional[str] = None,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -430,7 +438,9 @@ def discover_features_from_texts(
             single supported document path, or a directory containing supported
             text documents. String inputs are treated as paths only when they
             already exist on disk or look path-like, such as ``notes/file.txt``.
-        prompt: Prompt passed through to the provider.
+        prompt: Optional discovery task or template replacing the bundled text
+            prompt. Templates may use ``{n_classes}``, ``{class_list}``, and
+            ``{min_features}`` placeholders.
         provider: Optional provider instance. Defaults to
             [OpenAIProvider][llm_feature_gen.providers.OpenAIProvider].
         as_set: When ``True``, all extracted text is combined into a single
@@ -442,6 +452,8 @@ def discover_features_from_texts(
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of distinct features to request from the
             provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -455,7 +467,6 @@ def discover_features_from_texts(
 
     # 1) init provider
     provider = provider or OpenAIProvider()
-
     prompt = _resolve_discovery_prompt("text", prompt, num_classes, min_features)
 
     # -------------------------------------------------
@@ -533,12 +544,14 @@ def discover_features_from_texts(
         result_list = provider.text_features(
             [combined_text],  # ONE request
             prompt=prompt,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
     else:
         # PER-TEXT DESCRIPTION MODE
         result_list = provider.text_features(
             texts,  # MANY requests
             prompt=prompt,
+            **_provider_call_kwargs(provider, system_prompt, FEATURE_DISCOVERY_SCHEMA),
         )
 
     # validate before saving
@@ -583,6 +596,7 @@ def discover_features_from_tabular(
         max_rows: Optional[int] = None,
         num_classes: Optional[int] = None,
         min_features: Optional[int] = None,
+        system_prompt: Optional[str] = None,
         ) -> DiscoveryResult:
     """Discover features from tabular datasets by projecting a text column.
 
@@ -596,8 +610,9 @@ def discover_features_from_tabular(
         text_column: Column name whose values should be used as textual input
             for discovery.
         provider: Optional provider instance.
-        prompt: Prompt passed through to the provider. Built from the bundled
-            template for this modality when not given.
+        prompt: Optional discovery task or template replacing the bundled
+            tabular prompt. Templates may use ``{n_classes}``, ``{class_list}``,
+            and ``{min_features}`` placeholders.
         as_set: Whether to discover one shared schema across all sampled rows or
             process rows independently.
         output_dir: Directory where the JSON artifact should be written.
@@ -605,11 +620,10 @@ def discover_features_from_tabular(
             ``discovered_tabular_features.json``.
         max_rows: Optional cap on how many rows are used from the concatenated
             dataset.
-        num_classes: How many hidden classes the default prompt mentions
-            (2 when not given). Ignored when a custom prompt is passed.
-        min_features: Minimum feature count asked for in the default prompt,
-            max(10, 3 * num_classes) when not given. Ignored when a custom
-            prompt is passed.
+        num_classes: Optional number of hidden classes reflected in the prompt.
+        min_features: Minimum number of distinct features to request from the provider.
+        system_prompt: Optional high-level instruction controlling the model's
+            role, behavior, and response style. It does not replace ``prompt``.
 
     Returns:
         The same return shape as
@@ -622,9 +636,7 @@ def discover_features_from_tabular(
     """
     import pandas as pd
     provider = provider or OpenAIProvider()
-
     prompt = _resolve_discovery_prompt("tabular", prompt, num_classes, min_features)
-
     path = Path(file_or_folder)
 
     if not path.exists():
@@ -678,4 +690,5 @@ def discover_features_from_tabular(
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename or "discovered_tabular_features.json",
+        system_prompt=system_prompt,
     )

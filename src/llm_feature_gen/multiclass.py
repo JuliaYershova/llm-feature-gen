@@ -25,21 +25,30 @@ def discover_features_multiclass(
     output_filename: str = "discovered_text_features.json",
     as_set: bool = True,
     min_features: Optional[int] = None,
+    prompt: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Discover text features that distinguish all supplied classes."""
-    prompt = DiscoveryPromptBuilder(
+    """Discover text features that distinguish all supplied classes.
+
+    ``prompt`` optionally replaces the discovery task template and may use
+    ``{n_classes}``, ``{class_list}``, and ``{min_features}`` placeholders.
+    ``system_prompt`` controls the model's role and behavior.
+    """
+    resolved_prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
         modality="text",
+        template=prompt,
     ).build()
 
     return discover_features_from_texts(
         texts_or_file=texts_or_file,
-        prompt=prompt,
+        prompt=resolved_prompt,
         provider=provider,
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename,
+        system_prompt=system_prompt,
     )
 
 
@@ -51,8 +60,15 @@ def generate_features_multiclass(
     output_dir: Union[str, Path] = "outputs",
     merge_to_single_csv: bool = True,
     merged_csv_name: str = "all_feature_values.csv",
+    prompt: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, str]:
-    """Generate feature-value CSVs for two or more classes."""
+    """Generate feature-value CSVs for two or more classes.
+
+    ``prompt`` replaces the bundled generation task while ``system_prompt``
+    controls model behavior. The discovered feature specification is appended
+    to the task automatically.
+    """
     classes = list(classes)
     if len(classes) < 2:
         raise ValueError(f"At least 2 classes required for multi-class generation, got {len(classes)}.")
@@ -84,6 +100,8 @@ def generate_features_multiclass(
         provider=provider,
         merge_to_single_csv=merge_to_single_csv,
         merged_csv_name=merged_csv_name,
+        prompt=prompt,
+        system_prompt=system_prompt,
     )
 
 
@@ -95,8 +113,16 @@ def run_multiclass_pipeline(
     provider: OpenAIProvider,
     output_dir: Union[str, Path] = "outputs",
     min_features: Optional[int] = None,
+    discovery_prompt: Optional[str] = None,
+    discovery_system_prompt: Optional[str] = None,
+    generation_prompt: Optional[str] = None,
+    generation_system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Run discovery, train generation, and test generation for multiple classes."""
+    """Run discovery and generation with independently customizable prompts.
+
+    ``*_prompt`` values control each phase's task. ``*_system_prompt`` values
+    control the model's role and behavior for that phase.
+    """
     output_dir = Path(output_dir)
     features_path = output_dir / "discovered_text_features.json"
 
@@ -108,6 +134,8 @@ def run_multiclass_pipeline(
         output_dir=output_dir,
         output_filename="discovered_text_features.json",
         min_features=min_features,
+        prompt=discovery_prompt,
+        system_prompt=discovery_system_prompt,
     )
 
     print("Generating train features...")
@@ -118,6 +146,8 @@ def run_multiclass_pipeline(
         provider=provider,
         output_dir=output_dir / "train_generated",
         merged_csv_name="train_feature_values.csv",
+        prompt=generation_prompt,
+        system_prompt=generation_system_prompt,
     )
 
     print("Generating test features...")
@@ -128,6 +158,8 @@ def run_multiclass_pipeline(
         provider=provider,
         output_dir=output_dir / "test_generated",
         merged_csv_name="test_feature_values.csv",
+        prompt=generation_prompt,
+        system_prompt=generation_system_prompt,
     )
 
     return {
@@ -144,21 +176,29 @@ def discover_features_multiclass_images(
     output_filename: str = "discovered_image_features.json",
     as_set: bool = True,
     min_features: Optional[int] = None,
+    prompt: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Discover image features that distinguish all supplied classes."""
-    prompt = DiscoveryPromptBuilder(
+    """Discover image features with optional task and system prompts.
+
+    The task ``prompt`` may use the discovery placeholders; ``system_prompt``
+    controls model behavior.
+    """
+    resolved_prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
         modality="image",
+        template=prompt,
     ).build()
 
     return discover_features_from_images(
         image_paths_or_folder=image_paths_or_folder,
-        prompt=prompt,
+        prompt=resolved_prompt,
         provider=provider,
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename,
+        system_prompt=system_prompt,
     )
 
 
@@ -175,17 +215,24 @@ def discover_features_multiclass_videos(
     max_videos_to_sample: int = 5,
     max_total_frames_payload: int = 15,
     random_seed: Optional[int] = None,
+    prompt: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Discover video features that distinguish all supplied classes."""
-    prompt = DiscoveryPromptBuilder(
+    """Discover video features with optional task and system prompts.
+
+    The task ``prompt`` may use the discovery placeholders; ``system_prompt``
+    controls model behavior.
+    """
+    resolved_prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
         modality="video",
+        template=prompt,
     ).build()
 
     return discover_features_from_videos(
         videos_or_folder=videos_or_folder,
-        prompt=prompt,
+        prompt=resolved_prompt,
         provider=provider,
         as_set=as_set,
         num_frames=num_frames,
@@ -195,6 +242,7 @@ def discover_features_multiclass_videos(
         max_videos_to_sample=max_videos_to_sample,
         max_total_frames_payload=max_total_frames_payload,
         random_seed=random_seed,
+        system_prompt=system_prompt,
     )
 
 def discover_features_multiclass_tabular(
@@ -207,21 +255,29 @@ def discover_features_multiclass_tabular(
     as_set: bool = True,
     min_features: Optional[int] = None,
     max_rows: Optional[int] = None,
+    prompt: Optional[str] = None,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Discover tabular features that distinguish all supplied classes."""
-    prompt = DiscoveryPromptBuilder(
+    """Discover tabular features with optional task and system prompts.
+
+    The task ``prompt`` may use the discovery placeholders; ``system_prompt``
+    controls model behavior.
+    """
+    resolved_prompt = DiscoveryPromptBuilder(
         classes=classes,
         min_features=min_features,
         modality="tabular",
+        template=prompt,
     ).build()
 
     return discover_features_from_tabular(
         file_or_folder=file_or_folder,
         text_column=text_column,
-        prompt=prompt,
+        prompt=resolved_prompt,
         provider=provider,
         as_set=as_set,
         output_dir=output_dir,
         output_filename=output_filename,
         max_rows=max_rows,
+        system_prompt=system_prompt,
     )
