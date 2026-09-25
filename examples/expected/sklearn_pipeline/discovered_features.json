@@ -1,0 +1,96 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "hardware_ecosystem_mention",
+        "description": "Indicates the specific proprietary hardware or software ecosystem referenced by the user, which strongly correlates with the underlying operating system.",
+        "possible_values": [
+          "Apple/Macintosh specific (e.g., Mac II, PowerBook, System 7)",
+          "IBM PC/Windows specific (e.g., Bondwell, DOS, Windows)",
+          "Generic/Neutral hardware (e.g., SCSI, RS-232, VAX)"
+        ]
+      },
+      {
+        "feature": "academic_software_context",
+        "description": "References to specific academic or scientific software packages that were historically dominant on one platform over the other during the era of these texts.",
+        "possible_values": [
+          "MATLAB/Simulink (historically Mac-dominant in academia)",
+          "AutoCAD/PC-DMIS (historically PC-dominant)",
+          "No specific academic software mentioned"
+        ]
+      },
+      {
+        "feature": "operating_system_version",
+        "description": "Explicit mention of the operating system version, which serves as a direct proxy for the hardware platform.",
+        "possible_values": [
+          "System 7 / Mac OS",
+          "DOS / Windows 3.1 / OS/2",
+          "Unix/VMS (Platform-agnostic or server-side)"
+        ]
+      },
+      {
+        "feature": "technical_depth_level",
+        "description": "The level of abstraction in the technical discussion; Mac users often discussed application-level workflows, while PC users frequently engaged in low-level hardware configuration.",
+        "possible_values": [
+          "Application/Workflow focused (e.g., 'running simulations')",
+          "Low-level Hardware config (e.g., 'jumpers', 'switches', 'pins')",
+          "Network/Protocol focused (e.g., 'SCSI daisy-chain', 'TCP/IP')"
+        ]
+      },
+      {
+        "feature": "hardware_modification_tone",
+        "description": "The attitude towards physical hardware modification; PC users in this era were more likely to discuss DIY hardware hacks and jumper settings.",
+        "possible_values": [
+          "DIY/Hardware hacking (e.g., 'soldering iron', 'VeroBoard')",
+          "Plug-and-Play/Consumer (e.g., 'fresh out of box')",
+          "Enterprise/Server stability (e.g., 'file server uptime')"
+        ]
+      },
+      {
+        "feature": "connectivity_standard_focus",
+        "description": "The specific connectivity standards emphasized, reflecting the peripheral ecosystems common to each platform.",
+        "possible_values": [
+          "AppleTalk/LocalTalk (Mac-centric networking)",
+          "RS-232/Parallel Port (PC-centric serial communication)",
+          "SCSI/Floppy (Shared or ambiguous)"
+        ]
+      },
+      {
+        "feature": "processor_architecture_reference",
+        "description": "References to specific CPU architectures that were associated with one platform's identity during the transition period.",
+        "possible_values": [
+          "Motorola 68k (e.g., '68040', 'PowerPC')",
+          "Intel x86 (e.g., '386', 'Pentium', 'x86 lines')",
+          "No specific CPU architecture mentioned"
+        ]
+      },
+      {
+        "feature": "community_platform_indicator",
+        "description": "References to the newsgroup or community context, which often had distinct cultural norms and platform biases.",
+        "possible_values": [
+          "comp.sys.mac (Mac-centric community)",
+          "comp.os.ms-windows.misc (PC-centric community)",
+          "alt.comp.hardware or general tech forums"
+        ]
+      },
+      {
+        "feature": "cost_value_proposition",
+        "description": "How the value of the technology is framed, often reflecting the market positioning of the respective platforms.",
+        "possible_values": [
+          "Premium/Professional (e.g., 'FABULOUS setup', 'color home setup')",
+          "Budget/DIY (e.g., 'cheaper ones', 'obsolete PC')",
+          "Academic/Institutional (e.g., 'class accounts', 'university VAX')"
+        ]
+      },
+      {
+        "feature": "troubleshooting_domain",
+        "description": "The domain in which the user is seeking or providing help, indicating the typical pain points of each platform.",
+        "possible_values": [
+          "Software Compatibility/Emulation (e.g., 'terminal emulation', 'MATLAB')",
+          "Hardware Configuration/Jumpers (e.g., 'switch settings', 'pins')",
+          "Peripheral Driver Issues (e.g., 'CD-ROM FAQ', 'SCSI ID')"
+        ]
+      }
+    ]
+  }
+]
