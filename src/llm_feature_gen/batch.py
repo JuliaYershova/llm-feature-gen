@@ -87,6 +87,13 @@ class BatchTextCache:
     def __len__(self) -> int:
         return len(self._store)
 
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "BatchTextCache":
+        """A cache is a store, not fitted state. sklearn's clone() deep-copies
+        constructor params, so returning self lets clones share it.
+        Shared on purpose so that multiple transformers can share one cache file.
+        """
+        return self
+
     def clear(self) -> None:
         """Remove all cached entries and delete the cache file if present."""
         self._store = {}
