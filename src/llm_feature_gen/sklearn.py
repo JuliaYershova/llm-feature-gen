@@ -49,7 +49,8 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
     ``discovery_prompt`` and ``generation_prompt`` control the task performed
     in each phase. Their corresponding ``*_system_prompt`` values control the
     model's role and behavior. Generation always appends the discovered feature
-    specification to the selected task prompt.
+    specification to the selected task prompt. ``show_progress`` turns the
+    progress bar during :meth:`transform` on or off.
     """
 
     def __init__(
@@ -69,6 +70,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         discovery_system_prompt: Optional[str] = None,
         generation_system_prompt: Optional[str] = None,
         generation_prompt: Optional[str] = None,
+        show_progress: bool = True,
     ) -> None:
         self.provider = provider
         self.discovered_features = discovered_features
@@ -85,6 +87,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         self.discovery_system_prompt = discovery_system_prompt
         self.generation_system_prompt = generation_system_prompt
         self.generation_prompt = generation_prompt
+        self.show_progress = show_progress
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
@@ -130,6 +133,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             retry_delay=self.retry_delay,
             system_prompt=self.generation_system_prompt,
             prompt=self.generation_prompt,
+            show_progress=self.show_progress
         )
         return df.loc[:, self.feature_names_]
 
@@ -144,6 +148,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             retry_delay=self.retry_delay,
             system_prompt=self.generation_system_prompt,
             prompt=self.generation_prompt,
+            show_progress=self.show_progress
         )
         return df.loc[:, self.feature_names_]
 
