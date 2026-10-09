@@ -10,6 +10,10 @@ human researcher.
 I am providing you with example texts. Each text belongs to one of the {n_classes} categories
 listed above, but you are NOT told which text belongs to which category.
 
+Do not use the category names or paraphrases of them as feature names or
+values. Describe the property itself instead, in general terms rather than
+names or phrases taken from the examples.
+
 Your task is to:
   1. Examine all texts carefully and propose key textual features that appear to
      systematically vary across subsets of the texts and together distinguish all
