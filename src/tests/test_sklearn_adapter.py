@@ -10,6 +10,8 @@ import llm_feature_gen.sklearn as sklearn_mod
 from llm_feature_gen.providers.openai_provider import OpenAIProvider
 from llm_feature_gen.providers import openai_provider as openai_mod
 from llm_feature_gen.sklearn import LLMFeatureTransformer
+from llm_feature_gen import BatchTextCache
+from llm_feature_gen.providers import LocalProvider
 
 
 class FakeTextProvider:
@@ -288,3 +290,50 @@ def test_llm_feature_transformer_works_in_sklearn_pipeline():
     result = pipe.fit_transform(["need invoice", "cannot log in"])
 
     assert result.shape == (2, 2)
+
+@pytest.mark.parametrize(
+    "make_provider",
+    [
+        lambda: LocalProvider(default_text_model="any-model"),
+        lambda: OpenAIProvider(api_key="test-key", default_deployment_name="any-model"),
+    ],
+)
+def test_llm_feature_transformer_clone_shares_provider_and_cache(tmp_path, monkeypatch, make_provider):
+    pytest.importorskip("sklearn")
+    from sklearn.base import clone
+
+    monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+    provider = make_provider()
+    cache = BatchTextCache(cache_file=tmp_path / "cache.json")
+
+    cloned = clone(LLMFeatureTransformer(provider=provider, cache=cache))
+
+    assert cloned.provider is provider
+    assert cloned.cache is cache
+
+
+def test_llm_feature_transformer_works_with_cross_val_score(tmp_path):
+    pytest.importorskip("sklearn")
+    from sklearn.dummy import DummyClassifier
+    from sklearn.model_selection import cross_val_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    provider = LocalProvider(default_text_model="any-model")
+    fake = FakeTextProvider()
+    provider.text_features = fake.text_features
+    pipe = make_pipeline(
+        LLMFeatureTransformer(
+            provider=provider,
+            discovered_features={"proposed_features": [{"feature": "topic"}]},
+            cache=BatchTextCache(cache_file=tmp_path / "cache.json"),
+        ),
+        OneHotEncoder(handle_unknown="ignore"),
+        DummyClassifier(),
+    )
+    texts = ["need invoice", "cannot log in", "invoice again", "locked out"]
+
+    scores = cross_val_score(pipe, texts, [1, 0, 1, 0], cv=2)
+
+    assert len(scores) == 2
+    assert sum(len(call["texts"]) for call in fake.calls) == len(texts)
