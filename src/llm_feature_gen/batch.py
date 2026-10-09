@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -108,15 +109,22 @@ def _call_provider_batch(
     )
 
 
-def _generation_cache_hash(
-    provider: Any,
-    prompt: str,
-    system_prompt: Optional[str],
-) -> str:
-    """Fingerprint the prompt and common provider settings that affect outputs."""
+def _provider_identity(provider: Any) -> Optional[Dict[str, Any]]:
+    """Describe the provider for cache keys, or return None if the model is unknown.
+
+    Providers can define ``cache_identity()`` to state their identity explicitly,
+    for example a wrapper that delegates to another provider. Returning None from
+    it turns caching off.
+    """
+    provider_type = f"{type(provider).__module__}.{type(provider).__qualname__}"
+    cache_identity = getattr(provider, "cache_identity", None)
+    if callable(cache_identity):
+        identity = cache_identity()
+        return None if identity is None else {"type": provider_type, "identity": identity}
+
     provider_identity = {
-        "type": f"{type(provider).__module__}.{type(provider).__qualname__}",
-        "model": getattr(provider, "default_model", None),
+        "type": provider_type,
+        "model": getattr(provider, "default_model", None) or getattr(provider, "model", None),
         "text_model": getattr(provider, "text_model", None),
         "endpoint": getattr(provider, "endpoint", None),
         "base_url": getattr(provider, "base_url", None),
@@ -125,6 +133,20 @@ def _generation_cache_hash(
         "max_tokens": getattr(provider, "max_tokens", None),
         "reasoning_effort": getattr(provider, "reasoning_effort", None),
     }
+
+    if not (provider_identity["model"] or provider_identity["text_model"]):
+        return None
+    return provider_identity
+
+def _generation_cache_hash(
+    provider: Any,
+    prompt: str,
+    system_prompt: Optional[str],
+) -> Optional[str]:
+    """Fingerprint the prompt and provider settings, or return None if caching is unsafe."""
+    provider_identity = _provider_identity(provider)
+    if provider_identity is None:
+        return None
     payload = {
         "prompt": prompt,
         "system_prompt": system_prompt,
@@ -194,6 +216,13 @@ def generate_features_batch(
         discovered_features,
     )
     features_hash = _generation_cache_hash(provider, full_prompt, system_prompt)
+    if cache is not None and features_hash is None:
+        warnings.warn(
+            f"Cannot tell which model {type(provider).__name__} uses, so caching is "
+            "disabled. Define cache_identity() on the provider to enable it.",
+            stacklevel=2,
+        )
+        cache = None
     response_schema = _build_generation_response_schema(discovered_features)
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
