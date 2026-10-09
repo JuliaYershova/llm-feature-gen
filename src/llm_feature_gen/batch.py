@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -27,6 +28,8 @@ try:
     from tqdm import tqdm as _tqdm
 except ImportError:  # pragma: no cover
     _tqdm = None
+
+logger = logging.getLogger(__name__)
 
 
 class BatchTextCache:
@@ -161,6 +164,7 @@ def generate_features_batch(
     retry_delay: float = 1.0,
     system_prompt: Optional[str] = None,
     prompt: Optional[str] = None,
+    show_progress: bool = True,
 ) -> pd.DataFrame:
     """Generate validated text features in chunks with optional caching.
 
@@ -171,6 +175,9 @@ def generate_features_batch(
     Cache entries are scoped to the prompt, system instruction, provider type,
     model, endpoint, and common generation settings so a transformer can safely
     reuse one cache across differently configured providers.
+
+    Status messages go to the ``llm_feature_gen.batch`` logger. The progress
++   bar is shown only when ``show_progress`` is true and some texts are not cached.
     """
     provider = provider or OpenAIProvider()
     texts = list(texts)
@@ -221,11 +228,11 @@ def generate_features_batch(
         cache.save()
 
     if cached_results:
-        print(f"Cache hits: {len(cached_results)} / {len(texts)}")
+        logger.info("Cache hits: %d / %d", len(cached_results), len(texts))
 
     total_batches = (len(indices_to_process) + batch_size - 1) // batch_size
     iterator = range(0, len(indices_to_process), batch_size)
-    if _tqdm is not None:
+    if show_progress and total_batches and _tqdm is not None:
         iterator = _tqdm(list(iterator), desc="Batch generation", unit="batch", total=total_batches)
 
     batch_responses: Dict[int, Dict[str, Any]] = {}
@@ -244,7 +251,7 @@ def generate_features_batch(
                 system_prompt,
             )
         except Exception as exc:
-            print(f"Batch error ({exc}), retrying after {retry_delay}s...")
+            logger.warning("Batch error (%s), retrying after %ss...", exc, retry_delay)
             time.sleep(retry_delay)
             try:
                 responses = _call_provider_batch(
@@ -255,7 +262,7 @@ def generate_features_batch(
                     system_prompt,
                 )
             except Exception as retry_exc:
-                print(f"Batch failed again: {retry_exc}. Skipping batch.")
+                logger.warning("Batch failed again: %s. Skipping batch.", retry_exc)
                 responses = [{}] * len(batch_texts)
                 batch_failed = True
 
@@ -265,7 +272,7 @@ def generate_features_batch(
             try:
                 inner = _validated_provider_response(parsed, discovered_features)
             except ValueError as exc:
-                print(f"Invalid batch response for text_{global_index}: {exc}")
+                logger.warning("Invalid batch response for text_%d: %s", global_index, exc)
                 if batch_failed:
                     inner = None
                 else:
@@ -279,7 +286,7 @@ def generate_features_batch(
                         )[0]
                         inner = _validated_provider_response(retry_response, discovered_features)
                     except Exception as retry_exc:
-                        print(f"Retry failed for text_{global_index}: {retry_exc}")
+                        logger.warning("Retry failed for text_%d: %s", global_index, retry_exc)
                         inner = None
 
             if inner is None:
@@ -313,7 +320,7 @@ def generate_features_batch(
         output_path = Path(output_csv)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
-        print(f"Saved batch results to {output_path}")
+        logger.info("Saved batch results to %s", output_path)
 
     return df
 
