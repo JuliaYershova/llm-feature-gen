@@ -1,5 +1,18 @@
 # Examples
 
+## Exhaustive Map-Reduce Discovery
+
+`map_reduce_discovery.py` processes all five example inputs in batches of two.
+Its offline toy provider demonstrates exact deduplication, retention of a
+feature found only in the last batch, reports, and checkpoint reuse:
+
+```bash
+python examples/map_reduce_discovery.py --provider offline --output-dir /tmp/map_reduce_demo
+```
+
+Run with `--provider local` or `--provider openai` to use a configured LLM instead.
+Offline proposals are illustrative; they are not a feature-quality benchmark.
+
 ## Canonical Text-to-Tabular Pipeline
 
 The repository now includes one publishable end-to-end example:

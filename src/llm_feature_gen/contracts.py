@@ -5,6 +5,45 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, TypedDict
 
+from typing import Annotated
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, StringConstraints
+
+
+NonemptyString = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1)]
+
+
+class MapFeatureDefinition(BaseModel):
+    """An evidenced feature proposed by one discovery batch."""
+
+    model_config = ConfigDict(extra="forbid")
+    feature: NonemptyString
+    description: NonemptyString
+    possible_values: List[NonemptyString] = Field(min_length=1)
+    example_item_ids: List[StrictStr] = Field(min_length=1)
+
+
+class MapDiscoveryResponse(BaseModel):
+    """Map output acknowledging every input, with optional local proposals."""
+
+    model_config = ConfigDict(extra="forbid")
+    processed_item_ids: List[StrictStr]
+    proposed_features: List[MapFeatureDefinition]
+
+
+class FeatureMergeGroup(BaseModel):
+    """Explicit equivalence group whose survivor is an existing candidate."""
+
+    model_config = ConfigDict(extra="forbid")
+    keep: StrictStr
+    merge_ids: List[StrictStr] = Field(min_length=2)
+
+
+class ReduceDiscoveryResponse(BaseModel):
+    """Candidate equivalences; omitted candidates remain in the catalog."""
+
+    model_config = ConfigDict(extra="forbid")
+    merge_groups: List[FeatureMergeGroup]
+
 
 class ProviderResponseError(ValueError):
     """Raised when a provider response cannot be used as feature data."""

@@ -251,6 +251,68 @@ Discovery helpers write JSON schemas to `outputs/` by default:
 
 Generation helpers read the matching schema by default and write one CSV per class. Set `merge_to_single_csv=True` to also create `outputs/all_feature_values.csv`.
 
+### Exhaustive Map-Reduce Discovery
+
+For a corpus that is too large for one request, enable `strategy="map_reduce"`.
+This processes every eligible input in bounded batches, discovers evidenced
+feature candidates, and merges equivalent definitions into one shared schema.
+Rare candidates and candidates omitted by the reducer are retained.
+
+```python
+from llm_feature_gen import discover_features_from_texts, generate_features_from_texts
+from llm_feature_gen.providers import LocalProvider
+
+provider = LocalProvider()
+schema = discover_features_from_texts(
+    "discover_texts",
+    provider=provider,
+    strategy="map_reduce",
+    batch_size=15,
+    reduce_batch_size=32,
+    max_request_chars=24000,
+    checkpoint_dir="outputs/discovery_checkpoints",
+)
+csv_paths = generate_features_from_texts("texts", provider=provider)
+```
+
+The same options work with image, tabular, video, and multiclass discovery.
+`as_set=True` is required. Tabular discovery requires `max_rows=None`. Video
+discovery visits every video, ignoring `max_videos_to_sample` and the global
+`max_total_frames_payload` cap; it analyzes one video per request using up to
+`num_frames` frames and its optional transcript. Images and videos still need a
+vision-capable provider; reduction uses its text model.
+
+`batch_size` and `reduce_batch_size` bound item counts. `max_request_chars` bounds
+rendered text including instructions and retry room, excluding image payloads;
+it is not a token limit. Tune these settings for the model. An individually
+oversized input or a supported file that cannot be read raises an error instead
+of silently truncating or skipping it. Empty/null inputs and unsupported formats
+are listed in the report.
+
+Discovery writes the standard schema plus
+`outputs/discovered_text_features_discovery_report.json` (with the corresponding
+name for other modalities). The report records input coverage, feature evidence,
+merge lineage, conflicts, and warnings. `min_features` is a corpus-level goal,
+not a quota for every batch. Conflicting definitions retain separate columns;
+name collisions receive deterministic suffixes.
+
+With `checkpoint_dir`, matching validated batches are reused after interruption.
+Input, prompt, model, or configuration changes invalidate reuse. Built-in
+providers supply their configuration automatically. Custom providers must
+provide a JSON-serializable `cache_identity` attribute or zero-argument method
+covering all settings that affect responses; otherwise reuse is disabled.
+
+Existing calls default to `strategy="single"`. Exhaustive mode guarantees that
+all eligible inputs are mapped; bounded reduction does not compare every pair
+of features, and the LLM can still miss useful properties. Large final schemas
+also increase generation cost and must fit the generation model's context.
+
+Run the offline demonstration with:
+
+```bash
+python examples/map_reduce_discovery.py --provider offline --output-dir /tmp/map_reduce_demo
+```
+
 ### Text
 
 ```python
@@ -294,6 +356,35 @@ pipe = Pipeline([
 pipe.fit(train_texts, train_labels)
 predictions = pipe.predict(test_texts)
 ```
+
+To get the feature DataFrame directly, use `fit_transform()` on the transformer:
+
+```python
+transformer = LLMFeatureTransformer(provider=provider)
+train_features = transformer.fit_transform(train_texts, train_labels)
+test_features = transformer.transform(test_texts)
+```
+
+`fit_transform()` fits the feature schema and generates values for the training
+texts. Labels guide discovery; the returned DataFrame contains only feature
+columns. `transform()` reuses the fitted schema for new texts.
+
+To use exhaustive discovery in this transformer, set its discovery options:
+
+```python
+transformer = LLMFeatureTransformer(
+    provider=provider,
+    discovery_strategy="map_reduce",
+    discovery_batch_size=15,
+    discovery_reduce_batch_size=32,
+    discovery_checkpoint_dir="outputs/discovery_checkpoints",
+)
+train_features = transformer.fit_transform(train_texts, train_labels)
+test_features = transformer.transform(test_texts)
+```
+
+Discovery uses only the inputs passed to `fit()`; keep validation/test inputs out
+of schema discovery. A supplied `discovered_features` schema bypasses discovery.
 
 By default, each `fit()` discovers a new feature schema, which incurs an LLM call and can vary between runs. For cross-validation or parameter search, pass a saved `discovered_features` schema to avoid repeated discovery and schema changes.
 

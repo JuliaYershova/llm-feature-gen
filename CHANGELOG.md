@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Optional exhaustive `strategy="map_reduce"` discovery for text, tables, images, and videos, with bounded requests, evidence and merge reports, resumable checkpoints, multiclass/sklearn integration, and an offline example.
+- Explicit `LLMFeatureTransformer.fit_transform()` method and a README example for generating training feature DataFrames.
 - Contributor documentation and GitHub issue templates.
 - Cross-platform CI coverage for Linux, macOS, and Windows, with Python 3.9, 3.11, and 3.13 exercised in GitHub Actions.
 - Explicit support documentation via `SUPPORT.md`, a docs support matrix, and PyPI classifiers for supported operating systems and Python versions.
