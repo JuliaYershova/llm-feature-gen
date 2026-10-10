@@ -69,6 +69,13 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         discovery_system_prompt: Optional[str] = None,
         generation_system_prompt: Optional[str] = None,
         generation_prompt: Optional[str] = None,
+        *,
+        discovery_strategy: str = "single",
+        discovery_batch_size: int = 15,
+        discovery_reduce_batch_size: int = 32,
+        discovery_max_request_chars: int = 24000,
+        discovery_checkpoint_dir: Optional[Union[str, Path]] = None,
+        discovery_reduce_prompt: Optional[str] = None,
     ) -> None:
         self.provider = provider
         self.discovered_features = discovered_features
@@ -85,6 +92,12 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         self.discovery_system_prompt = discovery_system_prompt
         self.generation_system_prompt = generation_system_prompt
         self.generation_prompt = generation_prompt
+        self.discovery_strategy = discovery_strategy
+        self.discovery_batch_size = discovery_batch_size
+        self.discovery_reduce_batch_size = discovery_reduce_batch_size
+        self.discovery_max_request_chars = discovery_max_request_chars
+        self.discovery_checkpoint_dir = discovery_checkpoint_dir
+        self.discovery_reduce_prompt = discovery_reduce_prompt
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
@@ -101,6 +114,12 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
                 output_filename=self.output_filename,
                 min_features=self.min_features,
                 system_prompt=self.discovery_system_prompt,
+                strategy=self.discovery_strategy,
+                batch_size=self.discovery_batch_size,
+                reduce_batch_size=self.discovery_reduce_batch_size,
+                max_request_chars=self.discovery_max_request_chars,
+                checkpoint_dir=self.discovery_checkpoint_dir,
+                reduce_prompt=self.discovery_reduce_prompt,
             )
         elif isinstance(self.discovered_features, (str, Path)):
             self.discovered_features_ = load_discovered_features(self.discovered_features)
@@ -111,6 +130,14 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         if not self.feature_names_:
             raise ValueError("discovered_features must include at least one feature name")
         return self
+
+    def fit_transform(self, X: Any, y: Any = None, **fit_params: Any) -> pd.DataFrame:
+        """Fit the feature schema and return generated features for ``X``.
+
+        Labels in ``y`` guide discovery; the returned DataFrame contains only
+        the discovered feature columns, in schema order.
+        """
+        return self.fit(X, y, **fit_params).transform(X)
 
     def transform(self, X: Any) -> pd.DataFrame:
         if not hasattr(self, "discovered_features_"):

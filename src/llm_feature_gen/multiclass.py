@@ -13,7 +13,7 @@ from .discover import (
     discover_features_from_videos,
 )
 from .generate import generate_features
-from .prompts import DiscoveryPromptBuilder
+from .prompts import DiscoveryPromptBuilder, map_discovery_template
 from .providers.openai_provider import OpenAIProvider
 
 
@@ -27,6 +27,13 @@ def discover_features_multiclass(
     min_features: Optional[int] = None,
     prompt: Optional[str] = None,
     system_prompt: Optional[str] = None,
+    *,
+    strategy: str = "single",
+    batch_size: int = 15,
+    reduce_batch_size: int = 32,
+    max_request_chars: int = 24000,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    reduce_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Discover text features that distinguish all supplied classes.
 
@@ -38,7 +45,8 @@ def discover_features_multiclass(
         classes=classes,
         min_features=min_features,
         modality="text",
-        template=prompt,
+        template=(map_discovery_template.replace("{modality}", "text")
+                  if strategy == "map_reduce" and prompt is None else prompt),
     ).build()
 
     return discover_features_from_texts(
@@ -49,6 +57,13 @@ def discover_features_multiclass(
         output_dir=output_dir,
         output_filename=output_filename,
         system_prompt=system_prompt,
+        strategy=strategy,
+        batch_size=batch_size,
+        reduce_batch_size=reduce_batch_size,
+        max_request_chars=max_request_chars,
+        checkpoint_dir=checkpoint_dir,
+        reduce_prompt=reduce_prompt,
+        **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
 
@@ -117,6 +132,13 @@ def run_multiclass_pipeline(
     discovery_system_prompt: Optional[str] = None,
     generation_prompt: Optional[str] = None,
     generation_system_prompt: Optional[str] = None,
+    *,
+    strategy: str = "single",
+    batch_size: int = 15,
+    reduce_batch_size: int = 32,
+    max_request_chars: int = 24000,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    reduce_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run discovery and generation with independently customizable prompts.
 
@@ -136,6 +158,12 @@ def run_multiclass_pipeline(
         min_features=min_features,
         prompt=discovery_prompt,
         system_prompt=discovery_system_prompt,
+        strategy=strategy,
+        batch_size=batch_size,
+        reduce_batch_size=reduce_batch_size,
+        max_request_chars=max_request_chars,
+        checkpoint_dir=checkpoint_dir,
+        reduce_prompt=reduce_prompt,
     )
 
     print("Generating train features...")
@@ -178,6 +206,13 @@ def discover_features_multiclass_images(
     min_features: Optional[int] = None,
     prompt: Optional[str] = None,
     system_prompt: Optional[str] = None,
+    *,
+    strategy: str = "single",
+    batch_size: int = 15,
+    reduce_batch_size: int = 32,
+    max_request_chars: int = 24000,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    reduce_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Discover image features with optional task and system prompts.
 
@@ -188,7 +223,8 @@ def discover_features_multiclass_images(
         classes=classes,
         min_features=min_features,
         modality="image",
-        template=prompt,
+        template=(map_discovery_template.replace("{modality}", "image")
+                  if strategy == "map_reduce" and prompt is None else prompt),
     ).build()
 
     return discover_features_from_images(
@@ -199,6 +235,13 @@ def discover_features_multiclass_images(
         output_dir=output_dir,
         output_filename=output_filename,
         system_prompt=system_prompt,
+        strategy=strategy,
+        batch_size=batch_size,
+        reduce_batch_size=reduce_batch_size,
+        max_request_chars=max_request_chars,
+        checkpoint_dir=checkpoint_dir,
+        reduce_prompt=reduce_prompt,
+        **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
 
@@ -217,6 +260,13 @@ def discover_features_multiclass_videos(
     random_seed: Optional[int] = None,
     prompt: Optional[str] = None,
     system_prompt: Optional[str] = None,
+    *,
+    strategy: str = "single",
+    batch_size: int = 15,
+    reduce_batch_size: int = 32,
+    max_request_chars: int = 24000,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    reduce_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Discover video features with optional task and system prompts.
 
@@ -227,7 +277,8 @@ def discover_features_multiclass_videos(
         classes=classes,
         min_features=min_features,
         modality="video",
-        template=prompt,
+        template=(map_discovery_template.replace("{modality}", "video")
+                  if strategy == "map_reduce" and prompt is None else prompt),
     ).build()
 
     return discover_features_from_videos(
@@ -243,6 +294,13 @@ def discover_features_multiclass_videos(
         max_total_frames_payload=max_total_frames_payload,
         random_seed=random_seed,
         system_prompt=system_prompt,
+        strategy=strategy,
+        batch_size=batch_size,
+        reduce_batch_size=reduce_batch_size,
+        max_request_chars=max_request_chars,
+        checkpoint_dir=checkpoint_dir,
+        reduce_prompt=reduce_prompt,
+        **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
 def discover_features_multiclass_tabular(
@@ -257,6 +315,13 @@ def discover_features_multiclass_tabular(
     max_rows: Optional[int] = None,
     prompt: Optional[str] = None,
     system_prompt: Optional[str] = None,
+    *,
+    strategy: str = "single",
+    batch_size: int = 15,
+    reduce_batch_size: int = 32,
+    max_request_chars: int = 24000,
+    checkpoint_dir: Optional[Union[str, Path]] = None,
+    reduce_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Discover tabular features with optional task and system prompts.
 
@@ -267,7 +332,8 @@ def discover_features_multiclass_tabular(
         classes=classes,
         min_features=min_features,
         modality="tabular",
-        template=prompt,
+        template=(map_discovery_template.replace("{modality}", "tabular")
+                  if strategy == "map_reduce" and prompt is None else prompt),
     ).build()
 
     return discover_features_from_tabular(
@@ -280,4 +346,11 @@ def discover_features_multiclass_tabular(
         output_filename=output_filename,
         max_rows=max_rows,
         system_prompt=system_prompt,
+        strategy=strategy,
+        batch_size=batch_size,
+        reduce_batch_size=reduce_batch_size,
+        max_request_chars=max_request_chars,
+        checkpoint_dir=checkpoint_dir,
+        reduce_prompt=reduce_prompt,
+        **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )

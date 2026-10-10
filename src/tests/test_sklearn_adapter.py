@@ -41,13 +41,18 @@ def test_llm_feature_transformer_discovers_and_transforms_texts(tmp_path):
     provider = FakeTextProvider()
     transformer = LLMFeatureTransformer(provider=provider, output_dir=tmp_path, min_features=2)
 
-    result = transformer.fit_transform(["need invoice", "cannot log in"])
+    result = transformer.fit_transform(
+        ["need invoice", "cannot log in"], y=["billing", "access"]
+    )
 
     assert list(result.columns) == ["topic", "length"]
     assert result.shape == (2, 2)
     assert result["topic"].tolist() == ["billing", "access"]
     assert transformer.get_feature_names_out().tolist() == ["topic", "length"]
     assert (tmp_path / "discovered_text_features.json").exists()
+    assert len(provider.calls) == 2
+    assert "billing" in provider.calls[0]["prompt"]
+    assert "access" in provider.calls[0]["prompt"]
 
 
 def test_llm_feature_transformer_discovers_with_multiclass_labels(tmp_path, monkeypatch):
