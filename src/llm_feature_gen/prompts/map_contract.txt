@@ -1,0 +1,8 @@
+This is one independent MAP batch from a larger corpus. Inspect every item.
+Propose a compact set of evidenced features; an empty proposal list is allowed.
+Feature-count goals apply to the whole corpus, not this batch. Return only JSON:
+{"processed_item_ids": ["verbatim_input_id"], "proposed_features": [{"feature": "name", "description": "observable property", "possible_values": ["value_a", "value_b"], "example_item_ids": ["verbatim_input_id"]}]}
+Include every supplied item_id exactly once in processed_item_ids. Every feature
+must cite at least one supplied item_id. Use unique feature names and values.
+For visual inputs, frame_start is the zero-based position in the attached image
+sequence and frame_count gives the number of images belonging to that item.
