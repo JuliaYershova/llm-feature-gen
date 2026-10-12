@@ -1,0 +1,7 @@
+Consolidate the supplied feature candidates. Merge only definitions expressing
+the same property with identical value vocabularies. Keep meaningful distinctions
+and rare features. Do not invent, rewrite, prune, or rank features. Supplied IDs
+are authoritative. Return only JSON: {"merge_groups": [{"keep": "candidate_id", "merge_ids": ["candidate_id", "equivalent_candidate_id"]}]}
+Each group must include its survivor and at least two distinct supplied IDs.
+An ID may occur in at most one group. Omitted candidates remain unchanged.
+If no candidates are equivalent, return {"merge_groups": []}.
