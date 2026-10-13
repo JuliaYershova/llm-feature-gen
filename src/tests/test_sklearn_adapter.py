@@ -197,6 +197,16 @@ def test_llm_feature_transformer_without_batch_mode_handles_empty_responses():
 
     assert result.to_dict(orient="records") == [{"topic": "not given by LLM"}]
 
+@pytest.mark.parametrize("use_batch", [True, False])
+def test_llm_feature_transformer_show_progress_false_hides_progress_bar(monkeypatch, use_batch):
+    monkeypatch.setattr("llm_feature_gen.batch._tqdm", lambda *args, **kwargs: pytest.fail("progress bar created"))
+
+    LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+        use_batch=use_batch,
+        show_progress=False,
+    ).fit_transform(["need invoice"])
 
 def test_llm_feature_transformer_loads_schema_path_and_uses_default_provider(tmp_path, monkeypatch):
     provider = FakeTextProvider()
