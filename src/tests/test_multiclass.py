@@ -123,6 +123,7 @@ def test_each_modality_gets_its_own_template():
 # .txt files cannot silently drift apart when one of them is edited.
 SHARED_TEMPLATE_SENTENCES = [
     "but you are NOT told which",
+    "Do not use the category names",
     "Each feature must capture a different property",
     "Express each feature as a short snake_case attribute name.",
     "provide 3-6 possible values",
