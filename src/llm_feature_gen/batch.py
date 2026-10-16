@@ -53,8 +53,9 @@ class BatchTextCache:
     def save(self) -> None:
         """Persist all pending cache updates to disk."""
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        # Serialize a snapshot, clones share this store and may write meanwhile.
         self.cache_file.write_text(
-            json.dumps(self._store, ensure_ascii=False, indent=2),
+            json.dumps(dict(self._store), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
@@ -90,6 +91,13 @@ class BatchTextCache:
 
     def __len__(self) -> int:
         return len(self._store)
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "BatchTextCache":
+        """A cache is a store, not fitted state. sklearn's clone() deep-copies
+        constructor params, so returning self lets clones share it.
+        Shared on purpose so that multiple transformers can share one cache file.
+        """
+        return self
 
     def clear(self) -> None:
         """Remove all cached entries and delete the cache file if present."""

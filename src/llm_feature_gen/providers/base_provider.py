@@ -67,3 +67,9 @@ class BaseProvider:
     def reset_usage(self) -> None:
         """Clear the accumulated counts."""
         self._usage_state = Usage()
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> "BaseProvider":
+        """A provider is a connection, not fitted state. sklearn's clone()
+        deep-copies constructor params, so returning self lets clones share it.
+        """
+        return self
