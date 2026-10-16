@@ -49,8 +49,9 @@ class BatchTextCache:
     def save(self) -> None:
         """Persist all pending cache updates to disk."""
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        # Serialize a snapshot, clones share this store and may write meanwhile.
         self.cache_file.write_text(
-            json.dumps(self._store, ensure_ascii=False, indent=2),
+            json.dumps(dict(self._store), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 

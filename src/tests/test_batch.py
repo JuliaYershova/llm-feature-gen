@@ -98,6 +98,26 @@ def test_normalise_provider_response_variants():
     assert batch_mod._normalise_provider_response(["not", "dict"]) == {}
     assert batch_mod._normalise_provider_response({"topic": "flat"}) == {"topic": "flat"}
 
+class _WritesDuringSave(dict):
+    """A cached value whose serialization lets another clone write to the shared store."""
+
+    def __init__(self, cache):
+        super().__init__(v=1)
+        self.cache = cache
+
+    def items(self):
+        self.cache._store["other_clone"] = {"v": 2}
+        return super().items()
+
+
+def test_batch_cache_save_tolerates_writes_from_shared_clones(tmp_path: Path):
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    cache._store["mine"] = _WritesDuringSave(cache)
+
+    cache.save()
+
+    assert json.loads(cache.cache_file.read_text(encoding="utf-8"))["mine"] == {"v": 1}
+
 
 def test_generate_features_batch_batches_provider_calls_and_saves_cache_once_per_batch(tmp_path: Path):
     provider = FakeBatchProvider()
