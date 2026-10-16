@@ -3,8 +3,11 @@ recursive-include src *.py
 recursive-include src *.txt
 include pyproject.toml
 include README.md
+include CHANGELOG.md
 include LICENSE
 recursive-include examples *
+global-exclude *.py[cod]
+global-exclude __pycache__
 
 # Exclude local data folders – these must never be bundled into the sdist
 prune discover_images
