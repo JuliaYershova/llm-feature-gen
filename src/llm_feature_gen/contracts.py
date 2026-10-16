@@ -19,7 +19,7 @@ class MapFeatureDefinition(BaseModel):
     feature: NonemptyString
     description: NonemptyString
     possible_values: List[NonemptyString] = Field(min_length=1)
-    example_item_ids: List[StrictStr] = Field(min_length=1)
+    example_item_ids: List[StrictStr]
 
 
 class MapDiscoveryResponse(BaseModel):
@@ -36,7 +36,7 @@ class FeatureValueMapping(BaseModel):
     model_config = ConfigDict(extra="forbid")
     candidate_id: StrictStr
     source_value: StrictStr
-    canonical_value: StrictStr
+    canonical_value: NonemptyString
 
 
 class FeatureMergeGroup(BaseModel):
@@ -46,7 +46,6 @@ class FeatureMergeGroup(BaseModel):
     keep: StrictStr
     merge_ids: List[StrictStr] = Field(min_length=2)
     description: NonemptyString
-    possible_values: List[NonemptyString] = Field(min_length=1)
     value_mappings: List[FeatureValueMapping] = Field(min_length=2)
 
 

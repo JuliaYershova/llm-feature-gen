@@ -7,8 +7,9 @@ import json
 import os
 import random
 import tempfile
+from itertools import groupby
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .batch import _provider_identity as _cache_provider_identity
 from .contracts import FeatureMergeGroup, MapDiscoveryResponse, ReduceDiscoveryResponse
@@ -51,13 +52,22 @@ def _validate_map(raw: Any, item_ids: set[str]) -> Dict[str, Any]:
     names = [feature["feature"] for feature in result["proposed_features"]]
     if len(names) != len(set(names)):
         raise ValueError("Map feature names must be unique within a batch")
+    features, warnings, retry_features = [], [], []
     for feature in result["proposed_features"]:
         evidence = feature["example_item_ids"]
         values = feature["possible_values"]
-        if len(evidence) != len(set(evidence)) or not set(evidence) <= item_ids:
-            raise ValueError("Feature evidence must contain distinct known item IDs")
         if len(values) != len(set(values)):
             raise ValueError("Feature possible_values must be unique")
+        known_evidence = list(dict.fromkeys(item_id for item_id in evidence if item_id in item_ids))
+        if known_evidence != evidence:
+            warnings.append(f"Removed unknown or duplicate evidence IDs from feature {feature['feature']!r}")
+        feature["example_item_ids"] = known_evidence
+        if known_evidence:
+            features.append(feature)
+        else:
+            retry_features.append(feature["feature"])
+    result.update(proposed_features=features, warnings=warnings, retry_features=retry_features,
+                  errors=[f"Feature {name!r} needs at least one supplied evidence ID" for name in retry_features])
     return result
 
 
@@ -65,31 +75,42 @@ def _validate_reduce(raw: Any, candidates: List[Dict[str, Any]]) -> Dict[str, An
     if not isinstance(raw, dict) or not isinstance(raw.get("merge_groups"), list):
         raise ValueError("Reduce response must contain a merge_groups array")
     known = {candidate["id"]: candidate for candidate in candidates}
-    groups, errors, seen = [], [], set()
-    for raw_group in raw["merge_groups"]:
+    groups, errors, warnings, seen = [], [], [], set()
+    for index, raw_group in enumerate(raw["merge_groups"]):
         try:
-            group = FeatureMergeGroup.model_validate(raw_group).model_dump()
+            # Some local models spell out unchanged candidates as singleton groups.
+            if isinstance(raw_group, dict) and raw_group.get("merge_ids") == [raw_group.get("keep")]:
+                if not isinstance(raw_group.get("keep"), str) or raw_group["keep"] not in known:
+                    raise ValueError("Singleton group needs a known survivor ID")
+                continue
+            # Accept the old redundant vocabulary, but mappings are authoritative.
+            supplied_values = raw_group.get("possible_values") if isinstance(raw_group, dict) else None
+            payload = ({key: value for key, value in raw_group.items() if key != "possible_values"}
+                       if isinstance(raw_group, dict) else raw_group)
+            group = FeatureMergeGroup.model_validate(payload).model_dump()
             ids = group["merge_ids"]
             if (
                 len(ids) != len(set(ids)) or group["keep"] not in ids
                 or not set(ids) <= known.keys() or seen.intersection(ids)
             ):
                 raise ValueError("Merge groups need distinct known IDs and a survivor, without overlap")
-            values = group["possible_values"]
-            if len(values) != len(set(values)):
-                raise ValueError("Canonical possible_values must be unique")
             pairs = [(mapping["candidate_id"], mapping["source_value"]) for mapping in group["value_mappings"]]
             expected = {(source, value) for source in ids for value in known[source]["possible_values"]}
             if len(pairs) != len(set(pairs)) or set(pairs) != expected:
-                raise ValueError("value_mappings must cover every merged candidate value exactly once")
-            targets = {mapping["canonical_value"] for mapping in group["value_mappings"]}
-            if targets != set(values):
-                raise ValueError("Mapping targets must match canonical possible_values, with support for every value")
+                missing, extra = expected - set(pairs), set(pairs) - expected
+                raise ValueError(
+                    "value_mappings must cover every merged candidate value exactly once; "
+                    f"missing={sorted(missing)!r}, extra={sorted(extra)!r}"
+                )
+            values = list(dict.fromkeys(mapping["canonical_value"] for mapping in group["value_mappings"]))
+            if supplied_values is not None and supplied_values != values:
+                warnings.append(f"Derived canonical vocabulary from mappings for survivor {group['keep']!r}")
+            group["possible_values"] = values
             groups.append(group)
             seen.update(ids)
         except ValueError as exc:
-            errors.append(str(exc))
-    return {"merge_groups": groups, "warnings": errors}
+            errors.append(f"Reduce group {index}: {exc}")
+    return {"merge_groups": groups, "warnings": warnings, "errors": errors}
 
 
 def _request(mode: str, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -136,15 +157,25 @@ def _provider_identity(provider: Any) -> Optional[Dict[str, Any]]:
 
 
 def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
-          system_prompt: Optional[str], path: Optional[Path], validate: Callable,
+          system_prompt: Optional[str], path: Optional[Path],
           stats: Dict[str, int]) -> Dict[str, Any]:
+    def validate(raw, current_entries):
+        if mode == "map":
+            return _validate_map(raw, {_provider_item_id(entry["item_id"]) for entry in current_entries})
+        return _validate_reduce(raw, current_entries)
+
     request = _request(mode, entries)
     fingerprint = _digest({"request": request, "entries": entries, "prompt": prompt})
     if path is not None and path.exists():
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
             if saved["input_hash"] == fingerprint:
-                result = validate(saved["response"])
+                result = validate(saved["response"], entries)
+                diagnostics = saved["warnings"]
+                if (result["errors"] or result["warnings"] or not isinstance(diagnostics, list)
+                        or not all(isinstance(warning, str) for warning in diagnostics)):
+                    raise ValueError("Invalid checkpoint result or diagnostics")
+                result["warnings"] = diagnostics
                 stats["cached_steps"] += 1
                 return result
         except (OSError, ValueError, KeyError, TypeError):
@@ -152,6 +183,9 @@ def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
     schema = MapDiscoveryResponse if mode == "map" else ReduceDiscoveryResponse
     kwargs = _provider_call_kwargs(provider, system_prompt, schema.model_json_schema())
     images = [image for entry in entries for image in entry.get("images", [])]
+    key = "proposed_features" if mode == "map" else "merge_groups"
+    accepted, warnings, pending = [], [], None
+    current_entries = entries
     for attempt in range(2):
         if images:
             response = provider.image_features(
@@ -163,21 +197,46 @@ def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
         try:
             if not isinstance(response, list) or len(response) != 1:
                 raise ValueError("Discovery provider must return exactly one response per batch")
-            result = validate(response[0])
-            if result.get("warnings") and not attempt:
-                raise ValueError("; ".join(result["warnings"]))
+            result = validate(response[0], current_entries)
         except ValueError as exc:
             if attempt:
                 raise ValueError(f"Invalid discovery {mode} batch: {exc}") from exc
-            feedback = str(exc)[:500]
-            while len(_json(feedback)) > 400:
-                feedback = feedback[:-1]
-            request["validation_error"] = feedback
+            errors = [str(exc)]
         else:
-            if path is not None:
-                _write_json(path, {"input_hash": fingerprint, "response": response[0]})
-            return result
-    raise AssertionError("Unreachable")  # pragma: no cover
+            warnings.extend(result["warnings"])
+            if mode == "map":
+                corrected = [feature for feature in result[key] if pending is None or feature["feature"] in pending]
+                accepted.extend(corrected)
+                if pending is None:
+                    pending = result["retry_features"]
+                else:
+                    recovered = {feature["feature"] for feature in corrected}
+                    pending = [name for name in pending if name not in recovered]
+                errors = [f"Correct only feature {name!r}: cite at least one supplied evidence ID" for name in pending]
+            else:
+                accepted.extend(result[key])
+                merged = {source for group in accepted for source in group["merge_ids"]}
+                current_entries = [entry for entry in entries if entry["id"] not in merged]
+                errors = result["errors"]
+                warnings.extend(f"Rejected {error}" for error in errors)
+            if not errors or attempt or (mode == "reduce" and len(current_entries) < 2):
+                break
+        request = _request(mode, current_entries)
+        feedback = "; ".join(errors)[:500]
+        while len(_json(feedback)) > 400:
+            feedback = feedback[:-1]
+        request["validation_error"] = feedback
+    else:
+        raise AssertionError("Unreachable")  # pragma: no cover
+    if mode == "map":
+        warnings.extend(f"Discarded unsupported map feature {name!r}: no known evidence IDs" for name in pending)
+    warnings = list(dict.fromkeys(warnings))
+    payload = {key: accepted}
+    if mode == "map":
+        payload["processed_item_ids"] = result["processed_item_ids"]
+    if path is not None:
+        _write_json(path, {"input_hash": fingerprint, "response": payload, "warnings": warnings})
+    return {**payload, "warnings": warnings}
 
 
 def _merge(catalog: Dict[str, Dict[str, Any]], keep: str, sources: List[str],
@@ -221,7 +280,7 @@ def discover_map_reduce(
     map_prompt = prompt + "\n\n" + map_discovery_contract
     reduction_prompt = (reduce_prompt if reduce_prompt is not None else prompt) + "\n\n" + reduce_discovery_contract
     config = {
-        "version": 3, "strategy": "map_reduce", "modality": modality,
+        "version": 4, "strategy": "map_reduce", "modality": modality,
         "provider": _provider_identity(provider), "prompt": map_prompt,
         "system_prompt": system_prompt, "reduce_prompt": reduction_prompt,
         "batch_size": batch_size, "reduce_batch_size": reduce_batch_size,
@@ -244,8 +303,8 @@ def discover_map_reduce(
     for index, batch in enumerate(batches):
         path = checkpoints / "map" / f"{index:04d}.json" if checkpoints is not None else None
         source_ids = {_provider_item_id(item["item_id"]): item["item_id"] for item in batch}
-        result = _step(provider, batch, "map", map_prompt, system_prompt, path,
-                       lambda raw: _validate_map(raw, set(source_ids)), stats)
+        result = _step(provider, batch, "map", map_prompt, system_prompt, path, stats)
+        warnings.extend(result["warnings"])
         processed.extend(source_ids[item_id] for item_id in result["processed_item_ids"])
         for position, feature in enumerate(result["proposed_features"]):
             feature["example_item_ids"] = [source_ids[item_id] for item_id in feature["example_item_ids"]]
@@ -263,24 +322,29 @@ def discover_map_reduce(
         else:
             exact[key] = candidate["id"]
     rounds = 0
-    # ponytail: two bounded sweeps; additional pairwise comparison is a separate quality/cost tradeoff.
-    for sweep in range(2):
-        ordered = sorted(catalog.values(), key=lambda candidate: (candidate["feature"], candidate["id"]))
-        if sweep:
-            ordered = ordered[::2] + ordered[1::2]
-        groups = _pack(ordered, reduce_batch_size, max_request_chars, reduction_prompt, system_prompt, "reduce")
-        for index, group in enumerate(groups):
-            if len(group) < 2:
-                continue
-            path = checkpoints / "reduce" / f"{sweep}_{index:04d}.json" if checkpoints is not None else None
-            result = _step(provider, group, "reduce", reduction_prompt, system_prompt, path,
-                           lambda raw: _validate_reduce(raw, group), stats)
-            warnings.extend(result["warnings"])
-            for merge in result["merge_groups"]:
-                _merge(catalog, merge["keep"], merge["merge_ids"], merge)
-        rounds += 1
-        if len(groups) == 1:
-            break
+    compared = set()
+    # ponytail: one cross-name sweep, not all pairs; semantic search can expand recall if needed.
+    for phase in ("families", "cross", "families"):
+        while len(catalog) > 1:
+            before = len(catalog)
+            ordered = sorted(catalog.values(), key=lambda candidate: (candidate["feature"], candidate["id"]))
+            families = ([ordered[::2] + ordered[1::2]] if phase == "cross" else
+                        [list(family) for _, family in groupby(ordered, key=lambda candidate: candidate["feature"])])
+            groups = [group for family in families
+                      for group in _pack(family, reduce_batch_size, max_request_chars, reduction_prompt, system_prompt, "reduce")
+                      if len(group) > 1 and _digest(group) not in compared]
+            if not groups:
+                break
+            for index, group in enumerate(groups):
+                compared.add(_digest(group))
+                path = checkpoints / "reduce" / f"{rounds}_{index:04d}.json" if checkpoints is not None else None
+                result = _step(provider, group, "reduce", reduction_prompt, system_prompt, path, stats)
+                warnings.extend(result["warnings"])
+                for merge in result["merge_groups"]:
+                    _merge(catalog, merge["keep"], merge["merge_ids"], merge)
+            rounds += 1
+            if phase == "cross" or len(catalog) == before:
+                break
     feature_specs, provenance, names = [], {}, {"File", "Class", "raw_llm_output"}
     for candidate in catalog.values():
         original = candidate["feature"]

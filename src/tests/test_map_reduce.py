@@ -29,7 +29,6 @@ def feature(name="topic", evidence=None, description="Observed topic", values=No
 def merge_group(candidates):
     return {"keep": candidates[0]["id"], "merge_ids": [candidate["id"] for candidate in candidates],
             "description": "Canonical observable property",
-            "possible_values": list(dict.fromkeys(value for candidate in candidates for value in candidate["possible_values"])),
             "value_mappings": [{"candidate_id": candidate["id"], "source_value": value, "canonical_value": value}
                                for candidate in candidates for value in candidate["possible_values"]]}
 
@@ -124,7 +123,7 @@ def test_semantic_merge_unions_evidence_and_preserves_conflicting_names(tmp_path
     assert any("Renamed" in warning for warning in report(tmp_path)["warnings"])
 
 
-def test_nonshrinking_catalog_uses_two_bounded_sweeps(tmp_path):
+def test_nonshrinking_catalog_uses_one_bounded_cross_name_sweep(tmp_path):
     def respond(request):
         if request["mode"] == "reduce":
             assert len(request["candidates"]) <= 2
@@ -136,8 +135,8 @@ def test_nonshrinking_catalog_uses_two_bounded_sweeps(tmp_path):
     schema = discover(tmp_path, ["a", "b", "c", "d", "e"], FakeProvider(respond),
                       batch_size=1, reduce_batch_size=2)
     assert len(schema["proposed_features"]) == 5
-    assert report(tmp_path)["reduce_rounds"] == 2
-    assert report(tmp_path)["provider_calls"] == 9
+    assert report(tmp_path)["reduce_rounds"] == 1
+    assert report(tmp_path)["provider_calls"] == 7
 
 
 def test_resume_and_revalidate_corrupt_or_stale_checkpoints(tmp_path):
@@ -278,8 +277,6 @@ def test_interrupted_run_resumes_and_preserves_previous_schema(tmp_path):
     [], {"error": "failed"}, [{"processed_item_ids": [], "proposed_features": []}],
     [{"processed_item_ids": [MODEL_ID, MODEL_ID], "proposed_features": []}],
     [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(), feature()]}],
-    [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(evidence=["unknown"])]}],
-    [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(evidence=[MODEL_ID, MODEL_ID])]}],
     [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(values=["same", "same"])]}],
     [{"processed_item_ids": [MODEL_ID], "proposed_features": [{}, {}, {}]}],
 ])
@@ -310,9 +307,282 @@ def test_invalid_map_can_recover_and_empty_batch_is_allowed(tmp_path):
         discover(tmp_path, [])
 
 
+def test_map_repairs_evidence_without_retry_and_checkpoints_diagnostics(tmp_path):
+    def respond(request):
+        ids = [item["item_id"] for item in request["items"]]
+        return [{"processed_item_ids": ids, "proposed_features": [feature(evidence=[ids[0], "unknown", ids[0]])]}]
+
+    provider = FakeProvider(respond)
+    options = {"provider": provider, "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    schema = discover(tmp_path, ["one"], **options)
+    saved = report(tmp_path)
+    assert len(provider.calls) == 1
+    assert saved["features"]["topic"]["example_item_ids"] == ["text:0"]
+    assert saved["warnings"] == ["Removed unknown or duplicate evidence IDs from feature 'topic'"]
+    assert discover(tmp_path, ["one"], **options) == schema
+    assert len(provider.calls) == 1
+    assert report(tmp_path)["warnings"] == saved["warnings"]
+
+
+@pytest.mark.parametrize("damage", ["unsupported", "repairable", "warnings_type", "warnings_entry"])
+def test_normalized_checkpoints_are_revalidated_before_reuse(tmp_path, damage):
+    provider = FakeProvider()
+    options = {"provider": provider, "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    schema = discover(tmp_path, ["one"], **options)
+    checkpoint = next((tmp_path / "checkpoints").glob("*/map/0000.json"))
+    saved = json.loads(checkpoint.read_text())
+    if damage in ("unsupported", "repairable"):
+        saved["response"]["proposed_features"][0]["example_item_ids"] = (
+            ["unknown"] if damage == "unsupported" else [MODEL_ID, "unknown"])
+    else:
+        saved["warnings"] = "invalid" if damage == "warnings_type" else [123]
+    checkpoint.write_text(json.dumps(saved))
+    assert discover(tmp_path, ["one"], **options) == schema
+    assert len(provider.calls) == 2
+    assert report(tmp_path)["cached_steps"] == 0
+    assert report(tmp_path)["provider_calls"] == 1
+
+
+@pytest.mark.parametrize("correction", ["fixed", "omitted", "unsupported"])
+def test_map_retry_preserves_accepted_proposals_and_discards_unsupported(tmp_path, correction):
+    provider = FakeProvider()
+
+    def respond(request):
+        if request["mode"] == "reduce":
+            return [{"merge_groups": []}]
+        ids = [item["item_id"] for item in request["items"]]
+        accepted = feature("accepted", ids, "Original accepted definition")
+        unsupported = feature("unsupported", ["unknown"])
+        if "validation_error" in request:
+            assert "unsupported" in request["validation_error"]
+            accepted["description"] = "Must not replace the accepted definition"
+            if correction == "fixed":
+                unsupported["example_item_ids"] = ids
+            elif correction == "omitted":
+                return [{"processed_item_ids": ids, "proposed_features": [accepted]}]
+        return [{"processed_item_ids": ids, "proposed_features": [accepted, unsupported]}]
+
+    provider.respond = respond
+    options = {"provider": provider, "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    schema = discover(tmp_path, ["one"], **options)
+    assert schema["proposed_features"][0]["description"] == "Original accepted definition"
+    assert len(schema["proposed_features"]) == (2 if correction == "fixed" else 1)
+    saved = report(tmp_path)
+    assert saved["processed_item_ids"] == ["text:0"]
+    assert any("Discarded unsupported" in warning for warning in saved["warnings"]) == (correction != "fixed")
+    count = len(provider.calls)
+    assert discover(tmp_path, ["one"], **options) == schema
+    assert len(provider.calls) == count
+    assert report(tmp_path)["warnings"] == saved["warnings"]
+
+
+@pytest.mark.parametrize("evidence", [[], ["unknown"]])
+def test_map_cannot_publish_an_entirely_unsupported_catalog(tmp_path, evidence):
+    proposal = {**feature(), "example_item_ids": evidence}
+    provider = FakeProvider(lambda request: [{"processed_item_ids": [MODEL_ID], "proposed_features": [proposal]}])
+    with pytest.raises(ValueError, match="no evidenced features"):
+        discover(tmp_path, ["one"], provider)
+    assert len(provider.calls) == 2
+    assert not (tmp_path / "discovered_text_features.json").exists()
+
+
+def test_singleton_reduce_groups_are_noops_without_retry(tmp_path):
+    def respond(request):
+        if request["mode"] == "reduce":
+            return [{"merge_groups": [{"keep": candidate["id"], "merge_ids": [candidate["id"]]}
+                                      for candidate in request["candidates"]]}]
+        return [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(), feature("other")]}]
+
+    provider = FakeProvider(respond)
+    schema = discover(tmp_path, ["one"], provider, min_features=2)
+    assert len(schema["proposed_features"]) == 2
+    assert len(provider.calls) == 2
+    assert report(tmp_path)["warnings"] == []
+    for singleton in ({"keep": "unknown", "merge_ids": ["unknown"]}, {"merge_ids": [None]},
+                      {"keep": [], "merge_ids": [[]]}):
+        assert engine._validate_reduce({"merge_groups": [singleton]}, [{"id": "a"}])["errors"]
+
+
+@pytest.mark.parametrize("correction", ["fixed", "empty", "overlapping"])
+def test_reduce_retry_preserves_valid_merges_and_checkpoint_lineage(tmp_path, correction):
+    provider = FakeProvider()
+    first_merge = None
+
+    def respond(request):
+        nonlocal first_merge
+        if request["mode"] == "map":
+            return [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(name) for name in "abcd"]}]
+        candidates = request["candidates"]
+        if "validation_error" not in request:
+            first_merge = merge_group(candidates[:2])
+            invalid = merge_group(candidates[2:])
+            invalid["value_mappings"].pop()
+            return [{"merge_groups": [first_merge, invalid]}]
+        assert len(candidates) == 2
+        assert not set(first_merge["merge_ids"]) & {candidate["id"] for candidate in candidates}
+        if correction == "empty":
+            groups = []
+        elif correction == "overlapping":
+            groups = [first_merge]
+        else:
+            groups = [merge_group(candidates)]
+        return [{"merge_groups": groups}]
+
+    provider.respond = respond
+    options = {"provider": provider, "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    schema = discover(tmp_path, ["one"], **options)
+    assert len(schema["proposed_features"]) == (2 if correction == "fixed" else 3)
+    saved = report(tmp_path)
+    assert saved["candidate_count"] == 4
+    lineage = [source for spec in saved["features"].values() for source in spec["source_ids"]]
+    assert len(lineage) == len(set(lineage)) == 4
+    assert any(set(first_merge["merge_ids"]) <= set(spec["source_ids"]) for spec in saved["features"].values())
+    assert len(provider.calls) == 3
+    assert discover(tmp_path, ["one"], **options) == schema
+    assert len(provider.calls) == 3
+    assert report(tmp_path)["features"] == saved["features"]
+    assert report(tmp_path)["warnings"] == saved["warnings"]
+
+
+def test_same_name_candidates_converge_beyond_two_rounds(tmp_path):
+    def respond(request):
+        if request["mode"] == "map":
+            item = request["items"][0]
+            return [{"processed_item_ids": [item["item_id"]], "proposed_features": [
+                feature("leg_color", [item["item_id"]], f"Observed leg color {item['text']}", ["gray", "grey"])]}]
+        group = merge_group(request["candidates"])
+        for mapping in group["value_mappings"]:
+            mapping["canonical_value"] = "gray"
+        assert len(request["candidates"]) == 2
+        return [{"merge_groups": [group]}]
+
+    provider = FakeProvider(respond)
+    options = {"provider": provider, "batch_size": 1, "reduce_batch_size": 2,
+               "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    texts = [str(i) for i in range(8)]
+    schema = discover(tmp_path, texts, **options)
+    saved = report(tmp_path)
+    assert len(schema["proposed_features"]) == 1
+    assert schema["proposed_features"][0]["possible_values"] == ["gray"]
+    assert saved["reduce_rounds"] == 3
+    assert saved["provider_calls"] == 15
+    assert saved["features"]["leg_color"]["support"] == 8
+    assert len(saved["features"]["leg_color"]["source_ids"]) == 8
+    assert all(mapping == {"gray": "gray", "grey": "gray"}
+               for mapping in saved["features"]["leg_color"]["value_mappings"].values())
+    assert discover(tmp_path, texts, **options) == schema
+    assert len(provider.calls) == 15
+    assert report(tmp_path)["cached_steps"] == 15
+
+
+def test_same_name_family_is_not_split_by_unrelated_candidates(tmp_path):
+    def respond(request):
+        if request["mode"] == "map":
+            item = request["items"][0]
+            return [{"processed_item_ids": [item["item_id"]], "proposed_features": [
+                feature("aaa" if item["text"] == "other" else "leg_color", [item["item_id"]], item["text"])]}]
+        candidates = request["candidates"]
+        if all(candidate["feature"] == "leg_color" for candidate in candidates):
+            assert len(candidates) == 4
+            return [{"merge_groups": [merge_group(candidates)]}]
+        return [{"merge_groups": []}]
+
+    schema = discover(tmp_path, ["other", "one", "two", "three", "four"], FakeProvider(respond),
+                      batch_size=1, reduce_batch_size=4, min_features=2)
+    assert len(schema["proposed_features"]) == 2
+    assert len(report(tmp_path)["features"]["leg_color"]["source_ids"]) == 4
+
+
+def test_reduce_derives_values_and_accepts_legacy_redundant_vocabulary():
+    candidates = [{"id": "a", "possible_values": ["gray"]}, {"id": "b", "possible_values": ["grey", "black"]}]
+    group = merge_group(candidates)
+    group["value_mappings"][1]["canonical_value"] = "gray"
+    result = engine._validate_reduce({"merge_groups": [group]}, candidates)
+    assert result["merge_groups"][0]["possible_values"] == ["gray", "black"]
+    assert result["warnings"] == result["errors"] == []
+    group["possible_values"] = ["gray", "grey", "black", "unsupported"]
+    result = engine._validate_reduce({"merge_groups": [group]}, candidates)
+    assert result["merge_groups"][0]["possible_values"] == ["gray", "black"]
+    assert result["warnings"] and not result["errors"]
+    schema = engine.ReduceDiscoveryResponse.model_json_schema()
+    assert "possible_values" not in schema["$defs"]["FeatureMergeGroup"]["properties"]
+
+
+def test_pr_reported_failures_together_on_sixty_images_and_forty_eight_candidates(tmp_path):
+    source = tmp_path / "birds"
+    for label in range(4):
+        folder = source / f"class_{label}"
+        folder.mkdir(parents=True)
+        for index in range(15):
+            Image.new("RGB", (3, 3), (label, index, 0)).save(folder / f"{index:02d}.png")
+    names = ["plumage_color", "plumage_iridescence", "beak_shape", "beak_color",
+             "eye_color", "leg_color", "posture", "background_type", "wing_position",
+             "tail_shape", "activity", "tail_length"]
+    aliases = {"gray": "gray", "grey": "gray", "black": "black",
+               "straight": "straight", "linear": "straight", "curved": "curved", "bent": "curved",
+               "yes": "present", "no": "absent", "present": "present", "absent": "absent"}
+    map_index, injected_failure = 0, False
+
+    def reconcile(candidates):
+        group = merge_group(candidates)
+        for mapping in group["value_mappings"]:
+            mapping["canonical_value"] = aliases[mapping["source_value"]]
+        # Reproduce the redundant vocabulary mismatch from the reviewer's log.
+        group["possible_values"] = ["unsupported"]
+        return group
+
+    def respond(request):
+        nonlocal map_index, injected_failure
+        if request["mode"] == "map":
+            ids = [item["item_id"] for item in request["items"]]
+            assert len(ids) == 15
+            proposals = []
+            for name in names:
+                values = (["gray", "black"] if map_index % 2 else ["grey", "black"]) if name == "leg_color" else (
+                    (["straight", "curved"] if map_index % 2 else ["linear", "bent"]) if name == "beak_shape" else
+                    (["present", "absent"] if map_index % 2 else ["yes", "no"]))
+                evidence = ids + ["unknown"] if name == "leg_color" else ids
+                proposals.append(feature(name, evidence, f"Observed {name}; batch {map_index}", values))
+            map_index += 1
+            return [{"processed_item_ids": ids, "proposed_features": proposals}]
+        candidates = request["candidates"]
+        singletons = [{"keep": candidate["id"], "merge_ids": [candidate["id"]]} for candidate in candidates]
+        if len({candidate["feature"] for candidate in candidates}) > 1:
+            return [{"merge_groups": singletons}]
+        if candidates[0]["feature"] == "leg_color" and not injected_failure:
+            injected_failure = True
+            valid, invalid = reconcile(candidates[:2]), reconcile(candidates[2:])
+            invalid["value_mappings"].pop()
+            return [{"merge_groups": [valid, invalid, *singletons]}]
+        return [{"merge_groups": [reconcile(candidates), *singletons]}]
+
+    provider = FakeProvider(respond)
+    options = dict(provider=provider, strategy="map_reduce", batch_size=15, reduce_batch_size=8,
+                   min_features=12, output_dir=tmp_path, checkpoint_dir=tmp_path / "checkpoints")
+    schema = discovery.discover_features_from_images(source, **options)
+    saved = report(tmp_path, "discovered_image_features")
+    assert map_index == 4 and saved["map_batches"] == 4
+    assert saved["candidate_count"] == 48 and saved["feature_count"] == 12
+    assert len(set(saved["processed_item_ids"])) == 60
+    assert {spec["feature"] for spec in schema["proposed_features"]} == set(names)
+    assert all(len(spec["possible_values"]) == 2 for spec in schema["proposed_features"])
+    assert all(len(spec["source_ids"]) == 4 and spec["support"] == 60 for spec in saved["features"].values())
+    assert all(set(mapping.values()) <= set(aliases.values())
+               for spec in saved["features"].values() for mapping in spec["value_mappings"].values())
+    assert any("Removed unknown" in warning for warning in saved["warnings"])
+    assert any("exactly once" in warning for warning in saved["warnings"])
+    assert not any("too_short" in warning or "Mapping targets must match" in warning for warning in saved["warnings"])
+    count = len(provider.calls)
+    assert discovery.discover_features_from_images(source, **options) == schema
+    assert len(provider.calls) == count
+    resumed = report(tmp_path, "discovered_image_features")
+    assert resumed["provider_calls"] == 0
+    assert resumed["features"] == saved["features"] and resumed["warnings"] == saved["warnings"]
+
+
 @pytest.mark.parametrize("changes", [
     None, {"keep": "unknown"}, {"merge_ids": ["a", "a"]}, {"merge_ids": ["a", "unknown"]},
-    {"description": " "}, {"possible_values": ["yes", "yes"]}, {"value_mappings": []},
+    {"description": " "}, {"value_mappings": []},
     {"value_mappings": [
         {"candidate_id": "a", "source_value": "yes", "canonical_value": "yes"},
         {"candidate_id": "a", "source_value": "yes", "canonical_value": "no"},
@@ -327,9 +597,8 @@ def test_invalid_map_can_recover_and_empty_batch_is_allowed(tmp_path):
     ]},
     {"value_mappings": [
         {"candidate_id": "a", "source_value": "yes", "canonical_value": "yes"},
-        {"candidate_id": "b", "source_value": "no", "canonical_value": "invented"},
+        {"candidate_id": "b", "source_value": "no", "canonical_value": " "},
     ]},
-    {"possible_values": ["yes", "no", "unsupported"]},
 ])
 def test_reduce_invalid_groups_preserve_candidates(changes):
     candidates = [{"id": "a", "possible_values": ["yes"]}, {"id": "b", "possible_values": ["no"]}]
@@ -337,7 +606,7 @@ def test_reduce_invalid_groups_preserve_candidates(changes):
     group = {**merge_group(candidates), **changes} if changes is not None else None
     result = engine._validate_reduce({"merge_groups": [group]}, candidates)
     assert result["merge_groups"] == []
-    assert result["warnings"]
+    assert result["errors"]
     assert candidates == original
 
 
@@ -348,13 +617,15 @@ def test_invalid_reduce_is_retried_and_only_valid_groups_apply(tmp_path):
         if request["mode"] == "map":
             ids = [item["item_id"] for item in request["items"]]
             return [{"processed_item_ids": ids, "proposed_features": [feature(str(i), ids) for i in range(3)]}]
+        if len(request["candidates"]) < 2:
+            return [{"merge_groups": []}]
         group = merge_group(request["candidates"][:2])
         return [{"merge_groups": [group, group, None]}]
 
     provider.respond = respond
     schema = discover(tmp_path, ["one"], provider)
     assert len(schema["proposed_features"]) == 2
-    assert len(provider.calls) == 3
+    assert len(provider.calls) == 2
     assert len(report(tmp_path)["warnings"]) >= 2
     bad = FakeProvider(lambda request: [{"processed_item_ids": [MODEL_ID], "proposed_features": [feature(), feature("other")]}]
                        if request["mode"] == "map" else [{}])
@@ -372,7 +643,6 @@ def test_reduce_reconciles_synonyms_and_partial_vocabularies_and_generates(tmp_p
             ]}]
         group = merge_group(request["candidates"])
         group["description"] = "Beak curvature; linear and straight describe the same shape"
-        group["possible_values"] = ["straight", "curved", "unknown"]
         for mapping in group["value_mappings"]:
             if mapping["source_value"] == "linear":
                 mapping["canonical_value"] = "straight"
@@ -414,7 +684,6 @@ def test_reduce_composes_value_mappings_across_exact_merges_rounds_and_checkpoin
         group = merge_group(request["candidates"])
         for mapping in group["value_mappings"]:
             mapping["canonical_value"] = aliases[mapping["source_value"]]
-        group["possible_values"] = list(dict.fromkeys(mapping["canonical_value"] for mapping in group["value_mappings"]))
         return [{"merge_groups": [group]}]
 
     provider = FakeProvider(respond)

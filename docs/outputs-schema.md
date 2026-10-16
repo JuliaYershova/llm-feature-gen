@@ -86,7 +86,8 @@ plus `<schema_stem>_discovery_report.json` alongside it. The report includes:
 - Each final feature's original name, source candidate IDs, unique evidence item
   IDs, support count, and `value_mappings` from each original candidate's values
   to the final canonical vocabulary.
-- Provider/configuration fingerprints, name conflicts, skipped invalid merges,
+- Provider/configuration fingerprints, repaired evidence IDs, discarded unsupported
+  proposals, name conflicts, skipped invalid merges,
   and any shortfall against the corpus-level feature goal.
 - Cumulative provider usage when the provider implements `usage_summary()`.
 
@@ -104,14 +105,20 @@ the original IDs remain stable. The report's configuration records `shuffle_seed
 Only a successfully completed run replaces the schema. Map responses must
 acknowledge every input exactly once; candidates need known source evidence.
 Reduction merges explicit equivalents with validated value reconciliation and
-keeps every other candidate. A merge supplies a canonical description and unique
-`possible_values`, plus `value_mappings`: a list of objects containing
+keeps every other evidenced candidate. Unknown and duplicate evidence references
+are filtered with warnings. Proposals left without evidence are retried once,
+then discarded explicitly if correction fails. Input coverage remains strict.
+A merge supplies a canonical description and `value_mappings`: objects containing
 `candidate_id`, `source_value`, and `canonical_value`. Every source value of every
-merged candidate, including the survivor, must appear exactly once. Targets must
-belong to the canonical vocabulary and every canonical value needs source support.
+merged candidate, including the survivor, must appear exactly once. The canonical
+`possible_values` list is derived from nonempty targets in first-occurrence order,
+so each canonical value has source support. Legacy redundant vocabulary lists
+are accepted, with mappings taking precedence.
 Synonyms and partial vocabularies can be reconciled; the model must leave different
 properties and ambiguous meanings separate. Invalid groups are retried once and
-then skipped with warnings, preserving their candidates.
+then skipped with warnings, preserving their candidates. Accepted merges and
+proposals survive retries. Known singleton groups leave candidates unchanged
+without triggering a retry.
 
 The report stores composed mappings by original map candidate ID, for example:
 
@@ -127,12 +134,17 @@ translations, so each original candidate maps directly to the final vocabulary.
 The survivor retains its feature name while its description and values become
 the reconciled definition; the generation schema keeps its existing format.
 
-Two bounded sweeps limit reduction cost; they do not
-guarantee that every pair of semantic duplicates is compared. Conflicting names
-receive deterministic numeric suffixes.
+Same-name families are packed separately and consolidated in bounded batches
+until no merges occur. A single bounded comparison pass across names is followed
+by further same-name consolidation when needed. Unchanged batches are not
+repeated. This does not guarantee every pair of semantic duplicates is compared.
+Conflicting names receive deterministic numeric suffixes.
 
 An optional `checkpoint_dir` contains run fingerprints and validated map/reduce
-responses. Inputs, prompts, extraction settings, provider identity, and batch
+responses, including combined accepted results and diagnostics from retries.
+Cached results are revalidated and their warnings restored. Discovery checkpoint
+version 4 invalidates responses saved under the previous reduction contract.
+Inputs, prompts, extraction settings, provider identity, and batch
 settings, including the shuffle seed, determine reuse; cached responses are
 revalidated. Changing the seed invalidates reuse even if the resulting item
 order happens to match. Custom providers

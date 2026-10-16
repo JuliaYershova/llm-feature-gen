@@ -39,15 +39,30 @@ optionally customizes consolidation. Required evidence and equivalence contracts
 are appended to the task instructions. `min_features` is a corpus goal, with
 shortfalls reported rather than filled with invented candidates.
 
+Map responses must acknowledge every supplied input exactly once. Unknown and
+duplicate feature evidence IDs are removed with warnings. Proposals with no
+remaining evidence are retried once, then discarded with warnings if still
+unsupported. Accepted proposals survive the retry; a run with no evidenced
+features fails without replacing the previous schema.
+
 Reduction may reconcile synonyms and partial vocabularies when definitions
-describe the same property. Each merge returns a canonical description,
-`possible_values`, and explicit `value_mappings` for every value of every merged
-candidate, including the survivor. Every mapping must reference a known source
-value and a canonical target, with no duplicate source assignments or unsupported
-canonical values. Invalid groups are retried once and then skipped; their
-candidates remain separate. The model must preserve different dimensions and
-leave ambiguous meanings unmerged. Reports retain translations from every
-original candidate to the final vocabulary, including across multiple rounds.
+describe the same property. Each merge returns a canonical description and
+explicit `value_mappings` for every value of every merged candidate, including
+the survivor. Canonical `possible_values` are derived from the nonempty mapping
+targets in first-occurrence order. Legacy redundant vocabularies are accepted;
+the mappings take precedence. Every mapping must reference a known source value,
+with no duplicate source assignments. Singleton groups referencing a known
+survivor leave the candidate unchanged. Invalid groups are retried once against
+the remaining candidates, then skipped; accepted merges survive the retry.
+The model must preserve different dimensions and leave ambiguous meanings
+unmerged. Reports retain translations from every original candidate to the final
+vocabulary, including across multiple rounds.
+
+Same-name candidates are compared together in bounded batches until a pass makes
+no progress. One additional bounded pass compares across names, followed by
+same-name consolidation if needed. Unchanged comparison batches are not repeated.
+This does not compare every possible pair or force equal names to mean the same
+property. Successful rounds reduce the catalog, so consolidation terminates.
 
 Multiclass discovery wrappers and `run_multiclass_pipeline()` forward the same
 options. `LLMFeatureTransformer` exposes them with `discovery_` prefixes, e.g.
