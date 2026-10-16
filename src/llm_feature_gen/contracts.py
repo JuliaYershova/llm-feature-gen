@@ -30,12 +30,24 @@ class MapDiscoveryResponse(BaseModel):
     proposed_features: List[MapFeatureDefinition]
 
 
+class FeatureValueMapping(BaseModel):
+    """One source candidate value translated into a canonical value."""
+
+    model_config = ConfigDict(extra="forbid")
+    candidate_id: StrictStr
+    source_value: StrictStr
+    canonical_value: StrictStr
+
+
 class FeatureMergeGroup(BaseModel):
-    """Explicit equivalence group whose survivor is an existing candidate."""
+    """Equivalent properties with an explicitly reconciled value vocabulary."""
 
     model_config = ConfigDict(extra="forbid")
     keep: StrictStr
     merge_ids: List[StrictStr] = Field(min_length=2)
+    description: NonemptyString
+    possible_values: List[NonemptyString] = Field(min_length=1)
+    value_mappings: List[FeatureValueMapping] = Field(min_length=2)
 
 
 class ReduceDiscoveryResponse(BaseModel):

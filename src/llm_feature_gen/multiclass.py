@@ -34,6 +34,7 @@ def discover_features_multiclass(
     max_request_chars: int = 24000,
     checkpoint_dir: Optional[Union[str, Path]] = None,
     reduce_prompt: Optional[str] = None,
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Discover text features that distinguish all supplied classes.
 
@@ -63,6 +64,7 @@ def discover_features_multiclass(
         max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir,
         reduce_prompt=reduce_prompt,
+        shuffle_seed=shuffle_seed,
         **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
@@ -139,6 +141,7 @@ def run_multiclass_pipeline(
     max_request_chars: int = 24000,
     checkpoint_dir: Optional[Union[str, Path]] = None,
     reduce_prompt: Optional[str] = None,
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Run discovery and generation with independently customizable prompts.
 
@@ -164,6 +167,7 @@ def run_multiclass_pipeline(
         max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir,
         reduce_prompt=reduce_prompt,
+        shuffle_seed=shuffle_seed,
     )
 
     print("Generating train features...")
@@ -213,6 +217,7 @@ def discover_features_multiclass_images(
     max_request_chars: int = 24000,
     checkpoint_dir: Optional[Union[str, Path]] = None,
     reduce_prompt: Optional[str] = None,
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Discover image features with optional task and system prompts.
 
@@ -241,6 +246,7 @@ def discover_features_multiclass_images(
         max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir,
         reduce_prompt=reduce_prompt,
+        shuffle_seed=shuffle_seed,
         **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
@@ -267,6 +273,7 @@ def discover_features_multiclass_videos(
     max_request_chars: int = 24000,
     checkpoint_dir: Optional[Union[str, Path]] = None,
     reduce_prompt: Optional[str] = None,
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Discover video features with optional task and system prompts.
 
@@ -300,6 +307,7 @@ def discover_features_multiclass_videos(
         max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir,
         reduce_prompt=reduce_prompt,
+        shuffle_seed=shuffle_seed,
         **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )
 
@@ -322,6 +330,7 @@ def discover_features_multiclass_tabular(
     max_request_chars: int = 24000,
     checkpoint_dir: Optional[Union[str, Path]] = None,
     reduce_prompt: Optional[str] = None,
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Discover tabular features with optional task and system prompts.
 
@@ -352,5 +361,6 @@ def discover_features_multiclass_tabular(
         max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir,
         reduce_prompt=reduce_prompt,
+        shuffle_seed=shuffle_seed,
         **({"num_classes": len(classes), "min_features": min_features} if strategy == "map_reduce" else {}),
     )

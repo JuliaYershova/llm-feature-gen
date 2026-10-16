@@ -138,11 +138,13 @@ def _collect_exhaustive_inputs(modality, source, provider, text_column, num_fram
 def _discover_exhaustive(modality, source, provider, prompt, system_prompt, output_dir,
                         output_filename, num_classes, min_features, strategy, as_set,
                         batch_size, reduce_batch_size, max_request_chars, checkpoint_dir,
-                        reduce_prompt, text_column=None, max_rows=None, num_frames=5, use_audio=True):
+                        reduce_prompt, shuffle_seed=0, text_column=None, max_rows=None, num_frames=5, use_audio=True):
     if strategy != "map_reduce":
         raise ValueError("strategy must be 'single' or 'map_reduce'")
     if not as_set:
         raise ValueError("map_reduce discovery requires as_set=True")
+    if shuffle_seed is not None and (isinstance(shuffle_seed, bool) or not isinstance(shuffle_seed, int)):
+        raise ValueError("shuffle_seed must be an integer or None")
     for name, value in (("batch_size", batch_size), ("reduce_batch_size", reduce_batch_size),
                         ("max_request_chars", max_request_chars), ("num_frames", num_frames)):
         if isinstance(value, bool) or not isinstance(value, int) or value < 1:
@@ -168,6 +170,7 @@ def _discover_exhaustive(modality, source, provider, prompt, system_prompt, outp
         output_path=output_path, batch_size=1 if modality == "video" else batch_size,
         reduce_batch_size=reduce_batch_size, max_request_chars=max_request_chars,
         checkpoint_dir=checkpoint_dir, reduce_prompt=reduce_prompt, min_features=target,
+        shuffle_seed=shuffle_seed,
         modality=modality, exclusions=exclusions,
         extraction_settings={"num_frames": num_frames, "use_audio": use_audio, "text_column": text_column},
     )
@@ -238,6 +241,7 @@ def discover_features_from_images(
         max_request_chars: int = 24000,
         checkpoint_dir: Optional[Union[str, Path]] = None,
         reduce_prompt: Optional[str] = None,
+        shuffle_seed: Optional[int] = 0,
 ) -> DiscoveryResult:
     """Discover features from image files and persist the provider response.
 
@@ -279,6 +283,10 @@ def discover_features_from_images(
             checkpoints. A separate discovery report records provenance.
         reduce_prompt: Optional consolidation task; the equivalence contract
             is appended automatically.
+        shuffle_seed: Seed for shuffling map inputs before batching; defaults
+            to 0 for reproducibility. ``None`` preserves collection order.
+            Applies only to ``strategy="map_reduce"`` and does not guarantee
+            multiple classes in each batch.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -295,7 +303,7 @@ def discover_features_from_images(
             "image", image_paths_or_folder, provider, prompt, system_prompt, output_dir,
             output_filename, num_classes, min_features, strategy, as_set,
             batch_size, reduce_batch_size, max_request_chars, checkpoint_dir,
-            reduce_prompt,
+            reduce_prompt, shuffle_seed=shuffle_seed,
         )
 
     # 1) init provider
@@ -404,6 +412,7 @@ def discover_features_from_videos(
         max_request_chars: int = 24000,
         checkpoint_dir: Optional[Union[str, Path]] = None,
         reduce_prompt: Optional[str] = None,
+        shuffle_seed: Optional[int] = 0,
 ) -> DiscoveryResult:
     """Discover features from one or more videos.
 
@@ -463,6 +472,10 @@ def discover_features_from_videos(
             checkpoints. A separate discovery report records provenance.
         reduce_prompt: Optional consolidation task; the equivalence contract
             is appended automatically.
+        shuffle_seed: Seed for shuffling map inputs before batching; defaults
+            to 0 for reproducibility. ``None`` preserves collection order.
+            Applies only to ``strategy="map_reduce"``; the existing
+            ``random_seed`` controls sampling in single discovery mode.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -478,7 +491,7 @@ def discover_features_from_videos(
             "video", videos_or_folder, provider, prompt, system_prompt, output_dir,
             output_filename, num_classes, min_features, strategy, as_set,
             batch_size, reduce_batch_size, max_request_chars, checkpoint_dir,
-            reduce_prompt, num_frames=num_frames, use_audio=use_audio,
+            reduce_prompt, shuffle_seed=shuffle_seed, num_frames=num_frames, use_audio=use_audio,
         )
 
 
@@ -644,6 +657,7 @@ def discover_features_from_texts(
         max_request_chars: int = 24000,
         checkpoint_dir: Optional[Union[str, Path]] = None,
         reduce_prompt: Optional[str] = None,
+        shuffle_seed: Optional[int] = 0,
 ) -> DiscoveryResult:
     """Discover features from text strings, files, or folders of documents.
 
@@ -687,6 +701,10 @@ def discover_features_from_texts(
             checkpoints. A separate discovery report records provenance.
         reduce_prompt: Optional consolidation task; the equivalence contract
             is appended automatically.
+        shuffle_seed: Seed for shuffling map inputs before batching; defaults
+            to 0 for reproducibility. ``None`` preserves collection order.
+            Applies only to ``strategy="map_reduce"`` and does not guarantee
+            multiple classes in each batch.
 
     Returns:
         A single discovery payload in joint mode or a list of payloads in
@@ -702,7 +720,7 @@ def discover_features_from_texts(
             "text", texts_or_file, provider, prompt, system_prompt, output_dir,
             output_filename, num_classes, min_features, strategy, as_set,
             batch_size, reduce_batch_size, max_request_chars, checkpoint_dir,
-            reduce_prompt,
+            reduce_prompt, shuffle_seed=shuffle_seed,
         )
 
 
@@ -845,6 +863,7 @@ def discover_features_from_tabular(
         max_request_chars: int = 24000,
         checkpoint_dir: Optional[Union[str, Path]] = None,
         reduce_prompt: Optional[str] = None,
+        shuffle_seed: Optional[int] = 0,
         ) -> DiscoveryResult:
     """Discover features from tabular datasets by projecting a text column.
 
@@ -891,6 +910,10 @@ def discover_features_from_tabular(
             checkpoints. A separate discovery report records provenance.
         reduce_prompt: Optional consolidation task; the equivalence contract
             is appended automatically.
+        shuffle_seed: Seed for shuffling map inputs before batching; defaults
+            to 0 for reproducibility. ``None`` preserves collection order.
+            Applies only to ``strategy="map_reduce"`` and does not guarantee
+            multiple classes in each batch.
 
     Returns:
         The same return shape as
@@ -906,7 +929,7 @@ def discover_features_from_tabular(
             "tabular", file_or_folder, provider, prompt, system_prompt, output_dir,
             output_filename, num_classes, min_features, strategy, as_set,
             batch_size, reduce_batch_size, max_request_chars, checkpoint_dir,
-            reduce_prompt, text_column=text_column, max_rows=max_rows,
+            reduce_prompt, shuffle_seed=shuffle_seed, text_column=text_column, max_rows=max_rows,
         )
 
     import pandas as pd

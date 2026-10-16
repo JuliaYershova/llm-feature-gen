@@ -268,6 +268,7 @@ schema = discover_features_from_texts(
     provider=provider,
     strategy="map_reduce",
     batch_size=15,
+    shuffle_seed=0,
     reduce_batch_size=32,
     max_request_chars=24000,
     checkpoint_dir="outputs/discovery_checkpoints",
@@ -276,6 +277,14 @@ csv_paths = generate_features_from_texts("texts", provider=provider)
 ```
 
 The same options work with image, tabular, video, and multiclass discovery.
+Map inputs are shuffled with `shuffle_seed=0` by default to reduce class grouping
+from sorted paths or input lists. The same inputs and seed reproduce the batch
+order; set `shuffle_seed=None` to preserve collection order. Shuffling improves
+mixing but does not guarantee multiple classes per batch, especially with small
+batches or imbalanced data. Video requests still contain one video each.
+This option applies only to map-reduce discovery; video's existing `random_seed`
+continues to control sampling in single discovery mode.
+
 `as_set=True` is required. Tabular discovery requires `max_rows=None`. Video
 discovery visits every video, ignoring `max_videos_to_sample` and the global
 `max_total_frames_payload` cap; it analyzes one video per request using up to
@@ -295,6 +304,16 @@ name for other modalities). The report records input coverage, feature evidence,
 merge lineage, conflicts, and warnings. `min_features` is a corpus-level goal,
 not a quota for every batch. Conflicting definitions retain separate columns;
 name collisions receive deterministic suffixes.
+
+Reduction can reconcile synonyms and partial value vocabularies for the same
+property. Each proposed merge supplies a canonical description and value list,
+plus a complete mapping from every source candidate's values. Python rejects
+duplicate or missing mappings, unknown source values, and unsupported canonical
+values. Invalid groups are retried once; candidates in groups that remain invalid
+stay separate. Different properties and ambiguous value meanings should remain
+separate as well. Semantic equivalence is assessed by the model.
+The report records each original map candidate's values mapped to the final
+vocabulary, composing translations across reduction rounds.
 
 With `checkpoint_dir`, matching validated batches are reused after interruption.
 Input, prompt, model, or configuration changes invalidate reuse. Built-in
@@ -376,6 +395,7 @@ transformer = LLMFeatureTransformer(
     provider=provider,
     discovery_strategy="map_reduce",
     discovery_batch_size=15,
+    discovery_shuffle_seed=0,
     discovery_reduce_batch_size=32,
     discovery_checkpoint_dir="outputs/discovery_checkpoints",
 )

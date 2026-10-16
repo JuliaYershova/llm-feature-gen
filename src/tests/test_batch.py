@@ -612,10 +612,13 @@ def test_generate_features_batch_separates_cache_by_custom_model_attribute(tmp_p
     assert answers == [["model-a"], ["model-b"]]
 
 
-def test_generate_features_batch_uses_cache_identity(tmp_path: Path):
+@pytest.mark.parametrize("identity_method", [True, False])
+def test_generate_features_batch_uses_cache_identity(tmp_path: Path, identity_method: bool):
     class WrappedProvider:
         def __init__(self, inner):
             self.inner = inner
+            if not identity_method:
+                self.cache_identity = {"inner_model": inner.model}
 
         def cache_identity(self):
             return {"inner_model": self.inner.model}

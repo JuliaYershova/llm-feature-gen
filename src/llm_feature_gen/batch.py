@@ -115,22 +115,26 @@ def _call_provider_batch(
 def _provider_identity(provider: Any) -> Optional[Dict[str, Any]]:
     """Describe the provider for cache keys, or return None if the model is unknown.
 
-    Providers can define ``cache_identity()`` to state their identity explicitly,
-    for example a wrapper that delegates to another provider. Returning None from
-    it turns caching off.
+    Providers can define a ``cache_identity`` value or zero-argument method to
+    state their identity explicitly, for example a wrapper that delegates to
+    another provider. Returning None from the method turns caching off.
     """
     provider_type = f"{type(provider).__module__}.{type(provider).__qualname__}"
     cache_identity = getattr(provider, "cache_identity", None)
-    if callable(cache_identity):
-        identity = cache_identity()
+    if cache_identity is not None:
+        identity = cache_identity() if callable(cache_identity) else cache_identity
         return None if identity is None else {"type": provider_type, "identity": identity}
 
     provider_identity = {
         "type": provider_type,
         "model": getattr(provider, "default_model", None) or getattr(provider, "model", None),
         "text_model": getattr(provider, "text_model", None),
+        "vision_model": getattr(provider, "vision_model", None),
+        "audio_model": getattr(provider, "audio_model", None),
+        "whisper_model_size": getattr(provider, "whisper_model_size", None),
         "endpoint": getattr(provider, "endpoint", None),
         "base_url": getattr(provider, "base_url", None),
+        "api_version": getattr(provider, "api_version", None),
         "temperature": getattr(provider, "temperature", None),
         "max_completion_tokens": getattr(provider, "max_completion_tokens", None),
         "max_tokens": getattr(provider, "max_tokens", None),

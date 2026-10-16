@@ -12,6 +12,7 @@ discover_features_from_texts(
     provider=provider,
     strategy="map_reduce",
     batch_size=15,
+    shuffle_seed=0,
     reduce_batch_size=32,
     max_request_chars=24000,
     checkpoint_dir="outputs/discovery_checkpoints",
@@ -24,14 +25,33 @@ visits every video independently, preserving frames/transcripts and applying
 The text size guard includes instructions and retry room, but excludes visual
 payloads and does not estimate tokens. Oversized sources raise without truncation.
 
+Map inputs are shuffled before packing with `shuffle_seed=0` by default, reducing
+class grouping caused by sorted paths or input lists. Identical inputs and seeds
+produce identical batch order without changing global random state. Set
+`shuffle_seed=None` to preserve collection order. Shuffling does not guarantee
+multiple classes per batch; small batches, class imbalance, and request size
+limits can still produce single-class batches. Video mode still uses one video
+per request. The option applies only to map-reduce; video's `random_seed` retains
+its existing sampling behavior in single mode.
+
 `prompt` and `system_prompt` retain their task/domain roles. `reduce_prompt`
 optionally customizes consolidation. Required evidence and equivalence contracts
 are appended to the task instructions. `min_features` is a corpus goal, with
 shortfalls reported rather than filled with invented candidates.
 
+Reduction may reconcile synonyms and partial vocabularies when definitions
+describe the same property. Each merge returns a canonical description,
+`possible_values`, and explicit `value_mappings` for every value of every merged
+candidate, including the survivor. Every mapping must reference a known source
+value and a canonical target, with no duplicate source assignments or unsupported
+canonical values. Invalid groups are retried once and then skipped; their
+candidates remain separate. The model must preserve different dimensions and
+leave ambiguous meanings unmerged. Reports retain translations from every
+original candidate to the final vocabulary, including across multiple rounds.
+
 Multiclass discovery wrappers and `run_multiclass_pipeline()` forward the same
 options. `LLMFeatureTransformer` exposes them with `discovery_` prefixes, e.g.
-`discovery_strategy` and `discovery_batch_size`.
+`discovery_strategy`, `discovery_batch_size`, and `discovery_shuffle_seed`.
 
 See [Outputs and Schema](../outputs-schema.md) for reports and checkpoint rules.
 

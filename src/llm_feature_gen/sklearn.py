@@ -51,6 +51,9 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
     model's role and behavior. Generation always appends the discovered feature
     specification to the selected task prompt. ``show_progress`` turns the
     progress bar during :meth:`transform` on or off.
+
+    ``discovery_shuffle_seed`` defaults to 0 for reproducible map-reduce batch
+    ordering. Set it to ``None`` to preserve collection order.
     """
 
     def __init__(
@@ -78,6 +81,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         discovery_max_request_chars: int = 24000,
         discovery_checkpoint_dir: Optional[Union[str, Path]] = None,
         discovery_reduce_prompt: Optional[str] = None,
+        discovery_shuffle_seed: Optional[int] = 0,
     ) -> None:
         self.provider = provider
         self.discovered_features = discovered_features
@@ -101,6 +105,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         self.discovery_max_request_chars = discovery_max_request_chars
         self.discovery_checkpoint_dir = discovery_checkpoint_dir
         self.discovery_reduce_prompt = discovery_reduce_prompt
+        self.discovery_shuffle_seed = discovery_shuffle_seed
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
@@ -123,6 +128,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
                 max_request_chars=self.discovery_max_request_chars,
                 checkpoint_dir=self.discovery_checkpoint_dir,
                 reduce_prompt=self.discovery_reduce_prompt,
+                shuffle_seed=self.discovery_shuffle_seed,
             )
         elif isinstance(self.discovered_features, (str, Path)):
             self.discovered_features_ = load_discovered_features(self.discovered_features)
@@ -133,14 +139,6 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         if not self.feature_names_:
             raise ValueError("discovered_features must include at least one feature name")
         return self
-
-    def fit_transform(self, X: Any, y: Any = None, **fit_params: Any) -> pd.DataFrame:
-        """Fit the feature schema and return generated features for ``X``.
-
-        Labels in ``y`` guide discovery; the returned DataFrame contains only
-        the discovered feature columns, in schema order.
-        """
-        return self.fit(X, y, **fit_params).transform(X)
 
     def transform(self, X: Any) -> pd.DataFrame:
         if not hasattr(self, "discovered_features_"):

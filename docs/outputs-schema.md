@@ -84,7 +84,8 @@ plus `<schema_stem>_discovery_report.json` alongside it. The report includes:
 - Eligible input counts, processed IDs, and empty/null/unsupported exclusions.
 - Map candidate and final feature counts, reduction rounds, and call/cache counts.
 - Each final feature's original name, source candidate IDs, unique evidence item
-  IDs, and support count.
+  IDs, support count, and `value_mappings` from each original candidate's values
+  to the final canonical vocabulary.
 - Provider/configuration fingerprints, name conflicts, skipped invalid merges,
   and any shortfall against the corpus-level feature goal.
 - Cumulative provider usage when the provider implements `usage_summary()`.
@@ -96,18 +97,47 @@ requires no changes to its feature schema.
 Model requests use neutral hashed item IDs, so class-named folders and source
 filenames do not expose item labels. Reports translate evidence back to the
 original source identities.
+`processed_item_ids` follows map processing order, which is shuffled by default;
+the original IDs remain stable. The report's configuration records `shuffle_seed`
+(`0` by default, or `None` to preserve collection order).
 
 Only a successfully completed run replaces the schema. Map responses must
 acknowledge every input exactly once; candidates need known source evidence.
-Reduction merges explicit equivalents with matching value vocabularies and keeps
-every other candidate. Two bounded sweeps limit reduction cost; they do not
+Reduction merges explicit equivalents with validated value reconciliation and
+keeps every other candidate. A merge supplies a canonical description and unique
+`possible_values`, plus `value_mappings`: a list of objects containing
+`candidate_id`, `source_value`, and `canonical_value`. Every source value of every
+merged candidate, including the survivor, must appear exactly once. Targets must
+belong to the canonical vocabulary and every canonical value needs source support.
+Synonyms and partial vocabularies can be reconciled; the model must leave different
+properties and ambiguous meanings separate. Invalid groups are retried once and
+then skipped with warnings, preserving their candidates.
+
+The report stores composed mappings by original map candidate ID, for example:
+
+```json
+"value_mappings": {
+  "map_0000:feature_0000": {"straight": "straight", "curved": "curved"},
+  "map_0001:feature_0000": {"linear": "straight", "curved": "curved"}
+}
+```
+
+Exact duplicates retain identity mappings. Further merges compose earlier
+translations, so each original candidate maps directly to the final vocabulary.
+The survivor retains its feature name while its description and values become
+the reconciled definition; the generation schema keeps its existing format.
+
+Two bounded sweeps limit reduction cost; they do not
 guarantee that every pair of semantic duplicates is compared. Conflicting names
 receive deterministic numeric suffixes.
 
 An optional `checkpoint_dir` contains run fingerprints and validated map/reduce
 responses. Inputs, prompts, extraction settings, provider identity, and batch
-settings determine reuse; cached responses are revalidated. Custom providers
+settings, including the shuffle seed, determine reuse; cached responses are
+revalidated. Changing the seed invalidates reuse even if the resulting item
+order happens to match. Custom providers
 must expose a JSON-serializable `cache_identity` attribute or zero-argument
 method covering their response settings. Otherwise checkpoint reuse is disabled
-and reported. Interrupted runs retain completed checkpoints and any previous
+and reported. A `cache_identity()` method returning `None` explicitly disables
+checkpoint reuse, matching generation-cache behavior. Interrupted runs retain completed checkpoints and any previous
 successful schema.

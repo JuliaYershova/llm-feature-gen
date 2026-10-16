@@ -5,10 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import random
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from .batch import _provider_identity as _cache_provider_identity
 from .contracts import FeatureMergeGroup, MapDiscoveryResponse, ReduceDiscoveryResponse
 from .generate import _provider_call_kwargs, _validate_discovered_schema
 from .prompts import map_discovery_contract, reduce_discovery_contract
@@ -73,9 +75,16 @@ def _validate_reduce(raw: Any, candidates: List[Dict[str, Any]]) -> Dict[str, An
                 or not set(ids) <= known.keys() or seen.intersection(ids)
             ):
                 raise ValueError("Merge groups need distinct known IDs and a survivor, without overlap")
-            vocabularies = {tuple(sorted(known[source]["possible_values"])) for source in ids}
-            if len(vocabularies) != 1:
-                raise ValueError("Cannot merge incompatible value vocabularies")
+            values = group["possible_values"]
+            if len(values) != len(set(values)):
+                raise ValueError("Canonical possible_values must be unique")
+            pairs = [(mapping["candidate_id"], mapping["source_value"]) for mapping in group["value_mappings"]]
+            expected = {(source, value) for source in ids for value in known[source]["possible_values"]}
+            if len(pairs) != len(set(pairs)) or set(pairs) != expected:
+                raise ValueError("value_mappings must cover every merged candidate value exactly once")
+            targets = {mapping["canonical_value"] for mapping in group["value_mappings"]}
+            if targets != set(values):
+                raise ValueError("Mapping targets must match canonical possible_values, with support for every value")
             groups.append(group)
             seen.update(ids)
         except ValueError as exc:
@@ -119,19 +128,11 @@ def _pack(entries: List[Dict[str, Any]], count: int, limit: int,
     return batches
 
 
-def _provider_identity(provider: Any) -> Any:
-    identity = getattr(provider, "cache_identity", None)
-    if identity is not None:
-        return {"type": f"{type(provider).__module__}.{type(provider).__qualname__}",
-                "config": identity() if callable(identity) else identity}
-    if type(provider) not in (LocalProvider, OpenAIProvider):
+def _provider_identity(provider: Any) -> Optional[Dict[str, Any]]:
+    """Reuse cache fingerprints, requiring explicit identity for custom discovery."""
+    if type(provider) not in (LocalProvider, OpenAIProvider) and getattr(provider, "cache_identity", None) is None:
         return None
-    keys = (
-        "default_model", "text_model", "vision_model", "endpoint", "base_url", "api_version",
-        "audio_model", "whisper_model_size", "temperature", "max_tokens",
-        "max_completion_tokens", "reasoning_effort",
-    )
-    return {"type": type(provider).__name__, **{key: getattr(provider, key, None) for key in keys}}
+    return _cache_provider_identity(provider)
 
 
 def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
@@ -179,12 +180,25 @@ def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
     raise AssertionError("Unreachable")  # pragma: no cover
 
 
-def _merge(catalog: Dict[str, Dict[str, Any]], keep: str, sources: List[str]) -> None:
+def _merge(catalog: Dict[str, Dict[str, Any]], keep: str, sources: List[str],
+           reconciliation: Optional[Dict[str, Any]] = None) -> None:
     survivor = catalog[keep]
+    if reconciliation is not None:
+        translations = {(mapping["candidate_id"], mapping["source_value"]): mapping["canonical_value"]
+                        for mapping in reconciliation["value_mappings"]}
+        for source in sources:
+            candidate = catalog[source]
+            candidate["value_mappings"] = {
+                original: {value: translations[(source, current)] for value, current in mapping.items()}
+                for original, mapping in candidate["value_mappings"].items()
+            }
+        survivor["description"] = reconciliation["description"]
+        survivor["possible_values"] = reconciliation["possible_values"]
     for source in sources:
         if source != keep:
             merged = catalog.pop(source)
             survivor["source_ids"].extend(merged["source_ids"])
+            survivor["value_mappings"].update(merged["value_mappings"])
             survivor["example_item_ids"] = sorted(set(
                 survivor["example_item_ids"] + merged["example_item_ids"]
             ))
@@ -196,17 +210,22 @@ def discover_map_reduce(
     reduce_batch_size: int, max_request_chars: int, checkpoint_dir: Optional[Path],
     reduce_prompt: Optional[str], min_features: int, modality: str,
     exclusions: List[Dict[str, str]], extraction_settings: Dict[str, Any],
+    shuffle_seed: Optional[int] = 0,
 ) -> Dict[str, Any]:
     """Map all supplied items, preserve every candidate, and write a shared schema."""
     if not items:
         raise ValueError("No eligible discovery inputs found")
+    items = list(items)
+    if shuffle_seed is not None:
+        random.Random(shuffle_seed).shuffle(items)
     map_prompt = prompt + "\n\n" + map_discovery_contract
     reduction_prompt = (reduce_prompt if reduce_prompt is not None else prompt) + "\n\n" + reduce_discovery_contract
     config = {
-        "version": 2, "strategy": "map_reduce", "modality": modality,
+        "version": 3, "strategy": "map_reduce", "modality": modality,
         "provider": _provider_identity(provider), "prompt": map_prompt,
         "system_prompt": system_prompt, "reduce_prompt": reduction_prompt,
         "batch_size": batch_size, "reduce_batch_size": reduce_batch_size,
+        "shuffle_seed": shuffle_seed,
         "max_request_chars": max_request_chars, "min_features": min_features,
         "extraction": extraction_settings,
     }
@@ -231,7 +250,8 @@ def discover_map_reduce(
         for position, feature in enumerate(result["proposed_features"]):
             feature["example_item_ids"] = [source_ids[item_id] for item_id in feature["example_item_ids"]]
             source_id = f"map_{index:04d}:feature_{position:04d}"
-            catalog[source_id] = {**feature, "id": source_id, "source_ids": [source_id]}
+            catalog[source_id] = {**feature, "id": source_id, "source_ids": [source_id],
+                                  "value_mappings": {source_id: {value: value for value in feature["possible_values"]}}}
             all_sources.append(source_id)
     if not catalog:
         raise ValueError("Discovery produced no evidenced features")
@@ -257,7 +277,7 @@ def discover_map_reduce(
                            lambda raw: _validate_reduce(raw, group), stats)
             warnings.extend(result["warnings"])
             for merge in result["merge_groups"]:
-                _merge(catalog, merge["keep"], merge["merge_ids"])
+                _merge(catalog, merge["keep"], merge["merge_ids"], merge)
         rounds += 1
         if len(groups) == 1:
             break
@@ -274,6 +294,7 @@ def discover_map_reduce(
         feature_specs.append({"feature": name, "description": candidate["description"],
                               "possible_values": candidate["possible_values"]})
         provenance[name] = {"original_name": original, "source_ids": candidate["source_ids"],
+                            "value_mappings": candidate["value_mappings"],
                             "example_item_ids": candidate["example_item_ids"],
                             "support": len(candidate["example_item_ids"])}
     lineage = [source for candidate in catalog.values() for source in candidate["source_ids"]]
