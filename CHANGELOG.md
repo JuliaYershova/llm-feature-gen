@@ -4,10 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.14]
+
 ### Added
 
 - Optional exhaustive `strategy="map_reduce"` discovery for text, tables, images, and videos, with bounded requests, evidence and merge reports, resumable checkpoints, multiclass/sklearn integration, and an offline example.
-- Explicit `LLMFeatureTransformer.fit_transform()` method and a README example for generating training feature DataFrames.
+- Reproducible map shuffling through `shuffle_seed`, including the sklearn `discovery_shuffle_seed` option.
+- Semantic vocabulary reconciliation with validated value mappings and provenance across reduction rounds.
+- README examples for generating training feature DataFrames with the inherited `LLMFeatureTransformer.fit_transform()` method.
+- Optional `sklearn` installation extra and configurable generation progress bars.
+
+### Changed
+
+- OpenAI and Azure providers now prefer structured outputs while falling back to JSON-object mode for deployments that do not support JSON Schema.
+- `max_completion_tokens` is the preferred completion limit; `max_tokens` remains a compatible alias.
+- Discovery and generation helpers accept custom system prompts, and invalid batch responses are no longer cached.
+- Batch status messages use logging instead of printing directly to standard output.
+
+### Fixed
+
+- Shared provider/cache objects remain usable when sklearn clones a transformer.
+- Generation caches include model and provider configuration, and discovery checkpoints honor `cache_identity()` opt-outs.
+- Discovery and generation share provider fingerprints, including vision, audio, and API-version settings.
+
+## [0.1.13]
+
+### Added
+
 - Contributor documentation and GitHub issue templates.
 - Cross-platform CI coverage for Linux, macOS, and Windows, with Python 3.9, 3.11, and 3.13 exercised in GitHub Actions.
 - Explicit support documentation via `SUPPORT.md`, a docs support matrix, and PyPI classifiers for supported operating systems and Python versions.
@@ -20,9 +43,6 @@ All notable changes to this project will be documented in this file.
 - Project metadata now makes platform and interpreter support claims explicit for publication and review.
 - Optional text-parser failures now raise clearer dependency guidance for PDF, DOCX, and HTML inputs.
 - Provider response handling now uses a shared feature-value contract so generation rejects error and invalid payloads consistently.
-- OpenAI and Azure providers now prefer structured outputs while falling back to JSON-object mode for deployments that do not support JSON Schema.
-- `max_completion_tokens` is the preferred completion limit; `max_tokens` remains a compatible alias.
-- Discovery and generation helpers accept custom system prompts, and invalid batch responses are no longer cached.
 
 ### Fixed
 
