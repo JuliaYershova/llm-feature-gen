@@ -306,12 +306,18 @@ not a quota for every batch. Conflicting definitions retain separate columns;
 name collisions receive deterministic suffixes.
 
 Reduction can reconcile synonyms and partial value vocabularies for the same
-property. Each proposed merge supplies a canonical description and value list,
-plus a complete mapping from every source candidate's values. Python rejects
-duplicate or missing mappings, unknown source values, and unsupported canonical
-values. Invalid groups are retried once; candidates in groups that remain invalid
-stay separate. Different properties and ambiguous value meanings should remain
+property. Each proposed merge supplies a canonical description and a complete
+mapping from every source candidate's values; the canonical vocabulary is derived
+from the mapping targets. Python rejects duplicate or missing mappings and
+unknown source values. Invalid groups are retried once; candidates in groups that
+remain invalid stay separate. Different properties and ambiguous value meanings should remain
 separate as well. Semantic equivalence is assessed by the model.
+Accepted cross-name merges with no shared source values (ignoring case and
+surrounding whitespace) produce review warnings identifying the candidates and
+survivor. These warnings neither reject merges nor trigger retries, and remain
+visible on checkpoint reuse. Shared values do not guarantee semantic equivalence.
+Provider-raised response/parsing errors receive one retry with validation feedback;
+a second failure aborts without replacing the previous schema.
 The report records each original map candidate's values mapped to the final
 vocabulary, composing translations across reduction rounds.
 

@@ -13,6 +13,7 @@ from llm_feature_gen import discover as discovery
 from llm_feature_gen import discovery_map_reduce as engine
 from llm_feature_gen import multiclass
 from llm_feature_gen.batch import generate_features_batch
+from llm_feature_gen.contracts import ProviderResponseError
 from llm_feature_gen.generate import generate_features_from_texts, load_discovered_features
 from llm_feature_gen.sklearn import LLMFeatureTransformer
 
@@ -307,6 +308,49 @@ def test_invalid_map_can_recover_and_empty_batch_is_allowed(tmp_path):
         discover(tmp_path, [])
 
 
+@pytest.mark.parametrize("mode,images,error_type", [
+    ("map", False, ProviderResponseError),
+    ("map", True, ValueError),
+    ("reduce", False, ProviderResponseError),
+])
+@pytest.mark.parametrize("recover", [True, False])
+def test_provider_parsing_errors_retry_once_with_feedback(tmp_path, mode, images, error_type, recover):
+    provider = FakeProvider()
+    failure = error_type("Invalid JSON response")
+
+    def respond(request):
+        if len(provider.calls) == 1 or not recover:
+            raise failure
+        assert request["validation_error"] == str(failure)
+        if mode == "reduce":
+            return [{"merge_groups": [merge_group(request["candidates"])]}]
+        ids = [item["item_id"] for item in request["items"]]
+        return [{"processed_item_ids": ids, "proposed_features": [feature(evidence=ids)]}]
+
+    provider.respond = respond
+    entries = ([{"id": name, **feature(name)} for name in "ab"] if mode == "reduce" else
+               [{"item_id": "text:0", "text": "bird", **({"images": ["image_payload"]} if images else {})}])
+    path = tmp_path / "checkpoint.json"
+    stats = {"provider_calls": 0, "cached_steps": 0}
+    if recover:
+        result = engine._step(provider, entries, mode, "Discover", None, path, stats)
+        key = "merge_groups" if mode == "reduce" else "proposed_features"
+        assert result[key]
+        assert path.exists()
+        cached = engine._step(provider, entries, mode, "Discover", None, path, stats)
+        assert cached[key] == result[key] and cached["warnings"] == result["warnings"]
+        assert stats["cached_steps"] == 1
+    else:
+        path.write_text("previous checkpoint")
+        with pytest.raises(ValueError, match=f"Invalid discovery {mode} batch") as caught:
+            engine._step(provider, entries, mode, "Discover", None, path, stats)
+        assert caught.value.__cause__ is failure
+        assert path.read_text() == "previous checkpoint"
+    assert len(provider.calls) == stats["provider_calls"] == 2
+    if images:
+        assert all(call["images"] == ["image_payload"] for call in provider.calls)
+
+
 def test_map_repairs_evidence_without_retry_and_checkpoints_diagnostics(tmp_path):
     def respond(request):
         ids = [item["item_id"] for item in request["items"]]
@@ -494,7 +538,8 @@ def test_same_name_family_is_not_split_by_unrelated_candidates(tmp_path):
 
 
 def test_reduce_derives_values_and_accepts_legacy_redundant_vocabulary():
-    candidates = [{"id": "a", "possible_values": ["gray"]}, {"id": "b", "possible_values": ["grey", "black"]}]
+    candidates = [{"id": "a", "feature": "color", "possible_values": ["gray"]},
+                  {"id": "b", "feature": "color", "possible_values": ["grey", "black"]}]
     group = merge_group(candidates)
     group["value_mappings"][1]["canonical_value"] = "gray"
     result = engine._validate_reduce({"merge_groups": [group]}, candidates)
@@ -506,6 +551,60 @@ def test_reduce_derives_values_and_accepts_legacy_redundant_vocabulary():
     assert result["warnings"] and not result["errors"]
     schema = engine.ReduceDiscoveryResponse.model_json_schema()
     assert "possible_values" not in schema["$defs"]["FeatureMergeGroup"]["properties"]
+
+
+@pytest.mark.parametrize("other_name,other_values,expect_warning", [
+    ("beak_shape", ["hooked"], False),
+    ("bill_shape", ["curved", "hooked"], False),
+    ("bill_shape", [" CURVED "], False),
+    ("bill_shape", ["hooked"], True),
+    ("beak_color", ["black", "gray", "white"], True),
+])
+def test_reduce_warns_about_cross_name_disjoint_values_without_rejecting(other_name, other_values, expect_warning):
+    candidates = [{"id": "a", "feature": "beak_shape", "possible_values": ["straight", "curved"]},
+                  {"id": "b", "feature": other_name, "possible_values": other_values}]
+    original = copy.deepcopy(candidates)
+    result = engine._validate_reduce({"merge_groups": [merge_group(candidates)]}, candidates)
+    assert not result["errors"] and len(result["merge_groups"]) == 1
+    assert bool(result["warnings"]) == expect_warning
+    if expect_warning:
+        assert "beak_shape' (a)" in result["warnings"][0]
+        assert f"{other_name!r} (b)" in result["warnings"][0]
+        assert "no shared values" in result["warnings"][0]
+    assert candidates == original
+
+
+def test_suspicious_merge_warning_survives_checkpoints_without_retry(tmp_path):
+    def respond(request):
+        if request["mode"] == "reduce":
+            return [{"merge_groups": [merge_group(request["candidates"])]}]
+        ids = [item["item_id"] for item in request["items"]]
+        return [{"processed_item_ids": ids, "proposed_features": [
+            feature("beak_shape", ids, "Beak curvature", ["straight", "curved"]),
+            feature("beak_color", ids, "Beak color", ["black", "gray", "white"]),
+            feature("bill_shape", ids, "Shape or color", ["curved", "black"]),
+        ]}]
+
+    provider = FakeProvider(respond)
+    options = {"provider": provider, "checkpoint_dir": tmp_path / "checkpoints", "min_features": 1}
+    schema = discover(tmp_path, ["bird"], **options)
+    saved = report(tmp_path)
+    assert len(schema["proposed_features"]) == 1
+    assert set(schema["proposed_features"][0]["possible_values"]) == {"straight", "curved", "black", "gray", "white"}
+    assert len(provider.calls) == 2
+    assert len(saved["warnings"]) == 1
+    assert "beak_color" in saved["warnings"][0] and "beak_shape" in saved["warnings"][0]
+    assert discover(tmp_path, ["bird"], **options) == schema
+    assert len(provider.calls) == 2
+    assert report(tmp_path)["cached_steps"] == 2
+    assert report(tmp_path)["warnings"] == saved["warnings"]
+    checkpoint = next((tmp_path / "checkpoints").glob("*/reduce/*.json"))
+    damaged = json.loads(checkpoint.read_text())
+    damaged["warnings"] = []
+    checkpoint.write_text(json.dumps(damaged))
+    assert discover(tmp_path, ["bird"], **options) == schema
+    assert len(provider.calls) == 3
+    assert report(tmp_path)["warnings"] == saved["warnings"]
 
 
 def test_pr_reported_failures_together_on_sixty_images_and_forty_eight_candidates(tmp_path):

@@ -119,6 +119,13 @@ properties and ambiguous meanings separate. Invalid groups are retried once and
 then skipped with warnings, preserving their candidates. Accepted merges and
 proposals survive retries. Known singleton groups leave candidates unchanged
 without triggering a retry.
+Accepted merges get a semantic-review warning when a pair of differently named
+candidates has no shared source values, ignoring case and surrounding whitespace.
+The warning names both candidates with their IDs and the survivor; it does not
+reject the merge or request a retry. Disjoint synonyms can be legitimate, and
+shared values do not guarantee that two features describe the same property.
+Provider-raised response/parsing errors get one retry with validation feedback;
+a second failure aborts without replacing the previous schema.
 
 The report stores composed mappings by original map candidate ID, for example:
 

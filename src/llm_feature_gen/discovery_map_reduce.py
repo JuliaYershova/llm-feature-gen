@@ -7,7 +7,7 @@ import json
 import os
 import random
 import tempfile
-from itertools import groupby
+from itertools import combinations, groupby
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -105,6 +105,16 @@ def _validate_reduce(raw: Any, candidates: List[Dict[str, Any]]) -> Dict[str, An
             values = list(dict.fromkeys(mapping["canonical_value"] for mapping in group["value_mappings"]))
             if supplied_values is not None and supplied_values != values:
                 warnings.append(f"Derived canonical vocabulary from mappings for survivor {group['keep']!r}")
+            # A heuristic for review, not proof that two properties differ.
+            for left, right in combinations((known[source] for source in ids), 2):
+                if (left["feature"] != right["feature"] and
+                        {value.strip().casefold() for value in left["possible_values"]}.isdisjoint(
+                            value.strip().casefold() for value in right["possible_values"])):
+                    warnings.append(
+                        f"Suspicious merge into {known[group['keep']]['feature']!r} ({group['keep']}): "
+                        f"{left['feature']!r} ({left['id']}) and {right['feature']!r} ({right['id']}) "
+                        "have different names and no shared values; review semantic equivalence"
+                    )
             group["possible_values"] = values
             groups.append(group)
             seen.update(ids)
@@ -172,8 +182,9 @@ def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
             if saved["input_hash"] == fingerprint:
                 result = validate(saved["response"], entries)
                 diagnostics = saved["warnings"]
-                if (result["errors"] or result["warnings"] or not isinstance(diagnostics, list)
-                        or not all(isinstance(warning, str) for warning in diagnostics)):
+                if (result["errors"] or not isinstance(diagnostics, list)
+                        or not all(isinstance(warning, str) for warning in diagnostics)
+                        or any(warning not in diagnostics for warning in result["warnings"])):
                     raise ValueError("Invalid checkpoint result or diagnostics")
                 result["warnings"] = diagnostics
                 stats["cached_steps"] += 1
@@ -187,14 +198,14 @@ def _step(provider: Any, entries: List[Dict[str, Any]], mode: str, prompt: str,
     accepted, warnings, pending = [], [], None
     current_entries = entries
     for attempt in range(2):
-        if images:
-            response = provider.image_features(
-                images, prompt=prompt, as_set=True, extra_context=_json(request), **kwargs,
-            )
-        else:
-            response = provider.text_features([_json(request)], prompt=prompt, **kwargs)
         stats["provider_calls"] += 1
         try:
+            if images:
+                response = provider.image_features(
+                    images, prompt=prompt, as_set=True, extra_context=_json(request), **kwargs,
+                )
+            else:
+                response = provider.text_features([_json(request)], prompt=prompt, **kwargs)
             if not isinstance(response, list) or len(response) != 1:
                 raise ValueError("Discovery provider must return exactly one response per batch")
             result = validate(response[0], current_entries)

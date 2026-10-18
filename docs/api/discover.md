@@ -44,6 +44,8 @@ duplicate feature evidence IDs are removed with warnings. Proposals with no
 remaining evidence are retried once, then discarded with warnings if still
 unsupported. Accepted proposals survive the retry; a run with no evidenced
 features fails without replacing the previous schema.
+Provider-raised response/parsing errors also receive one retry with validation
+feedback for both map and reduce requests; a second failure aborts the run.
 
 Reduction may reconcile synonyms and partial vocabularies when definitions
 describe the same property. Each merge returns a canonical description and
@@ -57,6 +59,11 @@ the remaining candidates, then skipped; accepted merges survive the retry.
 The model must preserve different dimensions and leave ambiguous meanings
 unmerged. Reports retain translations from every original candidate to the final
 vocabulary, including across multiple rounds.
+Accepted merges between differently named candidates with no shared source
+values (ignoring case and surrounding whitespace) produce a report warning
+identifying both candidates and the survivor. This is a review heuristic:
+disjoint synonyms may be valid, and shared values do not prove equivalence.
+Warnings survive checkpoint reuse and do not trigger retries or block merges.
 
 Same-name candidates are compared together in bounded batches until a pass makes
 no progress. One additional bounded pass compares across names, followed by
