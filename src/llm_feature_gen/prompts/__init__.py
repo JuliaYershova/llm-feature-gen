@@ -20,6 +20,9 @@ text_generation_prompt = load_prompt("text_generation_prompt")
 image_generation_prompt = load_prompt("image_generation_prompt")
 video_generation_prompt = load_prompt("video_generation_prompt")
 tabular_generation_prompt = load_prompt("tabular_generation_prompt")
+map_discovery_template = load_prompt("map_discovery")
+map_discovery_contract = load_prompt("map_contract")
+reduce_discovery_contract = load_prompt("reduce_contract")
 
 # One discovery template per modality. Loaded eagerly so a missing
 # file fails at import, not halfway through a run.

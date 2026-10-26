@@ -1,0 +1,20 @@
+Consolidate the supplied feature candidates. Merge only definitions expressing
+the same observable property. Reconcile synonyms and partial value vocabularies
+into clear, mutually exclusive canonical values. Preserve meaningful distinctions
+and rare values. A mapping must preserve the source value's meaning; do not merge
+different dimensions such as beak length and beak curvature, even if names match.
+If equivalent meanings cannot be established or a source value would need to map
+to multiple canonical values, leave those candidates separate.
+Keep an existing survivor ID and its feature name. Return a canonical description
+and value_mappings covering every value of every merged candidate, including the
+survivor. Each source value maps exactly once to a nonempty canonical_value. The
+canonical vocabulary is derived from these targets; do not return possible_values.
+Do not invent unsupported properties or values, prune, or
+rank features. Supplied IDs and source values are authoritative; copy them exactly.
+Return only JSON: {"merge_groups": [{"keep": "a", "merge_ids": ["a", "b"], "description": "Observed beak curvature", "value_mappings": [{"candidate_id": "a", "source_value": "straight", "canonical_value": "straight"}, {"candidate_id": "a", "source_value": "curved", "canonical_value": "curved"}, {"candidate_id": "b", "source_value": "hooked", "canonical_value": "curved"}]}]}
+The example illustrates the format only; merge hooked into curved only when the
+supplied definitions establish that they mean the same category.
+Each group must include its survivor and at least two distinct supplied IDs.
+An ID may occur in at most one group. Omitted candidates remain unchanged.
+Leave unchanged candidates out of merge_groups; do not emit singleton groups.
+If no candidates can be safely reconciled, return {"merge_groups": []}.
