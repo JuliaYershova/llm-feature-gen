@@ -1,0 +1,39 @@
+{
+  "dataset": "20 Newsgroups: comp.sys.mac.hardware vs comp.sys.ibm.pc.hardware",
+  "n_samples": 120,
+  "holdout": {
+    "n_train": 90,
+    "n_test": 30,
+    "test_size": 0.25,
+    "random_state": 0,
+    "accuracy": 0.866667
+  },
+  "cv": {
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 0
+  },
+  "feature_names": [
+    "hardware_ecosystem_mention",
+    "academic_software_context",
+    "operating_system_version",
+    "technical_depth_level",
+    "hardware_modification_tone",
+    "connectivity_standard_focus",
+    "processor_architecture_reference",
+    "community_platform_indicator",
+    "cost_value_proposition",
+    "troubleshooting_domain"
+  ],
+  "accuracy_mean": 0.825,
+  "accuracy_std": 0.048591,
+  "fold_accuracy": [
+    0.833333,
+    0.75,
+    0.791667,
+    0.875,
+    0.875
+  ],
+  "tfidf_baseline_mean": 0.8,
+  "tfidf_baseline_std": 0.061237
+}
