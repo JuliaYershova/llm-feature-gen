@@ -1,0 +1,112 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "subject_motion_type",
+        "description": "The primary type of movement performed by the subject: swimming strokes, diving, or cliff jumping. This distinguishes between continuous swimming motions and discrete jumps into water.",
+        "possible_values": [
+          "continuous_swimming",
+          "diving",
+          "cliff_jumping"
+        ]
+      },
+      {
+        "feature": "arm_movement_pattern",
+        "description": "The pattern of arm motion during the activity: alternating, simultaneous, or no visible arm motion. This helps differentiate between front crawl (alternating) and breaststroke (simultaneous) versus diving (no swimming motion).",
+        "possible_values": [
+          "alternating",
+          "simultaneous",
+          "no_motion"
+        ]
+      },
+      {
+        "feature": "head_position_during_motion",
+        "description": "Whether the head is above water, submerged, or alternately lifted during the activity. This distinguishes breaststroke (head lifts) from front crawl (head submerged) and diving (head down during entry).",
+        "possible_values": [
+          "above_water",
+          "submerged",
+          "alternating_lift"
+        ]
+      },
+      {
+        "feature": "entry_into_water",
+        "description": "The manner in which the subject enters the water: vertical dive, horizontal jump, or splash from swimming. This separates diving and cliff diving from swimming strokes.",
+        "possible_values": [
+          "vertical_dive",
+          "horizontal_jump",
+          "no_entry"
+        ]
+      },
+      {
+        "feature": "water_surface_disturbance",
+        "description": "The type and intensity of disturbance on the water surface: large splash, small ripple, or minimal disturbance. This reflects the force and angle of entry, distinguishing diving from swimming.",
+        "possible_values": [
+          "large_splash",
+          "small_ripple",
+          "minimal_disturbance"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "The setting in which the activity occurs: indoor pool, outdoor pool, natural cliff, or structured diving platform. This helps distinguish between controlled environments and natural settings.",
+        "possible_values": [
+          "indoor_pool",
+          "outdoor_pool",
+          "natural_cliff",
+          "structured_platform"
+        ]
+      },
+      {
+        "feature": "presence_of_diving_board",
+        "description": "Whether a diving board or springboard is visible and used. This is specific to diving activities and absent in swimming or cliff diving.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "subject_height_above_water",
+        "description": "The height of the subject above the water surface at the start of the action: high (cliff), moderate (diving board), or at water level (swimming).",
+        "possible_values": [
+          "high",
+          "moderate",
+          "at_water_level"
+        ]
+      },
+      {
+        "feature": "motion_duration",
+        "description": "The duration of the main action from start to end: short (diving/cliff jumping) or long (swimming). This reflects the time spent in motion.",
+        "possible_values": [
+          "short",
+          "long"
+        ]
+      },
+      {
+        "feature": "body_orientation_during_motion",
+        "description": "The orientation of the body during the action: horizontal (swimming), vertical (diving), or angled (cliff jumping). This helps distinguish between swimming and diving.",
+        "possible_values": [
+          "horizontal",
+          "vertical",
+          "angled"
+        ]
+      },
+      {
+        "feature": "presence_of_lanes_or_markers",
+        "description": "Whether lane lines or pool markers are visible, indicating a structured swimming environment. This is common in swimming but not in cliff diving or casual diving.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "subject_position_relative_to_camera",
+        "description": "The position of the subject relative to the camera: side view (swimming), top-down (diving), or front-facing (cliff diving). This reflects camera angle and activity type.",
+        "possible_values": [
+          "side_view",
+          "top_down",
+          "front_facing"
+        ]
+      }
+    ]
+  }
+]

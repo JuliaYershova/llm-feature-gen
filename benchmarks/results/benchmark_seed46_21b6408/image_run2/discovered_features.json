@@ -1,0 +1,123 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_size",
+        "description": "The overall size of the bird's body, from head to tail, relative to the frame and background elements, which helps distinguish larger corvids from smaller birds.",
+        "possible_values": [
+          "small",
+          "medium",
+          "large"
+        ]
+      },
+      {
+        "feature": "plumage_color",
+        "description": "The dominant color of the feathers, which varies from dark gray to black, and can include iridescence or dullness, aiding in differentiation between species.",
+        "possible_values": [
+          "dull_gray",
+          "shiny_black",
+          "iridescent_black",
+          "brownish_gray"
+        ]
+      },
+      {
+        "feature": "beak_shape",
+        "description": "The shape of the beak, including its curvature, thickness, and tip, which varies from stout and hooked to slender and pointed, indicating different feeding adaptations.",
+        "possible_values": [
+          "stout_hooked",
+          "slender_pointed",
+          "medium_curved",
+          "thick_conical"
+        ]
+      },
+      {
+        "feature": "beak_color",
+        "description": "The color of the beak, which can range from black to pale or yellowish, providing a visual cue for species identification.",
+        "possible_values": [
+          "black",
+          "pale",
+          "yellowish",
+          "grayish"
+        ]
+      },
+      {
+        "feature": "tail_length",
+        "description": "The relative length of the tail compared to the body, which can be short, medium, or long, and helps distinguish between species with different flight and perching behaviors.",
+        "possible_values": [
+          "short",
+          "medium",
+          "long"
+        ]
+      },
+      {
+        "feature": "tail_shape",
+        "description": "The shape of the tail when viewed from the side or back, such as rounded, forked, or squared, which is a key morphological trait.",
+        "possible_values": [
+          "rounded",
+          "forked",
+          "squared",
+          "graduated"
+        ]
+      },
+      {
+        "feature": "wing_position",
+        "description": "The position of the wings relative to the body, whether folded tightly against the body or slightly raised, indicating posture and potential for flight.",
+        "possible_values": [
+          "folded_tight",
+          "slightly_raised",
+          "spread",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "head_shape",
+        "description": "The shape of the head, including the prominence of the crown, forehead, and nape, which can be rounded, angular, or crested, aiding in species distinction.",
+        "possible_values": [
+          "rounded",
+          "angular",
+          "crested",
+          "flat"
+        ]
+      },
+      {
+        "feature": "eye_color",
+        "description": "The color of the eye, which can vary from dark to lighter shades, and may be visible in some images, providing a subtle but useful discriminative feature.",
+        "possible_values": [
+          "dark",
+          "light",
+          "not_visible"
+        ]
+      },
+      {
+        "feature": "leg_length",
+        "description": "The relative length of the legs compared to the body, which can be short, medium, or long, influencing the bird's stance and habitat preference.",
+        "possible_values": [
+          "short",
+          "medium",
+          "long"
+        ]
+      },
+      {
+        "feature": "feather_texture",
+        "description": "The visual texture of the feathers, ranging from smooth and glossy to rough and matte, which can indicate health, species, or environmental conditions.",
+        "possible_values": [
+          "glossy",
+          "matte",
+          "ruffled",
+          "fluffy"
+        ]
+      },
+      {
+        "feature": "perching_surface",
+        "description": "The type of surface the bird is perched on, such as a branch, rock, post, or ground, which can correlate with habitat and behavior.",
+        "possible_values": [
+          "branch",
+          "rock",
+          "post",
+          "ground",
+          "man_made_structure"
+        ]
+      }
+    ]
+  }
+]

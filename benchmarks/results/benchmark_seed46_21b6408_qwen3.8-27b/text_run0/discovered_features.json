@@ -1,0 +1,160 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "primary_actor_type",
+        "description": "Identifies the main subject of the text. Corporate entities and financial markets distinguish business/tech news from government/military actors in world news and athletes/teams in sports news.",
+        "possible_values": [
+          "corporate_entity",
+          "financial_market",
+          "government_or_military",
+          "athletic_team_or_athlete",
+          "general_public_or_society"
+        ]
+      },
+      {
+        "feature": "core_event_nature",
+        "description": "Categorizes the fundamental type of event reported. This separates competitive outcomes (sports), market fluctuations (business), geopolitical conflicts/disasters (world), and technological developments (sci-tech).",
+        "possible_values": [
+          "competitive_match_result",
+          "financial_performance_or_market_move",
+          "geopolitical_conflict_or_disaster",
+          "technological_innovation_or_product_release",
+          "policy_or_regulatory_change"
+        ]
+      },
+      {
+        "feature": "quantitative_focus",
+        "description": "Describes the primary numerical data used. Sports rely on scores and stats; business on financial metrics and prices; sci-tech on specs or adoption rates; world news often lacks specific quantitative focus or uses casualty counts.",
+        "possible_values": [
+          "game_score_and_stats",
+          "financial_metrics_and_prices",
+          "technical_specs_or_adoption_rates",
+          "casualty_or_damage_counts",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "temporal_scope",
+        "description": "Indicates the time frame of the impact. Sports are immediate; business is quarterly/annual; sci-tech is forward-looking or current adoption; world news is immediate to medium-term geopolitical shifts.",
+        "possible_values": [
+          "immediate_match_outcome",
+          "quarterly_or_annual_fiscal",
+          "current_adoption_or_future_trend",
+          "immediate_incident_or_conflict",
+          "long_term_policy_impact"
+        ]
+      },
+      {
+        "feature": "linguistic_register",
+        "description": "Captures the tone and vocabulary style. Sports use action verbs and slang; business uses formal financial jargon; sci-tech uses technical terminology; world news uses neutral, objective reporting language.",
+        "possible_values": [
+          "action_oriented_and_colloquial",
+          "formal_financial_jargon",
+          "technical_and_speculative",
+          "neutral_objective_reporting",
+          "urgent_alert_style"
+        ]
+      },
+      {
+        "feature": "stakeholder_impact",
+        "description": "Identifies who is directly affected. Investors/employees (business), fans/athletes (sports), patients/consumers (sci-tech), citizens/international community (world).",
+        "possible_values": [
+          "investors_and_shareholders",
+          "fans_and_athletes",
+          "patients_and_end_users",
+          "citizens_and_international_community",
+          "industry_peers"
+        ]
+      },
+      {
+        "feature": "narrative_structure",
+        "description": "Describes how the story is constructed. Sports often follow a play-by-play or summary structure; business follows a headline-then-detail financial report; sci-tech follows a problem-solution or feature-benefit structure; world news follows a who-what-where-when structure.",
+        "possible_values": [
+          "play_by_play_summary",
+          "financial_report_summary",
+          "problem_solution_or_feature_benefit",
+          "who_what_where_when",
+          "investigative_deep_dive"
+        ]
+      },
+      {
+        "feature": "causal_linkage",
+        "description": "Highlights the primary cause-effect relationship. Sports: performance leads to win/loss; Business: market conditions lead to price change; Sci-tech: technology leads to efficiency/cost savings; World: political action leads to conflict/damage.",
+        "possible_values": [
+          "performance_leads_to_outcome",
+          "market_conditions_lead_to_price_change",
+          "technology_leads_to_efficiency",
+          "political_action_leads_to_conflict",
+          "natural_event_leads_to_damage"
+        ]
+      },
+      {
+        "feature": "geographic_scope",
+        "description": "Indicates the geographic relevance. Sports are local/national; Business is global/national; Sci-tech is global/niche; World is regional/international.",
+        "possible_values": [
+          "local_or_national_league",
+          "global_or_national_market",
+          "global_or_niche_community",
+          "regional_or_international_conflict",
+          "single_country_policy"
+        ]
+      },
+      {
+        "feature": "intent_of_communication",
+        "description": "Defines the purpose of the text. Sports: inform of result; Business: inform of financial status; Sci-tech: inform of capability/innovation; World: inform of event/impact.",
+        "possible_values": [
+          "inform_of_competitive_result",
+          "inform_of_financial_status",
+          "inform_of_technological_capability",
+          "inform_of_event_impact",
+          "persuade_or_advocate"
+        ]
+      },
+      {
+        "feature": "presence_of_direct_quotes",
+        "description": "Checks for direct speech. Sports often quote coaches/players; Business quotes executives; Sci-tech quotes engineers/analysts; World news quotes officials/witnesses. However, the *type* of quote is more discriminative, but presence is a basic feature.",
+        "possible_values": [
+          "quotes_from_coaches_or_players",
+          "quotes_from_executives_or_analysts",
+          "quotes_from_engineers_or_experts",
+          "quotes_from_officials_or_witnesses",
+          "no_direct_quotes"
+        ]
+      },
+      {
+        "feature": "abstract_vs_concrete",
+        "description": "Measures the level of abstraction. Sports are concrete (specific plays); Business is semi-abstract (market trends); Sci-tech is abstract (concepts, systems); World is concrete (specific incidents).",
+        "possible_values": [
+          "highly_concrete_events",
+          "semi_abstract_market_trends",
+          "abstract_concepts_and_systems",
+          "concrete_incidents_and_actions",
+          "mixed_abstract_and_concrete"
+        ]
+      },
+      {
+        "feature": "urgency_level",
+        "description": "Assesses the perceived urgency. Sports: high (live/immediate); Business: medium (market open/close); Sci-tech: low (long-term); World: high (breaking news).",
+        "possible_values": [
+          "high_immediate",
+          "medium_market_cycle",
+          "low_long_term",
+          "high_breaking_news",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "entity_specificity",
+        "description": "Describes the specificity of the entities mentioned. Sports: specific teams/players; Business: specific companies/tickers; Sci-tech: specific products/standards; World: specific countries/groups.",
+        "possible_values": [
+          "specific_teams_and_players",
+          "specific_companies_and_tickers",
+          "specific_products_and_standards",
+          "specific_countries_and_groups",
+          "general_industry_or_region"
+        ]
+      }
+    ]
+  }
+]

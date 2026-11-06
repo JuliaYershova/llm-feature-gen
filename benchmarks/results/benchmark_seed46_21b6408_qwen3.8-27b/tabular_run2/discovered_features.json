@@ -1,0 +1,134 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "education_level",
+        "description": "Higher education levels (Bachelors, Prof-school) are strongly correlated with higher income brackets, while HS-grad is more common in lower brackets.",
+        "possible_values": [
+          "high_school_or_less",
+          "bachelors",
+          "graduate_or_professional"
+        ]
+      },
+      {
+        "feature": "occupation_prestige",
+        "description": "Professional and managerial roles typically command higher salaries than sales, service, or other roles.",
+        "possible_values": [
+          "professional_specialty",
+          "executive_managerial",
+          "sales_service",
+          "other_or_craft"
+        ]
+      },
+      {
+        "feature": "workclass_type",
+        "description": "Government and self-employment sectors often have different pay structures compared to private sector employment, with government roles often being higher paid for similar education.",
+        "possible_values": [
+          "private_sector",
+          "government_sector",
+          "self_employed"
+        ]
+      },
+      {
+        "feature": "capital_gain_presence",
+        "description": "Non-zero capital gains are a direct indicator of investment income, which is a strong predictor of higher total income.",
+        "possible_values": [
+          "zero_gain",
+          "low_gain",
+          "high_gain"
+        ]
+      },
+      {
+        "feature": "hours_per_week_band",
+        "description": "Working significantly more than 40 hours often correlates with higher income, while part-time work (<35) often correlates with lower income.",
+        "possible_values": [
+          "part_time",
+          "standard_full_time",
+          "overtime"
+        ]
+      },
+      {
+        "feature": "marital_status_category",
+        "description": "Married individuals often have higher household incomes or are in more stable, higher-paying positions compared to separated or never-married individuals.",
+        "possible_values": [
+          "married",
+          "separated_divorced",
+          "never_married"
+        ]
+      },
+      {
+        "feature": "age_productivity_phase",
+        "description": "Income generally peaks in middle age (35-50). Younger individuals (<25) and older individuals may have lower incomes due to experience or retirement.",
+        "possible_values": [
+          "young_adult",
+          "mid_career",
+          "senior"
+        ]
+      },
+      {
+        "feature": "sex_and_occupation_combo",
+        "description": "Certain combinations of sex and occupation have known wage gaps or specific pay scales that influence the income bracket.",
+        "possible_values": [
+          "male_professional",
+          "female_professional",
+          "male_service_sales",
+          "female_service_sales"
+        ]
+      },
+      {
+        "feature": "native_country_origin",
+        "description": "While all examples are US, in broader datasets, native country can indicate visa status or local wage scales, though here it acts as a baseline constant.",
+        "possible_values": [
+          "united_states",
+          "other_country"
+        ]
+      },
+      {
+        "feature": "relationship_status",
+        "description": "Being a 'Husband' or 'Wife' often correlates with being the primary earner in a household, potentially influencing reported income levels compared to 'Not-in-family' or 'Own-child'.",
+        "possible_values": [
+          "spouse",
+          "not_in_family",
+          "own_child",
+          "unmarried_partner"
+        ]
+      },
+      {
+        "feature": "race_demographic",
+        "description": "While sensitive, demographic data often correlates with income distribution patterns in historical datasets, serving as a proxy for socioeconomic background.",
+        "possible_values": [
+          "white",
+          "black",
+          "asian_pacific",
+          "other_race"
+        ]
+      },
+      {
+        "feature": "fnlwgt_magnitude",
+        "description": "The final weight (fnlwgt) can sometimes correlate with the representativeness of the record; very low or very high weights might indicate specific sampling strata, though this is a weak feature.",
+        "possible_values": [
+          "low_weight",
+          "medium_weight",
+          "high_weight"
+        ]
+      },
+      {
+        "feature": "capital_loss_presence",
+        "description": "Presence of capital losses might indicate active trading or financial management, which can be associated with higher income levels, though often co-occurs with gains.",
+        "possible_values": [
+          "no_loss",
+          "some_loss"
+        ]
+      },
+      {
+        "feature": "education_occupation_alignment",
+        "description": "The match between education level and occupation (e.g., Prof-school with Prof-specialty) indicates a high-value skill set, whereas mismatch (e.g., Bachelors with Other-service) might indicate lower income.",
+        "possible_values": [
+          "aligned_high_value",
+          "aligned_low_value",
+          "mismatched"
+        ]
+      }
+    ]
+  }
+]

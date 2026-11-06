@@ -1,0 +1,138 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "education_level_tier",
+        "description": "Groups education into broad tiers to capture the strong correlation between higher education and higher income brackets.",
+        "possible_values": [
+          "less_than_high_school",
+          "high_school_grad",
+          "some_college_or_vocational",
+          "bachelors_or_above"
+        ]
+      },
+      {
+        "feature": "occupation_complexity",
+        "description": "Distinguishes between high-skill professional/executive roles and routine or manual labor roles, which strongly predict income level.",
+        "possible_values": [
+          "executive_or_professional",
+          "technical_or_specialized",
+          "clerical_or_service",
+          "manual_or_craft",
+          "military_or_protective"
+        ]
+      },
+      {
+        "feature": "work_sector_type",
+        "description": "Separates private sector employment from government or self-employment, as sector type often correlates with salary structures and benefits.",
+        "possible_values": [
+          "private_sector",
+          "government_sector",
+          "self_employed"
+        ]
+      },
+      {
+        "feature": "capital_gain_presence",
+        "description": "Checks for non-zero capital gains, which are a direct indicator of investment income and wealth accumulation, often associated with higher total income.",
+        "possible_values": [
+          "zero_gain",
+          "positive_gain"
+        ]
+      },
+      {
+        "feature": "hours_per_week_band",
+        "description": "Categorizes work hours to distinguish part-time, standard full-time, and overtime work, where higher hours often correlate with higher earnings in manual or private sectors.",
+        "possible_values": [
+          "part_time_under_35",
+          "standard_35_to_45",
+          "overtime_over_45"
+        ]
+      },
+      {
+        "feature": "marital_status_category",
+        "description": "Groups marital status to identify household structure, as married individuals often have different income profiles or reporting units compared to single or separated individuals.",
+        "possible_values": [
+          "married_civil",
+          "married_absent",
+          "divorced_or_separated",
+          "never_married"
+        ]
+      },
+      {
+        "feature": "relationship_role",
+        "description": "Identifies the individual's role in the household (e.g., husband, wife, own-child), which can indicate primary earner status or dependency, affecting reported income.",
+        "possible_values": [
+          "husband",
+          "wife",
+          "own_child",
+          "not_in_relatives",
+          "other_relative"
+        ]
+      },
+      {
+        "feature": "age_group",
+        "description": "Segments age to capture career stage, as income typically rises with age and experience up to a certain point, then may plateau or decline.",
+        "possible_values": [
+          "young_adult_under_25",
+          "early_career_25_to_40",
+          "mid_career_41_to_55",
+          "senior_over_55"
+        ]
+      },
+      {
+        "feature": "native_country_origin",
+        "description": "Distinguishes between domestic and foreign-born individuals, as native country can influence education recognition, work authorization, and income levels.",
+        "possible_values": [
+          "united_states",
+          "other_country"
+        ]
+      },
+      {
+        "feature": "sex_gender",
+        "description": "Includes gender to account for potential wage gaps or occupational segregation that may influence income distribution.",
+        "possible_values": [
+          "male",
+          "female"
+        ]
+      },
+      {
+        "feature": "race_ethnicity",
+        "description": "Considers race/ethnicity as a potential factor in income distribution due to historical and systemic disparities in education and employment opportunities.",
+        "possible_values": [
+          "white",
+          "black_or_african_american",
+          "asian_pacific_islander",
+          "american_indian_or_alaska_native",
+          "other"
+        ]
+      },
+      {
+        "feature": "fnlwgt_magnitude",
+        "description": "Uses the final weight as a proxy for the number of people the record represents; higher weights might indicate more common demographic profiles, which could correlate with median income levels.",
+        "possible_values": [
+          "low_weight_under_100k",
+          "medium_weight_100k_to_500k",
+          "high_weight_over_500k"
+        ]
+      },
+      {
+        "feature": "education_occupation_match",
+        "description": "Evaluates if the education level is consistent with the occupation, as mismatches (e.g., high education in low-skill jobs) might indicate underemployment or specific career paths.",
+        "possible_values": [
+          "aligned",
+          "over_educated",
+          "under_educated"
+        ]
+      },
+      {
+        "feature": "income_proxy_combination",
+        "description": "Combines education, occupation, and hours to create a composite score that better predicts income than any single feature alone.",
+        "possible_values": [
+          "high_potential",
+          "medium_potential",
+          "low_potential"
+        ]
+      }
+    ]
+  }
+]

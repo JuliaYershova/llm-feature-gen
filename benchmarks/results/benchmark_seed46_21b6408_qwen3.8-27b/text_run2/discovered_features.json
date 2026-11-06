@@ -1,0 +1,152 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "primary_domain_focus",
+        "description": "Identifies the central subject matter of the text, which is the most direct differentiator between the four categories. Business texts focus on corporate actions and markets; Sports on athletic competition; SciTech on technology/science; World on geopolitics and general society.",
+        "possible_values": [
+          "corporate_finance",
+          "athletic_competition",
+          "technology_science",
+          "geopolitics_society",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_quantitative_metrics",
+        "description": "Business and Sports texts heavily rely on specific numbers (prices, scores, dates, rankings). World and SciTech texts may contain numbers but often focus more on qualitative events or descriptions. This helps separate the metric-heavy groups from the narrative-heavy ones.",
+        "possible_values": [
+          "financial_figures",
+          "score_statistics",
+          "minimal_numeric",
+          "none"
+        ]
+      },
+      {
+        "feature": "actor_type",
+        "description": "The primary agents driving the narrative. Business texts feature corporations or executives; Sports feature athletes or teams; World features governments, police, or international bodies; SciTech features researchers, tech companies, or scientific bodies.",
+        "possible_values": [
+          "corporation_executive",
+          "athlete_team",
+          "government_agency",
+          "researcher_tech_entity",
+          "mixed"
+        ]
+      },
+      {
+        "feature": "narrative_tense_and_aspect",
+        "description": "Business and Sports news often report on immediate, completed actions or current states (e.g., 'orders halt', 'scores five touchdowns'). World news often reports on ongoing situations or future likelihoods. SciTech may report on discoveries or releases.",
+        "possible_values": [
+          "immediate_action",
+          "ongoing_situation",
+          "future_projection",
+          "static_description"
+        ]
+      },
+      {
+        "feature": "linguistic_register",
+        "description": "Sports headlines often use informal, punchy, or metaphorical language (e.g., 'Hoop-la', 'Rip'). Business and World news tend to be more formal and neutral. SciTech can be technical or formal.",
+        "possible_values": [
+          "informal_punchy",
+          "formal_neutral",
+          "technical_precise",
+          "sensationalized"
+        ]
+      },
+      {
+        "feature": "intent_of_communication",
+        "description": "The goal of the text. Business: inform about market/corporate changes. Sports: report results/standings. World: inform about public safety/political developments. SciTech: inform about innovation/discovery.",
+        "possible_values": [
+          "market_update",
+          "result_report",
+          "public_safety_alert",
+          "innovation_announcement",
+          "general_information"
+        ]
+      },
+      {
+        "feature": "specificity_of_entity",
+        "description": "Business and Sports texts usually name specific, well-known entities (CIBC, Texas, AT&T). World texts may name specific countries or groups but often in a broader context. SciTech may name specific technologies or papers.",
+        "possible_values": [
+          "specific_company",
+          "specific_team_athlete",
+          "specific_country_group",
+          "specific_technology",
+          "generic_reference"
+        ]
+      },
+      {
+        "feature": "temporal_scope",
+        "description": "The time frame of the event. Sports and Business often focus on very recent, specific events (yesterday, this week). World news can cover longer-term trends or immediate incidents. SciTech can cover long-term research or new releases.",
+        "possible_values": [
+          "immediate_recent",
+          "short_term_trend",
+          "long_term_trend",
+          "timeless"
+        ]
+      },
+      {
+        "feature": "emotional_tone",
+        "description": "Sports texts often carry excitement or drama ('stunning win', 'haunted by history'). Business texts are usually neutral or cautious. World texts can be serious or urgent. SciTech texts are typically neutral or optimistic.",
+        "possible_values": [
+          "excited_dramatic",
+          "neutral_cautious",
+          "serious_urgent",
+          "optimistic_neutral"
+        ]
+      },
+      {
+        "feature": "structural_pattern",
+        "description": "The way the information is organized. Sports often lead with the result. Business often leads with the corporate action. World often leads with the event/location. SciTech often leads with the discovery/technology.",
+        "possible_values": [
+          "result_first",
+          "action_first",
+          "event_location_first",
+          "discovery_first"
+        ]
+      },
+      {
+        "feature": "use_of_jargon",
+        "description": "Sports uses specific game terminology (touchdowns, under par). Business uses financial terms (breach, output, prices). SciTech uses technical terms. World uses political/legal terms.",
+        "possible_values": [
+          "sports_terminology",
+          "financial_terminology",
+          "technical_terminology",
+          "political_legal_terminology",
+          "none"
+        ]
+      },
+      {
+        "feature": "scope_of_impact",
+        "description": "The breadth of the effect. Business and Sports often have localized or specific impacts (one company, one game). World news often has broad societal or international impacts. SciTech can have broad long-term impacts.",
+        "possible_values": [
+          "localized_specific",
+          "broad_societal",
+          "international",
+          "long_term_global"
+        ]
+      },
+      {
+        "feature": "presence_of_conflict_or_tension",
+        "description": "Sports inherently involves competition/conflict. World news often involves conflict (crime, politics). Business may involve competition or crisis. SciTech may involve problem-solving.",
+        "possible_values": [
+          "competitive_conflict",
+          "social_political_conflict",
+          "market_crisis",
+          "problem_solution",
+          "none"
+        ]
+      },
+      {
+        "feature": "source_attribution_style",
+        "description": "How sources are cited. Business and World often cite news agencies (CP, AFP) or official spokesmen. Sports may cite less formally or focus on the event itself. SciTech may cite studies or companies.",
+        "possible_values": [
+          "news_agency",
+          "official_spokesman",
+          "implicit_event",
+          "study_company"
+        ]
+      }
+    ]
+  }
+]

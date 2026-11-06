@@ -1,0 +1,150 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "primary_subject_domain",
+        "description": "Identifies the core domain or subject matter the text is primarily about, which is often the most direct discriminator between categories.",
+        "possible_values": [
+          "healthcare",
+          "corporate_operations",
+          "legal_proceedings",
+          "space_exploration",
+          "cybersecurity",
+          "financial_markets",
+          "athletic_competition",
+          "military_affairs",
+          "political_regime_change",
+          "government_appointments"
+        ]
+      },
+      {
+        "feature": "event_type",
+        "description": "Categorizes the nature of the event described—whether it's a regulatory decision, a corporate restructuring, a legal challenge, a natural disaster impact, a security update, a market movement, a sports outcome, or a political transition.",
+        "possible_values": [
+          "regulatory_approval",
+          "job_cuts",
+          "legal_challenge",
+          "natural_disaster_impact",
+          "security_patch",
+          "market_fluctuation",
+          "sports_victory",
+          "military_enlistment",
+          "political_ouster",
+          "leadership_election"
+        ]
+      },
+      {
+        "feature": "temporal_urgency",
+        "description": "Reflects the immediacy or time-sensitivity of the event, ranging from real-time reporting to retrospective or future-oriented discussion.",
+        "possible_values": [
+          "immediate",
+          "ongoing",
+          "recent",
+          "future_planned",
+          "historical"
+        ]
+      },
+      {
+        "feature": "geographic_scope",
+        "description": "Indicates the spatial scale of the event or subject—local, national, international, or global—often correlating with the category’s focus.",
+        "possible_values": [
+          "local",
+          "national",
+          "international",
+          "global"
+        ]
+      },
+      {
+        "feature": "institutional_involvement",
+        "description": "Identifies the type of institution or organization central to the narrative, such as government, corporation, legal system, or sports league.",
+        "possible_values": [
+          "government_agency",
+          "corporation",
+          "legal_system",
+          "space_agency",
+          "security_firm",
+          "financial_exchange",
+          "sports_league",
+          "military_organization",
+          "political_body"
+        ]
+      },
+      {
+        "feature": "narrative_perspective",
+        "description": "Describes the point of view or framing of the text—whether it's objective reporting, personal commentary, or institutional announcement.",
+        "possible_values": [
+          "objective_report",
+          "personal_insight",
+          "institutional_statement",
+          "legal_argument",
+          "sports_coverage"
+        ]
+      },
+      {
+        "feature": "technical_specificity",
+        "description": "Measures the level of technical or specialized terminology used, which is higher in SciTech and Business and lower in Sports and World.",
+        "possible_values": [
+          "high",
+          "medium",
+          "low",
+          "none"
+        ]
+      },
+      {
+        "feature": "human_focus",
+        "description": "Indicates whether the text centers on individual people, groups, or abstract entities, with Sports and World often focusing on individuals, while Business and SciTech focus on organizations or systems.",
+        "possible_values": [
+          "individual_person",
+          "group_of_people",
+          "organization",
+          "system_or_process",
+          "abstract_concept"
+        ]
+      },
+      {
+        "feature": "outcome_orientation",
+        "description": "Reflects whether the text emphasizes a result, a process, or a future possibility, with Sports and Business often emphasizing outcomes, while World and SciTech may focus on processes or developments.",
+        "possible_values": [
+          "result_focused",
+          "process_focused",
+          "future_projection",
+          "ongoing_development"
+        ]
+      },
+      {
+        "feature": "emotional_tone",
+        "description": "Captures the emotional valence or intensity of the text, ranging from neutral to celebratory, critical, or urgent, which can vary by category.",
+        "possible_values": [
+          "neutral",
+          "celebratory",
+          "critical",
+          "urgent",
+          "hopeful",
+          "dismal"
+        ]
+      },
+      {
+        "feature": "data_inclusion",
+        "description": "Indicates whether the text includes specific numerical data, statistics, or financial figures, which is common in Business and SciTech but less so in Sports and World.",
+        "possible_values": [
+          "numerical_data_present",
+          "financial_figures_present",
+          "statistical_data_present",
+          "no_data"
+        ]
+      },
+      {
+        "feature": "action_directed_toward",
+        "description": "Identifies the target of the action described—whether it's a policy, a product, a person, or a system—helping distinguish between categories.",
+        "possible_values": [
+          "policy_or_regulation",
+          "product_or_service",
+          "individual_person",
+          "system_or_infrastructure",
+          "financial_instrument",
+          "legal_case"
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,127 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_size_and_proportion",
+        "description": "The overall size and body shape, including the relative length of the tail and legs, helps distinguish between larger, more robust birds and smaller, more compact ones. Some birds appear bulkier with shorter legs, while others are more slender with longer tails.",
+        "possible_values": [
+          "large_and_robust",
+          "medium_and_compact",
+          "small_and_sleek",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "beak_shape_and_thickness",
+        "description": "The beak's curvature, thickness, and length vary significantly. Some have thick, heavy, slightly curved beaks, while others have thinner, more pointed, or straighter beaks, which can indicate different feeding behaviors or species.",
+        "possible_values": [
+          "thick_and_curved",
+          "thin_and_pointed",
+          "medium_and_straight",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "feather_color_and_iridescence",
+        "description": "The base color of the feathers and the presence or absence of iridescence (shiny, metallic sheen) under light can differentiate groups. Some birds are uniformly black, while others show blue, purple, or green hues in certain lighting.",
+        "possible_values": [
+          "uniform_black",
+          "iridescent_blue_purple",
+          "dull_greyish_black",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "tail_shape_and_length",
+        "description": "The tail's length relative to the body and its shape (e.g., rounded, squared, or slightly forked) varies. Some birds have long, graduated tails, while others have shorter, more rounded tails.",
+        "possible_values": [
+          "long_graduated",
+          "short_rounded",
+          "medium_squared",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "leg_and_foot_structure",
+        "description": "The length and thickness of the legs, as well as the size and shape of the feet and claws, differ. Some birds have long, slender legs, while others have shorter, stouter legs with more prominent claws.",
+        "possible_values": [
+          "long_and_slim",
+          "short_and_stout",
+          "medium_and_robust",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "head_shape_and_crest",
+        "description": "The contour of the head, including the presence of a crest or a smooth, rounded crown, can be a distinguishing trait. Some birds have a more rounded head, while others have a slightly peaked or angular profile.",
+        "possible_values": [
+          "rounded_head",
+          "slightly_peaked",
+          "angular_profile",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "wing_position_and_fold",
+        "description": "The way the wings are held when perched—whether folded tightly against the body or slightly raised or spread—can indicate posture and species-specific behavior.",
+        "possible_values": [
+          "tightly_folded",
+          "slightly_raised",
+          "spread_wings",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "eye_color_and_size",
+        "description": "The apparent color and size of the eye relative to the head can vary. Some birds have large, dark eyes with a noticeable shine, while others have smaller, less prominent eyes.",
+        "possible_values": [
+          "large_and_shiny",
+          "small_and_dull",
+          "medium_and_dark",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "plumage_texture_and_condition",
+        "description": "The texture of the feathers—whether sleek and smooth, ruffled, or appearing worn or dusty—can indicate health, age, or species-specific characteristics.",
+        "possible_values": [
+          "sleek_and_smooth",
+          "ruffled_and_fluffy",
+          "worn_and_dusty",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "posture_and_stance",
+        "description": "The overall posture when perched or standing—whether upright, hunched, or leaning forward—can reflect behavioral or structural differences between groups.",
+        "possible_values": [
+          "upright",
+          "hunched",
+          "leaning_forward",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_white_or_light_markings",
+        "description": "Some birds show subtle light-colored markings on the beak, wings, or tail, while others are uniformly dark. These can be key identifiers.",
+        "possible_values": [
+          "uniform_dark",
+          "light_tip_on_beak",
+          "light_patch_on_wing",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "habitat_context_in_image",
+        "description": "While not intrinsic to the bird, the background environment (e.g., sandy ground, rocky terrain, wooden structures, or vegetation) can correlate with species distribution and behavior, aiding classification.",
+        "possible_values": [
+          "sandy_ground",
+          "rocky_terrain",
+          "wooden_structure",
+          "vegetated_area",
+          "not_applicable"
+        ]
+      }
+    ]
+  }
+]

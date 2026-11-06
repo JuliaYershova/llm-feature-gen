@@ -1,0 +1,115 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "age_group",
+        "description": "Age ranges may correlate with income levels, with younger individuals typically earning less and older individuals potentially earning more due to experience or career progression.",
+        "possible_values": [
+          "young",
+          "middle",
+          "older"
+        ]
+      },
+      {
+        "feature": "education_level",
+        "description": "Higher education levels (e.g., Bachelors, Prof-school) are associated with higher earning potential compared to lower levels (e.g., HS-grad).",
+        "possible_values": [
+          "high_school",
+          "bachelors",
+          "graduate"
+        ]
+      },
+      {
+        "feature": "workclass_type",
+        "description": "Government or self-employed roles may differ in income potential compared to private sector jobs, with government roles sometimes offering stable but moderate pay.",
+        "possible_values": [
+          "private",
+          "government",
+          "self_employed"
+        ]
+      },
+      {
+        "feature": "occupation_category",
+        "description": "Occupations like Prof-specialty or Exec-managerial tend to be higher-paying compared to Sales or Other-service.",
+        "possible_values": [
+          "professional",
+          "managerial",
+          "service",
+          "sales"
+        ]
+      },
+      {
+        "feature": "marital_status",
+        "description": "Marital status may influence income, with married individuals sometimes earning more due to dual incomes or career stability.",
+        "possible_values": [
+          "married",
+          "single",
+          "separated",
+          "never_married"
+        ]
+      },
+      {
+        "feature": "hours_per_week",
+        "description": "Higher weekly hours may correlate with higher income, especially if combined with higher-paying occupations.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "capital_gain_presence",
+        "description": "Presence of capital gain suggests investment income or asset appreciation, which may indicate higher overall income.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "capital_gain_magnitude",
+        "description": "The size of capital gain can be a strong indicator of wealth or investment activity, with larger gains associated with higher income.",
+        "possible_values": [
+          "none",
+          "small",
+          "medium",
+          "large"
+        ]
+      },
+      {
+        "feature": "relationship_status",
+        "description": "Relationship status (e.g., Husband, Own-child) may reflect household structure and income responsibilities, influencing reported income.",
+        "possible_values": [
+          "married",
+          "unmarried",
+          "child",
+          "not_in_family"
+        ]
+      },
+      {
+        "feature": "sex",
+        "description": "Gender may influence income due to historical wage gaps or occupational segregation.",
+        "possible_values": [
+          "male",
+          "female"
+        ]
+      },
+      {
+        "feature": "race",
+        "description": "Race may correlate with income due to socioeconomic factors, historical disparities, or access to opportunities.",
+        "possible_values": [
+          "white",
+          "black",
+          "other"
+        ]
+      },
+      {
+        "feature": "native_country",
+        "description": "Being native to the United-States may correlate with higher income due to access to better education, job markets, or longer residency.",
+        "possible_values": [
+          "united_states",
+          "non_us"
+        ]
+      }
+    ]
+  }
+]

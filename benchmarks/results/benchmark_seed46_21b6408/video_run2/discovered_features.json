@@ -1,0 +1,118 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "swimming_stroke_pattern",
+        "description": "The distinct arm and body motion pattern during swimming, including the timing and coordination of arm pulls, leg kicks, and body rotation, which varies significantly between different swimming techniques.",
+        "possible_values": [
+          "alternating_arm_pull_with_body_rotation",
+          "simultaneous_arm_pull_with_breaststroke_kick",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "entry_into_water",
+        "description": "The manner in which the subject enters the water, including whether it is a controlled dive, a jump, or a direct fall, which distinguishes diving and cliff diving from swimming.",
+        "possible_values": [
+          "controlled_dive_with_body_alignment",
+          "jump_or_fall_with_body_rotation",
+          "no_entry_or_swimming_continuation"
+        ]
+      },
+      {
+        "feature": "water_surface_disturbance",
+        "description": "The type and intensity of splash or wave created upon entry into the water, which varies from minimal (dive) to large (jump or fall) and can indicate the nature of the entry.",
+        "possible_values": [
+          "minimal_splash_with_small_wave",
+          "large_splash_with_significant_wave",
+          "no_splash_or_wave"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "The setting in which the activity occurs, such as a pool with lane lines, natural rock formations, or open water, which helps distinguish between controlled and natural environments.",
+        "possible_values": [
+          "indoor_pool_with_lane_lines",
+          "outdoor_pool_with_loungers",
+          "natural_rock_formations",
+          "coastal_cove_with_rocks"
+        ]
+      },
+      {
+        "feature": "subject_position_relative_to_water",
+        "description": "The vertical position of the subject relative to the water surface during the action, such as above, at, or below the surface, which indicates whether the subject is diving, jumping, or swimming.",
+        "possible_values": [
+          "above_water_before_entry",
+          "at_water_surface_during_swimming",
+          "below_water_during_swimming"
+        ]
+      },
+      {
+        "feature": "presence_of_diving_board_or_platform",
+        "description": "Whether the subject uses a diving board or platform to initiate the action, which is characteristic of diving but not swimming or cliff diving.",
+        "possible_values": [
+          "diving_board_present",
+          "platform_present",
+          "no_structure_present"
+        ]
+      },
+      {
+        "feature": "body_orientation_during_entry",
+        "description": "The orientation of the body as it enters the water, such as head-first, feet-first, or horizontal, which can indicate the type of dive or jump.",
+        "possible_values": [
+          "head_first_entry",
+          "feet_first_entry",
+          "horizontal_entry",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "swimming_direction_relative_to_camera",
+        "description": "The direction in which the swimmer moves relative to the camera, such as away, toward, or across, which can affect the perception of motion and stroke.",
+        "possible_values": [
+          "away_from_camera",
+          "toward_camera",
+          "across_camera_field",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_other_people_in_scene",
+        "description": "Whether other individuals are visible in the scene, which may indicate a social or competitive context, often seen in pool settings but less so in cliff diving.",
+        "possible_values": [
+          "multiple_people_present",
+          "single_person_only",
+          "no_people_visible"
+        ]
+      },
+      {
+        "feature": "water_clarity_and_color",
+        "description": "The visual appearance of the water, including clarity and color, which can vary between indoor pools, outdoor pools, and natural bodies of water, affecting visibility and context.",
+        "possible_values": [
+          "clear_blue_indoor_pool",
+          "turquoise_outdoor_pool",
+          "dark_natural_water",
+          "greenish_natural_water"
+        ]
+      },
+      {
+        "feature": "action_duration",
+        "description": "The length of time the action takes from start to end, which can vary significantly between short dives and longer swimming sequences.",
+        "possible_values": [
+          "very_short_duration_less_than_3_seconds",
+          "medium_duration_3_to_10_seconds",
+          "long_duration_over_10_seconds"
+        ]
+      },
+      {
+        "feature": "presence_of_swimming_equipment",
+        "description": "Whether the swimmer is using equipment such as a swim cap, goggles, or wetsuit, which can indicate the context and type of swimming activity.",
+        "possible_values": [
+          "swim_cap_and_goggles_present",
+          "wetsuit_present",
+          "no_equipment_present"
+        ]
+      }
+    ]
+  }
+]

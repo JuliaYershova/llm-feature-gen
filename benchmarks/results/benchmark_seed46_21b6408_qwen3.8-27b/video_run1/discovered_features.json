@@ -1,0 +1,110 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_orientation",
+        "description": "The primary alignment of the swimmer's body relative to the water surface, which distinguishes horizontal swimming from vertical falling.",
+        "possible_values": [
+          "horizontal",
+          "vertical",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "arm_movement_pattern",
+        "description": "The specific kinematic cycle of the arms, distinguishing the alternating overhand motion from the simultaneous symmetrical motion or the lack of swimming strokes.",
+        "possible_values": [
+          "alternating_overhand",
+          "simultaneous_symmetrical",
+          "no_stroking"
+        ]
+      },
+      {
+        "feature": "leg_movement_pattern",
+        "description": "The type of leg propulsion used, distinguishing the continuous flutter kick from the whip-like kick or the lack of swimming kicks.",
+        "possible_values": [
+          "flutter_kick",
+          "whip_kick",
+          "no_kicking"
+        ]
+      },
+      {
+        "feature": "head_position",
+        "description": "The position of the head relative to the water surface, which is a key differentiator between the two swimming styles and the diving actions.",
+        "possible_values": [
+          "submerged",
+          "periodically_above_water",
+          "above_water"
+        ]
+      },
+      {
+        "feature": "action_duration",
+        "description": "The temporal length of the primary action, distinguishing the continuous, repetitive nature of swimming from the short, transient nature of diving.",
+        "possible_values": [
+          "continuous",
+          "transient"
+        ]
+      },
+      {
+        "feature": "starting_position",
+        "description": "The location of the subject at the beginning of the clip, distinguishing actions starting from a platform or cliff versus those starting in the water.",
+        "possible_values": [
+          "in_water",
+          "on_platform",
+          "on_cliff"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "The physical setting of the activity, which helps distinguish indoor pools, outdoor pools, and natural rock formations.",
+        "possible_values": [
+          "indoor_pool",
+          "outdoor_pool",
+          "natural_cliff"
+        ]
+      },
+      {
+        "feature": "presence_of_lane_markers",
+        "description": "The visibility of lane ropes or lines, which are characteristic of competitive or training pools but absent in natural settings.",
+        "possible_values": [
+          "visible",
+          "not_visible"
+        ]
+      },
+      {
+        "feature": "presence_of_splash",
+        "description": "The occurrence of a large, singular water disturbance, which is a hallmark of the entry phase of diving.",
+        "possible_values": [
+          "large_single_splash",
+          "continuous_ripples",
+          "none"
+        ]
+      },
+      {
+        "feature": "subject_trajectory",
+        "description": "The path of the subject through the scene, distinguishing linear horizontal movement from vertical descent.",
+        "possible_values": [
+          "horizontal_linear",
+          "vertical_descent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_dive_board",
+        "description": "The visibility of a springboard or diving platform, which is specific to the diving category.",
+        "possible_values": [
+          "visible",
+          "not_visible"
+        ]
+      },
+      {
+        "feature": "presence_of_spectators",
+        "description": "The presence of other people watching the action, which is common in pool settings but rare in natural cliff diving.",
+        "possible_values": [
+          "visible",
+          "not_visible"
+        ]
+      }
+    ]
+  }
+]
