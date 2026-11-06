@@ -39,6 +39,30 @@ Tests use fake providers and temporary directories, so they do not require real 
 - Add user-visible changes to [`CHANGELOG.md`](CHANGELOG.md) under `## [Unreleased]`.
 - Include a short summary of what changed and how you validated it.
 
+## Publishing to PyPI after merge
+
+The next release is `0.1.14`, as declared in `pyproject.toml`. The publishing
+workflow runs when a `v*` tag is pushed; merging a PR alone does not publish.
+
+After this PR is merged and main's tests pass, tag the merged main commit:
+
+```bash
+git switch main
+git pull --ff-only origin main
+git tag -a v0.1.14 -m "Release 0.1.14"
+git push origin v0.1.14
+```
+
+The [Publish to PyPI workflow](.github/workflows/python-publish.yml) verifies that
+the tag matches the package version and points to a commit included in main.
+It runs the tests, builds the source distribution and wheel, checks them with
+Twine, and uploads using the existing `PYPI_API_TOKEN` repository secret.
+Check that workflow's result and the [PyPI release page](https://pypi.org/project/llm-feature-gen/)
+after pushing the tag. A tag/version mismatch or failed test/build prevents upload.
+
+For later releases, update the version in `pyproject.toml`, document the changes
+in `CHANGELOG.md`, and use the matching version tag after those changes merge.
+
 ## Reporting Issues
 
 - Use the GitHub issue templates when opening bugs or feature requests.

@@ -1,0 +1,7 @@
+Discover interpretable features from the supplied {modality} items that distinguish
+{n_classes} categories:
+{class_list}
+Per-item class labels are hidden. Prefer distinct, observable properties with
+short snake_case names, clear descriptions, and mutually exclusive string values
+that can be applied consistently to new inputs. Do not invent unsupported features.
+The corpus-level goal is {min_features} features, not a quota for this batch.
