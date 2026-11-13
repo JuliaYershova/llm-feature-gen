@@ -1,0 +1,124 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "subject_position_in_water",
+        "description": "Describes whether the swimmer or diver is mostly submerged, partially above water, or in freefall, which varies significantly between swimming strokes and diving actions.",
+        "possible_values": [
+          "mostly_submerged",
+          "partially_above_water",
+          "in_freefall",
+          "fully_above_water"
+        ]
+      },
+      {
+        "feature": "movement_rhythm",
+        "description": "Captures the temporal pattern of motion: continuous and rhythmic for swimming, explosive and brief for diving, and often involving a single large motion for cliff diving.",
+        "possible_values": [
+          "continuous_rhythmic",
+          "explosive_brief",
+          "single_large_motion",
+          "intermittent"
+        ]
+      },
+      {
+        "feature": "arm_motion_pattern",
+        "description": "Describes the characteristic arm movements: circular and wide for breaststroke, alternating and forward for front crawl, and extended or tucked for diving.",
+        "possible_values": [
+          "circular_wide",
+          "alternating_forward",
+          "extended_tucked",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "head_position_during_motion",
+        "description": "Indicates whether the head is above water (front crawl), submerged (breaststroke), or in a neutral position during freefall (diving).",
+        "possible_values": [
+          "above_water",
+          "submerged",
+          "neutral_in_freefall",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "starting_position",
+        "description": "Describes the initial posture or location: standing on a platform, in water, or on a cliff, which distinguishes diving from swimming.",
+        "possible_values": [
+          "on_platform",
+          "in_water",
+          "on_cliff",
+          "on_diving_board"
+        ]
+      },
+      {
+        "feature": "entry_into_water",
+        "description": "Characterizes how the subject enters the water: splashy and vertical for diving, smooth and horizontal for swimming, or with a large splash for cliff diving.",
+        "possible_values": [
+          "splashy_vertical",
+          "smooth_horizontal",
+          "large_splash",
+          "no_entry"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "Identifies the setting: indoor pool, outdoor pool, natural cliff, or high platform, which helps distinguish between diving and swimming contexts.",
+        "possible_values": [
+          "indoor_pool",
+          "outdoor_pool",
+          "natural_cliff",
+          "high_platform"
+        ]
+      },
+      {
+        "feature": "presence_of_diving_board_or_platform",
+        "description": "Indicates whether a diving board or platform is visible, which is key for distinguishing diving from swimming.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "number_of_swimming_strokes_per_cycle",
+        "description": "Counts the number of arm strokes per cycle: typically 2 for breaststroke, 2 for front crawl, and none for diving.",
+        "possible_values": [
+          "two_strokes",
+          "one_stroke",
+          "zero_strokes",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "body_orientation_during_motion",
+        "description": "Describes the body's alignment: horizontal and streamlined for front crawl, arched for breaststroke, and vertical or tucked for diving.",
+        "possible_values": [
+          "horizontal_streamlined",
+          "arched",
+          "vertical_tucked",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "water_surface_disturbance",
+        "description": "Measures the amount of splash or wave created: minimal for front crawl, moderate for breaststroke, and large for diving or cliff diving.",
+        "possible_values": [
+          "minimal",
+          "moderate",
+          "large",
+          "none"
+        ]
+      },
+      {
+        "feature": "motion_direction_relative_to_camera",
+        "description": "Indicates whether the motion is toward, away from, or perpendicular to the camera, which can vary by stroke or dive type.",
+        "possible_values": [
+          "toward_camera",
+          "away_from_camera",
+          "perpendicular",
+          "not_applicable"
+        ]
+      }
+    ]
+  }
+]

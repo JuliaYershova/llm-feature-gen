@@ -1,0 +1,117 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "age_group",
+        "description": "Age ranges correlate with income potential; younger individuals may be early in career, while older individuals may have accumulated wealth or be retired.",
+        "possible_values": [
+          "young",
+          "middle_aged",
+          "senior"
+        ]
+      },
+      {
+        "feature": "education_level",
+        "description": "Higher education levels are associated with higher income potential due to access to professional roles.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "occupation_type",
+        "description": "Certain occupations (e.g., professional specialties) are associated with higher income compared to manual or service roles.",
+        "possible_values": [
+          "professional",
+          "technical",
+          "manual",
+          "service"
+        ]
+      },
+      {
+        "feature": "marital_status",
+        "description": "Marital status may influence income through dual-earner households or financial responsibilities; married individuals may have higher combined income.",
+        "possible_values": [
+          "single",
+          "married",
+          "divorced",
+          "widowed"
+        ]
+      },
+      {
+        "feature": "capital_gain_presence",
+        "description": "Presence of capital gains suggests investment activity or asset appreciation, which is more common in higher-income individuals.",
+        "possible_values": [
+          "present",
+          "absent"
+        ]
+      },
+      {
+        "feature": "capital_gain_magnitude",
+        "description": "The size of capital gains can indicate wealth accumulation, with larger gains associated with higher income groups.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high",
+          "none"
+        ]
+      },
+      {
+        "feature": "workclass_type",
+        "description": "Self-employment or private sector roles may offer higher income potential compared to government or other sectors.",
+        "possible_values": [
+          "private",
+          "self_employed",
+          "government",
+          "other"
+        ]
+      },
+      {
+        "feature": "hours_per_week",
+        "description": "Higher weekly hours may correlate with higher income, especially in hourly or labor-intensive jobs.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "education_num_range",
+        "description": "Numerical education level (education-num) provides a direct proxy for education attainment, which correlates with income.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "relationship_status",
+        "description": "Relationship status (e.g., husband, not-in-family) may indicate household structure and financial responsibility, affecting income level.",
+        "possible_values": [
+          "family_head",
+          "dependent",
+          "not_in_family",
+          "spouse"
+        ]
+      },
+      {
+        "feature": "race_category",
+        "description": "Historical and systemic factors may influence income distribution across racial groups, making this a relevant feature.",
+        "possible_values": [
+          "white",
+          "black",
+          "other"
+        ]
+      },
+      {
+        "feature": "sex",
+        "description": "Gender may correlate with income due to occupational segregation or wage gaps, even when controlling for other factors.",
+        "possible_values": [
+          "male",
+          "female"
+        ]
+      }
+    ]
+  }
+]

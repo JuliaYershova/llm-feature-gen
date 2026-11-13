@@ -18,7 +18,8 @@ jobs:
         include:
           # Keep full interpreter coverage on Linux while smoke-testing
           # the supported non-Linux runners for platform breadth.
-          - os: ubuntu-latest
+          # Python 3.9 has no build for ubuntu-latest (26.04), so pin its runner.
+          - os: ubuntu-24.04
             python-version: "3.9"
             upload-coverage: false
           - os: ubuntu-latest

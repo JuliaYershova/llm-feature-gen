@@ -1,0 +1,129 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "education_level_tier",
+        "description": "Groups education into broad tiers (basic, vocational, professional, advanced) to capture the strong correlation between higher education and higher income brackets.",
+        "possible_values": [
+          "basic_hs_or_less",
+          "vocational_assoc",
+          "bachelors",
+          "masters_doctorate"
+        ]
+      },
+      {
+        "feature": "occupation_specialization",
+        "description": "Distinguishes between manual/labor-intensive roles and professional/managerial roles, which typically command higher salaries.",
+        "possible_values": [
+          "manual_labor",
+          "service_sales",
+          "professional_specialty",
+          "executive_management"
+        ]
+      },
+      {
+        "feature": "capital_gain_presence",
+        "description": "Indicates whether the individual has reported capital gains, a strong indicator of investment income which often correlates with higher total earnings.",
+        "possible_values": [
+          "no_gain",
+          "low_gain",
+          "moderate_gain",
+          "high_gain"
+        ]
+      },
+      {
+        "feature": "work_hours_intensity",
+        "description": "Categorizes weekly working hours to distinguish part-time, standard, and overtime work patterns, which can influence total income.",
+        "possible_values": [
+          "part_time",
+          "standard_40",
+          "overtime_41_50",
+          "heavy_51_plus"
+        ]
+      },
+      {
+        "feature": "marital_family_status",
+        "description": "Combines marital status and relationship to identify household structure, as married individuals often have higher reported household income or different employment stability.",
+        "possible_values": [
+          "single_never_married",
+          "divorced_widowed",
+          "married_husband",
+          "married_wife"
+        ]
+      },
+      {
+        "feature": "age_lifecycle_stage",
+        "description": "Segments age into career stages (early, mid, late) to capture the typical income trajectory over a lifetime.",
+        "possible_values": [
+          "early_career_under_25",
+          "mid_career_25_45",
+          "late_career_46_60",
+          "senior_over_60"
+        ]
+      },
+      {
+        "feature": "workclass_type",
+        "description": "Differentiates between private sector, self-employment, and government work, as self-employment and certain government roles can have different income distributions.",
+        "possible_values": [
+          "private_sector",
+          "self_employed",
+          "government",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "race_ethnicity_group",
+        "description": "Captures demographic factors that may correlate with income disparities in the dataset, serving as a proxy for socioeconomic background.",
+        "possible_values": [
+          "white",
+          "black",
+          "asian_pacific",
+          "other_minority"
+        ]
+      },
+      {
+        "feature": "sex_gender",
+        "description": "Accounts for gender-based income differences that may exist in the dataset, particularly in certain occupations or education levels.",
+        "possible_values": [
+          "male",
+          "female"
+        ]
+      },
+      {
+        "feature": "native_country_origin",
+        "description": "Distinguishes between native-born and foreign-born individuals, as immigration status and country of origin can influence income levels and job types.",
+        "possible_values": [
+          "united_states",
+          "foreign_other"
+        ]
+      },
+      {
+        "feature": "fnlwgt_weight_magnitude",
+        "description": "Uses the final weight as a proxy for the representativeness of the record; higher weights might indicate more stable or common demographic profiles.",
+        "possible_values": [
+          "low_weight",
+          "medium_weight",
+          "high_weight"
+        ]
+      },
+      {
+        "feature": "education_occupation_match",
+        "description": "Evaluates whether the education level is consistent with the occupation (e.g., Masters with Prof-specialty), indicating human capital utilization which affects income.",
+        "possible_values": [
+          "under_educated",
+          "matched",
+          "over_educated"
+        ]
+      },
+      {
+        "feature": "income_source_diversity",
+        "description": "Checks for the presence of multiple income sources (wages + capital gains/losses), which often indicates higher financial stability and total income.",
+        "possible_values": [
+          "wages_only",
+          "wages_plus_capital",
+          "capital_only"
+        ]
+      }
+    ]
+  }
+]

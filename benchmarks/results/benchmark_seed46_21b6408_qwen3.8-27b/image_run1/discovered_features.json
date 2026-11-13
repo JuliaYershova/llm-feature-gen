@@ -1,0 +1,133 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "tail_shape",
+        "description": "The geometric outline of the tail feathers when extended or at rest is a primary structural differentiator between the larger, wedge-shaped species and the smaller, rounded species.",
+        "possible_values": [
+          "wedge_shaped",
+          "rounded",
+          "pointed",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "bill_thickness",
+        "description": "The relative robustness and depth of the beak distinguishes the heavy-billed species from the slender-billed species.",
+        "possible_values": [
+          "heavy_robust",
+          "slender_thin",
+          "medium"
+        ]
+      },
+      {
+        "feature": "bill_curvature",
+        "description": "The degree of downward curve on the upper mandible varies significantly, with some species having a distinct hook and others having a straighter profile.",
+        "possible_values": [
+          "strongly_curved",
+          "slightly_curved",
+          "straight"
+        ]
+      },
+      {
+        "feature": "body_size_relative",
+        "description": "The overall scale of the bird relative to its environment or standard proportions separates the large corvids from the smaller passerines.",
+        "possible_values": [
+          "large",
+          "medium",
+          "small"
+        ]
+      },
+      {
+        "feature": "plumage_iridescence",
+        "description": "The presence of metallic sheens (purple, blue, green) in the feathers is a key visual marker for specific species, particularly in certain lighting conditions.",
+        "possible_values": [
+          "strong_purple_blue",
+          "subtle_grey_blue",
+          "none_matte"
+        ]
+      },
+      {
+        "feature": "throat_feather_texture",
+        "description": "The texture of the feathers on the throat and upper breast, ranging from smooth and sleek to shaggy and spiky, is a distinct morphological trait.",
+        "possible_values": [
+          "shaggy_spiky",
+          "smooth_sleek",
+          "slightly_ruffled"
+        ]
+      },
+      {
+        "feature": "eye_color",
+        "description": "The color of the iris, which can range from dark brown to a distinct pale blue or grey, helps differentiate the species.",
+        "possible_values": [
+          "dark_brown",
+          "pale_blue_grey",
+          "black"
+        ]
+      },
+      {
+        "feature": "leg_length_relative",
+        "description": "The length of the legs relative to the body size and the height of the stance provides a proportional cue for identification.",
+        "possible_values": [
+          "long",
+          "medium",
+          "short"
+        ]
+      },
+      {
+        "feature": "head_shape",
+        "description": "The profile of the head, including the slope of the forehead and the overall roundness, varies between the species.",
+        "possible_values": [
+          "rounded",
+          "angular",
+          "elongated"
+        ]
+      },
+      {
+        "feature": "wing_tip_shape",
+        "description": "The shape of the primary feathers at the wingtips, which can be pointed or rounded, is visible in flight or perched poses.",
+        "possible_values": [
+          "pointed",
+          "rounded",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "body_posture",
+        "description": "The typical resting or foraging posture, such as a hunched back or an upright stance, is characteristic of specific species.",
+        "possible_values": [
+          "hunched",
+          "upright",
+          "horizontal"
+        ]
+      },
+      {
+        "feature": "beak_base_width",
+        "description": "The width of the beak at the base where it meets the face, which can be broad and heavy or narrow and delicate.",
+        "possible_values": [
+          "broad_heavy",
+          "narrow_delicate",
+          "medium"
+        ]
+      },
+      {
+        "feature": "tail_length_relative",
+        "description": "The length of the tail relative to the body length, which is longer in some species and shorter in others.",
+        "possible_values": [
+          "long",
+          "medium",
+          "short"
+        ]
+      },
+      {
+        "feature": "plumage_uniformity",
+        "description": "The consistency of the black coloration across the body, with some species showing distinct color variations or sheens while others are uniformly dark.",
+        "possible_values": [
+          "uniform_black",
+          "varied_sheen",
+          "greyish_tones"
+        ]
+      }
+    ]
+  }
+]

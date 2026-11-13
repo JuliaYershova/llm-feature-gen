@@ -1,0 +1,116 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_orientation",
+        "description": "The primary axis of the subject's body relative to the water surface, which distinguishes horizontal swimmers from vertical divers.",
+        "possible_values": [
+          "horizontal",
+          "vertical",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "arm_movement_pattern",
+        "description": "The specific kinematic sequence of the arms, distinguishing the alternating over-head motion of front crawl from the simultaneous recovery of breaststroke.",
+        "possible_values": [
+          "alternating_overhead",
+          "simultaneous_recovery",
+          "no_movement",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "leg_movement_pattern",
+        "description": "The rhythmic action of the legs, distinguishing the continuous flutter kick from the whip-like kick of breaststroke or the tucked position of a dive.",
+        "possible_values": [
+          "continuous_flutter",
+          "whip_kick",
+          "tucked",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "head_position",
+        "description": "The position of the head relative to the water, which is typically submerged or alternating in front crawl but frequently above water in breaststroke.",
+        "possible_values": [
+          "submerged",
+          "alternating",
+          "above_water",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "starting_position",
+        "description": "The location of the subject at the beginning of the clip, distinguishing swimmers starting in the water from divers starting on a platform or cliff.",
+        "possible_values": [
+          "in_water",
+          "on_platform",
+          "on_cliff",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "trajectory_type",
+        "description": "The path of the subject through the scene, distinguishing horizontal forward motion from a vertical drop into the water.",
+        "possible_values": [
+          "horizontal_forward",
+          "vertical_drop",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "The physical setting of the activity, which helps distinguish controlled pool environments from natural outdoor bodies of water.",
+        "possible_values": [
+          "indoor_pool",
+          "outdoor_pool",
+          "natural_water"
+        ]
+      },
+      {
+        "feature": "presence_of_lane_markers",
+        "description": "The visibility of lane ropes or lines, which are characteristic of competitive or training pools but absent in natural cliff diving locations.",
+        "possible_values": [
+          "visible",
+          "absent"
+        ]
+      },
+      {
+        "feature": "action_duration",
+        "description": "The temporal length of the primary action, which is typically a short, singular event for diving versus a sustained, repetitive motion for swimming.",
+        "possible_values": [
+          "short_event",
+          "sustained_motion"
+        ]
+      },
+      {
+        "feature": "entry_style",
+        "description": "The manner in which the subject enters the water, distinguishing a controlled dive or jump from a swimmer already in the water.",
+        "possible_values": [
+          "controlled_dive",
+          "jump",
+          "already_in_water"
+        ]
+      },
+      {
+        "feature": "subject_height_above_water",
+        "description": "The vertical distance of the subject from the water surface at the start, which is high for cliff diving and low or zero for pool diving and swimming.",
+        "possible_values": [
+          "high",
+          "low",
+          "zero"
+        ]
+      },
+      {
+        "feature": "body_alignment",
+        "description": "The straightness of the body, which is typically rigid and streamlined during a dive but flexed and undulating during swimming.",
+        "possible_values": [
+          "rigid_streamlined",
+          "flexed_undulating",
+          "not_applicable"
+        ]
+      }
+    ]
+  }
+]

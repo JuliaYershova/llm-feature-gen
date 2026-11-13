@@ -1,0 +1,51 @@
+{
+  "modality": "image",
+  "run": 0,
+  "n_features": 12,
+  "schema_structure_validity_%": 100.0,
+  "n_generated": 203,
+  "n_failed": 0,
+  "idle_power_W": {
+    "0": 81.82,
+    "1": 90.75,
+    "2": 90.16
+  },
+  "discovery": {
+    "time_s": 50.7,
+    "tokens": {
+      "calls": 1,
+      "prompt_tokens": 13459,
+      "completion_tokens": 1081,
+      "total_tokens": 14540
+    },
+    "kWh": 0.00348,
+    "cost_CZK": 0.023,
+    "cost_USD": 0.00096,
+    "new_procs": 0,
+    "gpus": [
+      0,
+      1,
+      2
+    ]
+  },
+  "generation": {
+    "time_s": 1348.9,
+    "tokens": {
+      "calls": 203,
+      "prompt_tokens": 512473,
+      "completion_tokens": 31871,
+      "total_tokens": 544344
+    },
+    "kWh": 0.08678,
+    "cost_CZK": 0.564,
+    "cost_USD": 0.024,
+    "new_procs": 0,
+    "gpus": [
+      0,
+      1,
+      2
+    ]
+  },
+  "time_per_100_s": 664.5,
+  "cost_per_100_USD": 0.01182
+}

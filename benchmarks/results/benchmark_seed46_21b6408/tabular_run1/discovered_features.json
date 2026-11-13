@@ -1,0 +1,119 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "age_group",
+        "description": "Age ranges may correlate with income levels, with younger individuals often earning less and older individuals potentially earning more due to experience or career progression.",
+        "possible_values": [
+          "young",
+          "middle",
+          "old"
+        ]
+      },
+      {
+        "feature": "workclass_type",
+        "description": "Different workclass types (e.g., government, private, self-employed) may reflect varying income potential and job stability, influencing earnings.",
+        "possible_values": [
+          "government",
+          "private",
+          "self_employed",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "education_level",
+        "description": "Higher education levels (e.g., bachelor's or higher) are typically associated with higher income, while lower levels (e.g., 10th grade) may correlate with lower income.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "marital_status_type",
+        "description": "Marital status can influence income, with married individuals sometimes earning more due to dual incomes or household stability, while absent spouse or civil spouse may indicate different economic arrangements.",
+        "possible_values": [
+          "married",
+          "single",
+          "absent_spouse",
+          "civil_spouse"
+        ]
+      },
+      {
+        "feature": "occupation_category",
+        "description": "Occupation types vary widely in income potential; managerial or professional roles tend to pay more than service or repair roles.",
+        "possible_values": [
+          "managerial",
+          "professional",
+          "service",
+          "craft",
+          "clerical",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "relationship_role",
+        "description": "Relationship role (e.g., husband, wife, own-child) may indicate household structure and income contribution, with heads of household often having higher earnings.",
+        "possible_values": [
+          "head_of_household",
+          "spouse",
+          "child",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "hours_per_week",
+        "description": "Number of hours worked per week can directly affect income; higher hours often correlate with higher earnings, especially in hourly jobs.",
+        "possible_values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      {
+        "feature": "capital_gain_loss",
+        "description": "Presence of capital gain or loss may indicate investment activity, which can significantly impact total income and is more common among higher earners.",
+        "possible_values": [
+          "no_gain_loss",
+          "gain",
+          "loss"
+        ]
+      },
+      {
+        "feature": "native_country",
+        "description": "Country of origin may influence income due to migration patterns, education systems, or economic conditions; native-born individuals may have different income profiles.",
+        "possible_values": [
+          "united_states",
+          "non_us",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "sex",
+        "description": "Gender can be a factor in income disparities due to historical and structural differences in pay and job access.",
+        "possible_values": [
+          "male",
+          "female"
+        ]
+      },
+      {
+        "feature": "education_num_range",
+        "description": "Numerical education level (education-num) provides a direct proxy for education attainment, which is strongly correlated with income.",
+        "possible_values": [
+          "low_education",
+          "medium_education",
+          "high_education"
+        ]
+      },
+      {
+        "feature": "fnlwgt_magnitude",
+        "description": "The fnlwgt value, while a sampling weight, may indirectly reflect population density or representation, potentially correlating with income distribution in certain regions or groups.",
+        "possible_values": [
+          "low_weight",
+          "medium_weight",
+          "high_weight"
+        ]
+      }
+    ]
+  }
+]

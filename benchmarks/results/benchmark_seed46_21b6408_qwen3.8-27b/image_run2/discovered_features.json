@@ -1,0 +1,105 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "overall_body_color",
+        "description": "The primary coloration of the plumage, which is the most obvious visual difference between the groups, separating the brownish birds from the black ones.",
+        "possible_values": [
+          "uniform_brown",
+          "uniform_black",
+          "iridescent_black"
+        ]
+      },
+      {
+        "feature": "beak_shape",
+        "description": "The geometry of the bill, distinguishing the short, conical bills of the smaller birds from the long, heavy, and often hooked bills of the larger corvids.",
+        "possible_values": [
+          "short_conical",
+          "long_heavy",
+          "long_hooked"
+        ]
+      },
+      {
+        "feature": "tail_shape",
+        "description": "The shape of the tail feathers when closed, which varies from a rounded or square end to a distinct wedge shape.",
+        "possible_values": [
+          "rounded",
+          "square",
+          "wedge"
+        ]
+      },
+      {
+        "feature": "body_size_relative",
+        "description": "The apparent size of the bird relative to its perch or environment, separating the small passerines from the large corvids.",
+        "possible_values": [
+          "small",
+          "large"
+        ]
+      },
+      {
+        "feature": "leg_length",
+        "description": "The length of the legs relative to the body, which is noticeably longer in the larger corvids compared to the smaller birds.",
+        "possible_values": [
+          "short",
+          "long"
+        ]
+      },
+      {
+        "feature": "head_shape",
+        "description": "The profile of the head, distinguishing the rounded, small heads of the smaller birds from the larger, more angular heads of the corvids.",
+        "possible_values": [
+          "small_round",
+          "large_angular"
+        ]
+      },
+      {
+        "feature": "plumage_texture",
+        "description": "The visual texture of the feathers, ranging from smooth and sleek to shaggy or fluffy, particularly around the neck and chest.",
+        "possible_values": [
+          "smooth_sleek",
+          "shaggy_fluffy"
+        ]
+      },
+      {
+        "feature": "eye_color",
+        "description": "The color of the iris, which is dark in the smaller birds and often lighter (yellow or white) in the larger corvids.",
+        "possible_values": [
+          "dark",
+          "light"
+        ]
+      },
+      {
+        "feature": "beak_color",
+        "description": "The color of the bill, which is dark in most birds but can be pale or yellowish in some individuals.",
+        "possible_values": [
+          "dark",
+          "pale_yellow"
+        ]
+      },
+      {
+        "feature": "wing_length",
+        "description": "The length of the wings relative to the tail, which is longer in the larger corvids and shorter in the smaller birds.",
+        "possible_values": [
+          "short",
+          "long"
+        ]
+      },
+      {
+        "feature": "body_proportion",
+        "description": "The overall body shape, distinguishing the compact, rounded bodies of the smaller birds from the elongated, robust bodies of the corvids.",
+        "possible_values": [
+          "compact_round",
+          "elongated_robust"
+        ]
+      },
+      {
+        "feature": "neck_length",
+        "description": "The length of the neck, which is short in the smaller birds and longer in the larger corvids.",
+        "possible_values": [
+          "short",
+          "long"
+        ]
+      }
+    ]
+  }
+]

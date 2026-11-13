@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 from http.client import responses
 import json
+import logging
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Union
 
@@ -28,6 +30,8 @@ try:
     from tqdm import tqdm as _tqdm
 except ImportError:  # pragma: no cover
     _tqdm = None
+
+logger = logging.getLogger(__name__)
 
 
 class BatchTextCache:
@@ -135,15 +139,22 @@ def _call_provider_batch_checked(
 
 
 
-def _generation_cache_hash(
-    provider: Any,
-    prompt: str,
-    system_prompt: Optional[str],
-) -> str:
-    """Fingerprint the prompt and common provider settings that affect outputs."""
+def _provider_identity(provider: Any) -> Optional[Dict[str, Any]]:
+    """Describe the provider for cache keys, or return None if the model is unknown.
+
+    Providers can define ``cache_identity()`` to state their identity explicitly,
+    for example a wrapper that delegates to another provider. Returning None from
+    it turns caching off.
+    """
+    provider_type = f"{type(provider).__module__}.{type(provider).__qualname__}"
+    cache_identity = getattr(provider, "cache_identity", None)
+    if callable(cache_identity):
+        identity = cache_identity()
+        return None if identity is None else {"type": provider_type, "identity": identity}
+
     provider_identity = {
-        "type": f"{type(provider).__module__}.{type(provider).__qualname__}",
-        "model": getattr(provider, "default_model", None),
+        "type": provider_type,
+        "model": getattr(provider, "default_model", None) or getattr(provider, "model", None),
         "text_model": getattr(provider, "text_model", None),
         "endpoint": getattr(provider, "endpoint", None),
         "base_url": getattr(provider, "base_url", None),
@@ -152,6 +163,20 @@ def _generation_cache_hash(
         "max_tokens": getattr(provider, "max_tokens", None),
         "reasoning_effort": getattr(provider, "reasoning_effort", None),
     }
+
+    if not (provider_identity["model"] or provider_identity["text_model"]):
+        return None
+    return provider_identity
+
+def _generation_cache_hash(
+    provider: Any,
+    prompt: str,
+    system_prompt: Optional[str],
+) -> Optional[str]:
+    """Fingerprint the prompt and provider settings, or return None if caching is unsafe."""
+    provider_identity = _provider_identity(provider)
+    if provider_identity is None:
+        return None
     payload = {
         "prompt": prompt,
         "system_prompt": system_prompt,
@@ -188,6 +213,7 @@ def generate_features_batch(
     retry_delay: float = 1.0,
     system_prompt: Optional[str] = None,
     prompt: Optional[str] = None,
+    show_progress: bool = True,
 ) -> pd.DataFrame:
     """Generate validated text features in chunks with optional caching.
 
@@ -198,6 +224,9 @@ def generate_features_batch(
     Cache entries are scoped to the prompt, system instruction, provider type,
     model, endpoint, and common generation settings so a transformer can safely
     reuse one cache across differently configured providers.
+
+    Status messages go to the ``llm_feature_gen.batch`` logger. The progress
++   bar is shown only when ``show_progress`` is true and some texts are not cached.
     """
     provider = provider or OpenAIProvider()
     texts = list(texts)
@@ -221,6 +250,13 @@ def generate_features_batch(
         discovered_features,
     )
     features_hash = _generation_cache_hash(provider, full_prompt, system_prompt)
+    if cache is not None and features_hash is None:
+        warnings.warn(
+            f"Cannot tell which model {type(provider).__name__} uses, so caching is "
+            "disabled. Define cache_identity() on the provider to enable it.",
+            stacklevel=2,
+        )
+        cache = None
     response_schema = _build_generation_response_schema(discovered_features)
     all_columns = ["File", "Class"] + feature_names + ["raw_llm_output"]
 
@@ -248,11 +284,11 @@ def generate_features_batch(
         cache.save()
 
     if cached_results:
-        print(f"Cache hits: {len(cached_results)} / {len(texts)}")
+        logger.info("Cache hits: %d / %d", len(cached_results), len(texts))
 
     total_batches = (len(indices_to_process) + batch_size - 1) // batch_size
     iterator = range(0, len(indices_to_process), batch_size)
-    if _tqdm is not None:
+    if show_progress and total_batches and _tqdm is not None:
         iterator = _tqdm(list(iterator), desc="Batch generation", unit="batch", total=total_batches)
 
     batch_responses: Dict[int, Dict[str, Any]] = {}
@@ -271,7 +307,7 @@ def generate_features_batch(
                 system_prompt,
             )
         except Exception as exc:
-            print(f"Batch error ({exc}), retrying after {retry_delay}s...")
+            logger.warning("Batch error (%s), retrying after %ss...", exc, retry_delay)
             time.sleep(retry_delay)
             try:
                 responses = _call_provider_batch_checked(
@@ -282,7 +318,7 @@ def generate_features_batch(
                     system_prompt,
                 )
             except Exception as retry_exc:
-                print(f"Batch failed again: {retry_exc}. Skipping batch.")
+                logger.warning("Batch failed again: %s. Skipping batch.", retry_exc)
                 responses = [{}] * len(batch_texts)
                 batch_failed = True
 
@@ -292,7 +328,7 @@ def generate_features_batch(
             try:
                 inner = _validated_provider_response(parsed, discovered_features)
             except ValueError as exc:
-                print(f"Invalid batch response for text_{global_index}: {exc}")
+                logger.warning("Invalid batch response for text_%d: %s", global_index, exc)
                 if batch_failed:
                     inner = None
                 else:
@@ -306,7 +342,7 @@ def generate_features_batch(
                         )[0]
                         inner = _validated_provider_response(retry_response, discovered_features)
                     except Exception as retry_exc:
-                        print(f"Retry failed for text_{global_index}: {retry_exc}")
+                        logger.warning("Retry failed for text_%d: %s", global_index, retry_exc)
                         inner = None
 
             if inner is None:
@@ -340,7 +376,7 @@ def generate_features_batch(
         output_path = Path(output_csv)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
-        print(f"Saved batch results to {output_path}")
+        logger.info("Saved batch results to %s", output_path)
 
     return df
 

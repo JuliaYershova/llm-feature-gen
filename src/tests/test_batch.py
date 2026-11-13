@@ -10,6 +10,7 @@ import llm_feature_gen.batch as batch_mod
 
 
 class FakeBatchProvider:
+    model = "fake-model"
     def __init__(self, fail_first: bool = False) -> None:
         self.calls = []
         self.fail_first = fail_first
@@ -333,6 +334,49 @@ def test_generate_features_batch_reuses_cached_results_and_skips_provider(tmp_pa
     assert list(df["topic"]) == ["cached"]
     assert list(df["length"]) == ["5"]
 
+def test_generate_features_batch_fully_cached_run_is_quiet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+):
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    provider = FakeBatchProvider()
+    cache.set("alpha", generation_cache_hash(provider, discovered_features()), {"topic": "cached", "length": "5"})
+    monkeypatch.setattr(batch_mod, "_tqdm", lambda *args, **kwargs: pytest.fail("progress bar created"))
+
+    with caplog.at_level("INFO", logger="llm_feature_gen.batch"):
+        batch_mod.generate_features_batch(
+            texts=["alpha"],
+            labels=["A"],
+            discovered_features=discovered_features(),
+            provider=provider,
+            cache=cache,
+            output_csv=tmp_path / "out.csv",
+        )
+
+    assert capsys.readouterr().out == ""
+    assert "Cache hits: 1 / 1" in caplog.text
+    assert "Saved batch results" in caplog.text
+
+
+def test_generate_features_batch_show_progress_false_and_retry_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    monkeypatch.setattr(batch_mod, "_tqdm", lambda *args, **kwargs: pytest.fail("progress bar created"))
+
+    with caplog.at_level("WARNING", logger="llm_feature_gen.batch"):
+        batch_mod.generate_features_batch(
+            texts=["alpha"],
+            labels=["A"],
+            discovered_features=discovered_features(),
+            provider=FakeBatchProvider(fail_first=True),
+            retry_delay=0,
+            show_progress=False,
+        )
+
+    assert "retrying" in caplog.text
 
 def test_generate_features_batch_discards_cached_inapplicable_enum(tmp_path: Path):
     schema = {"proposed_features": [{"feature": "topic", "possible_values": ["business"]}]}
@@ -356,6 +400,7 @@ def test_generate_features_batch_discards_cached_inapplicable_enum(tmp_path: Pat
 
 def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):
     class InvalidThenValidProvider:
+        model = "fake-model"
         def __init__(self):
             self.calls = 0
 
@@ -569,3 +614,67 @@ def test_generate_features_from_texts_cached_rejects_missing_class(tmp_path: Pat
             provider=FakeBatchProvider(),
             classes=["missing"],
         )
+
+class EchoProvider:
+    """Custom provider that answers with its own model name."""
+
+    def __init__(self, model):
+        self.model = model
+
+    def text_features(self, text_list, prompt=None):
+        return [{"topic": self.model, "length": "5"} for _ in text_list]
+
+
+def test_generate_features_batch_separates_cache_by_custom_model_attribute(tmp_path: Path):
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    answers = [
+        batch_mod.generate_features_batch(
+            ["alpha"], ["A"], discovered_features(), provider=EchoProvider(model), cache=cache
+        )["topic"].tolist()
+        for model in ["model-a", "model-b"]
+    ]
+
+    assert answers == [["model-a"], ["model-b"]]
+
+
+def test_generate_features_batch_uses_cache_identity(tmp_path: Path):
+    class WrappedProvider:
+        def __init__(self, inner):
+            self.inner = inner
+
+        def cache_identity(self):
+            return {"inner_model": self.inner.model}
+
+        def text_features(self, text_list, prompt=None):
+            return self.inner.text_features(text_list, prompt=prompt)
+
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    answers = [
+        batch_mod.generate_features_batch(
+            ["alpha"], ["A"], discovered_features(), provider=WrappedProvider(EchoProvider(model)), cache=cache
+        )["topic"].tolist()
+        for model in ["model-a", "model-b"]
+    ]
+
+    assert answers == [["model-a"], ["model-b"]]
+    assert len(cache) == 2
+
+
+@pytest.mark.parametrize("identity", [False, True])
+def test_generate_features_batch_skips_cache_when_model_is_unknown(tmp_path: Path, identity: bool):
+    class AnonymousProvider:
+        def text_features(self, text_list, prompt=None):
+            return [{"topic": "value", "length": "5"} for _ in text_list]
+
+    if identity:
+        AnonymousProvider.cache_identity = lambda self: None
+
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    with pytest.warns(UserWarning, match="caching is disabled"):
+        df = batch_mod.generate_features_batch(
+            ["alpha"], ["A"], discovered_features(), provider=AnonymousProvider(), cache=cache
+        )
+
+    assert df["topic"].tolist() == ["value"]
+    assert len(cache) == 0
+    assert not cache.cache_file.exists()

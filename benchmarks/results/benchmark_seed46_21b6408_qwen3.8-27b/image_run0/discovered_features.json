@@ -1,0 +1,132 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_size_relative",
+        "description": "The overall scale of the bird relative to its perch or environment, distinguishing the large corvids from the smaller passerines.",
+        "possible_values": [
+          "large",
+          "medium",
+          "small"
+        ]
+      },
+      {
+        "feature": "beak_shape",
+        "description": "The geometry of the bill, specifically the length and curvature, which varies significantly between the heavy corvids and the slender passerines.",
+        "possible_values": [
+          "long_heavy",
+          "short_conical",
+          "medium_straight"
+        ]
+      },
+      {
+        "feature": "tail_shape",
+        "description": "The contour of the tail feathers when closed, a key differentiator between the wedge-shaped tail of the raven and the rounded or square tails of the others.",
+        "possible_values": [
+          "wedge",
+          "rounded",
+          "square",
+          "pointed"
+        ]
+      },
+      {
+        "feature": "throat_feather_texture",
+        "description": "The appearance of the feathers on the throat and upper chest, distinguishing the shaggy, spiky feathers of the raven from the smooth plumage of the others.",
+        "possible_values": [
+          "shaggy",
+          "smooth",
+          "slightly_raised"
+        ]
+      },
+      {
+        "feature": "plumage_color_uniformity",
+        "description": "Whether the bird is a single solid color or exhibits distinct color differences between the head and the body.",
+        "possible_values": [
+          "uniform",
+          "bicolored"
+        ]
+      },
+      {
+        "feature": "head_color",
+        "description": "The specific coloration of the head, which is a primary identifier for the bicolored species.",
+        "possible_values": [
+          "black",
+          "gray",
+          "brown"
+        ]
+      },
+      {
+        "feature": "body_color",
+        "description": "The specific coloration of the main body and wings, distinguishing the dark corvids from the lighter-bodied passerine.",
+        "possible_values": [
+          "black",
+          "brown",
+          "gray"
+        ]
+      },
+      {
+        "feature": "plumage_luster",
+        "description": "The reflectivity of the feathers, distinguishing the iridescent, shiny plumage of the cowbird from the matte finish of the corvids.",
+        "possible_values": [
+          "iridescent",
+          "matte",
+          "slight_sheen"
+        ]
+      },
+      {
+        "feature": "eye_color",
+        "description": "The color of the iris, which is a consistent dark feature in the corvids but appears lighter or different in the passerine.",
+        "possible_values": [
+          "dark",
+          "light",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "leg_color",
+        "description": "The color of the legs and feet, which are dark in the corvids but appear lighter or grayish in the passerine.",
+        "possible_values": [
+          "black",
+          "gray",
+          "pinkish"
+        ]
+      },
+      {
+        "feature": "body_proportion",
+        "description": "The ratio of body length to height, distinguishing the long, slender passerine from the compact, deep-chested corvids.",
+        "possible_values": [
+          "slender",
+          "compact",
+          "robust"
+        ]
+      },
+      {
+        "feature": "wing_length_relative",
+        "description": "The length of the wings relative to the tail, which is longer in the raven and shorter in the cowbird.",
+        "possible_values": [
+          "long",
+          "medium",
+          "short"
+        ]
+      },
+      {
+        "feature": "beak_thickness",
+        "description": "The robustness of the bill, distinguishing the heavy, thick bill of the raven from the thinner bills of the others.",
+        "possible_values": [
+          "very_thick",
+          "medium",
+          "thin"
+        ]
+      },
+      {
+        "feature": "head_shape",
+        "description": "The profile of the head, distinguishing the rounded head of the cowbird from the more angular head of the corvids.",
+        "possible_values": [
+          "rounded",
+          "angular",
+          "pointed"
+        ]
+      }
+    ]
+  }
+]

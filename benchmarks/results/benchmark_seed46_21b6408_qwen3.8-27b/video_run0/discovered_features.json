@@ -1,0 +1,117 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "body_orientation",
+        "description": "The primary axis of the subject's body relative to the water surface or vertical axis, which distinguishes horizontal swimming from vertical falling.",
+        "possible_values": [
+          "horizontal",
+          "vertical",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "limb_movement_pattern",
+        "description": "The specific rhythmic or coordinated motion of the arms and legs, distinguishing the alternating arm cycle of one stroke from the simultaneous arm recovery of another.",
+        "possible_values": [
+          "alternating_arms",
+          "simultaneous_arms",
+          "no_movement",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "head_position",
+        "description": "The position of the head relative to the water surface, which is a key differentiator between the two swimming styles shown.",
+        "possible_values": [
+          "submerged",
+          "above_water",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "trajectory_direction",
+        "description": "The direction of the subject's movement through the space, distinguishing horizontal progression from vertical descent.",
+        "possible_values": [
+          "horizontal",
+          "vertical_down",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "starting_environment",
+        "description": "The physical structure or location from which the action originates, distinguishing pool-based actions from high-altitude or natural rock formations.",
+        "possible_values": [
+          "pool_surface",
+          "high_platform",
+          "rock_formation",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "water_interaction_type",
+        "description": "The nature of the contact with the water, distinguishing continuous propulsion through the medium from a single impact event.",
+        "possible_values": [
+          "continuous_propulsion",
+          "single_impact",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "action_duration",
+        "description": "The temporal length of the primary action, distinguishing sustained rhythmic movement from a brief, instantaneous event.",
+        "possible_values": [
+          "sustained",
+          "brief",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_lane_markers",
+        "description": "The visibility of artificial lane dividers, which indicates a controlled swimming pool environment versus open water or natural settings.",
+        "possible_values": [
+          "visible",
+          "not_visible",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "subject_height_above_water",
+        "description": "The vertical distance of the subject from the water surface at the start of the action, distinguishing high-altitude jumps from surface-level swimming.",
+        "possible_values": [
+          "high",
+          "low",
+          "at_surface",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "body_alignment",
+        "description": "The straightness or curvature of the body, distinguishing the streamlined posture of a dive from the bent posture of a swimmer.",
+        "possible_values": [
+          "streamlined",
+          "bent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "movement_rhythm",
+        "description": "The temporal pattern of the movement, distinguishing the cyclic nature of swimming from the linear, non-repeating nature of a fall.",
+        "possible_values": [
+          "cyclic",
+          "linear",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "environment_type",
+        "description": "The general setting of the action, distinguishing artificial pool structures from natural geological features.",
+        "possible_values": [
+          "artificial_pool",
+          "natural_cliff",
+          "not_applicable"
+        ]
+      }
+    ]
+  }
+]

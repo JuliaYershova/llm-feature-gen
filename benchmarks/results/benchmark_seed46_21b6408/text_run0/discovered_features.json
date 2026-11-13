@@ -1,0 +1,139 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "primary_subject_domain",
+        "description": "Identifies the core domain or subject matter the text is focused on, which is often the most direct discriminator between categories.",
+        "possible_values": [
+          "healthcare_technology",
+          "financial_markets",
+          "pharmaceutical_business",
+          "consumer_electronics",
+          "mobile_communications",
+          "network_security",
+          "sports_competition",
+          "military_action",
+          "cultural_heritage",
+          "energy_commodities"
+        ]
+      },
+      {
+        "feature": "event_type",
+        "description": "Categorizes the type of event or occurrence being reported, such as a competition outcome, a financial report, a technological development, or a geopolitical incident.",
+        "possible_values": [
+          "competition_result",
+          "financial_performance",
+          "product_development",
+          "market_movement",
+          "geopolitical_incident",
+          "cultural_loss",
+          "regulatory_action"
+        ]
+      },
+      {
+        "feature": "temporal_urgency",
+        "description": "Reflects the immediacy or timeliness of the information, often indicated by phrases like 'today', 'Monday', or 'just announced', which differ in frequency across domains.",
+        "possible_values": [
+          "high_urgency",
+          "medium_urgency",
+          "low_urgency",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "numerical_data_presence",
+        "description": "Indicates whether the text includes specific quantitative data such as percentages, prices, scores, or counts, which are more common in business, sports, and science.",
+        "possible_values": [
+          "high_numerical_density",
+          "moderate_numerical_density",
+          "low_numerical_density",
+          "no_numerical_data"
+        ]
+      },
+      {
+        "feature": "institutional_mentions",
+        "description": "Tracks the presence and type of institutions mentioned (e.g., hospitals, corporations, governments, sports teams), which vary by domain.",
+        "possible_values": [
+          "healthcare_institutions",
+          "corporate_entities",
+          "governmental_bodies",
+          "sports_teams",
+          "academic_institutions",
+          "no_institutional_mentions"
+        ]
+      },
+      {
+        "feature": "narrative_structure",
+        "description": "Describes the narrative flow: whether the text follows a story arc (e.g., conflict-resolution in sports), a report format (e.g., business earnings), or a descriptive account (e.g., fire damage).",
+        "possible_values": [
+          "story_arc",
+          "report_format",
+          "descriptive_account",
+          "technical_specification"
+        ]
+      },
+      {
+        "feature": "action_orientation",
+        "description": "Measures the degree to which the text emphasizes actions, decisions, or outcomes (e.g., 'recalled', 'surged', 'won') versus static descriptions.",
+        "possible_values": [
+          "high_action_orientation",
+          "moderate_action_orientation",
+          "low_action_orientation",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "geographic_scope",
+        "description": "Indicates the spatial scope of the event or discussion, ranging from local to global, which varies by category (e.g., local sports vs. global markets).",
+        "possible_values": [
+          "local",
+          "national",
+          "regional",
+          "global",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "technical_jargon_density",
+        "description": "Measures the frequency of specialized terminology (e.g., 'network architecture', 'crude oil', 'Vioxx recall'), which is higher in SciTech and Business.",
+        "possible_values": [
+          "high_jargon",
+          "moderate_jargon",
+          "low_jargon",
+          "no_jargon"
+        ]
+      },
+      {
+        "feature": "human_agent_focus",
+        "description": "Assesses whether the text centers on human actors (e.g., players, executives, soldiers) or abstract systems (e.g., markets, technologies).",
+        "possible_values": [
+          "human_agents_dominant",
+          "systemic_processes_dominant",
+          "mixed_focus",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "outcome_emphasis",
+        "description": "Determines whether the text emphasizes results (e.g., 'profit fell', 'won 7-5') or processes (e.g., 'developing', 'installing').",
+        "possible_values": [
+          "outcome_focused",
+          "process_focused",
+          "mixed_emphasis",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "source_attribution_style",
+        "description": "Identifies the style of source attribution (e.g., 'AP', 'Reuters', 'company press release'), which varies by domain and journalistic convention.",
+        "possible_values": [
+          "news_agency",
+          "corporate_press_release",
+          "government_report",
+          "sports_wire",
+          "no_source_attribution"
+        ]
+      }
+    ]
+  }
+]

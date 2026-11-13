@@ -1,0 +1,132 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "event_type",
+        "description": "The nature of the event described—whether it's a crime, political development, economic shift, or sports competition—provides strong cues for categorization. Sports events involve competition and scores; business involves pricing or output changes; world news covers international incidents or diplomacy; SciTech is absent here but would involve discovery or innovation.",
+        "possible_values": [
+          "sports_competition",
+          "economic_shift",
+          "international_incident",
+          "crime_operation",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "geographic_scope",
+        "description": "The scale of the geographic focus—local, national, or international—helps distinguish between categories. World news often involves multiple countries or global implications; business may be national or regional; sports can be local or international; SciTech is often global or institutional.",
+        "possible_values": [
+          "local",
+          "national",
+          "international",
+          "global_institutional"
+        ]
+      },
+      {
+        "feature": "temporal_urgency",
+        "description": "The immediacy or recency of the event, often signaled by phrases like 'late Friday', 'Monday', or 'on Thursday', indicates breaking news, which is more common in World and Sports, while Business and SciTech may report on trends or longer-term developments.",
+        "possible_values": [
+          "breaking",
+          "recent",
+          "ongoing",
+          "historical",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "numerical_data_presence",
+        "description": "Presence of specific numbers (e.g., scores, prices, percentages, counts) is common in Business and Sports, less so in World news unless reporting casualties or arrests, and rare in SciTech (which might use technical metrics).",
+        "possible_values": [
+          "high",
+          "medium",
+          "low",
+          "none"
+        ]
+      },
+      {
+        "feature": "institutional_actor",
+        "description": "Whether the main actors are corporations, governments, sports teams, or scientific organizations. Corporations dominate Business; governments and international bodies appear in World; sports teams in Sports; research institutions in SciTech.",
+        "possible_values": [
+          "corporation",
+          "government",
+          "sports_team",
+          "research_institution",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "narrative_structure",
+        "description": "The structure of the narrative—whether it's a report of an event, a trend analysis, a competition outcome, or a personal achievement—helps distinguish categories. Sports often have a climax (score, win); Business reports trends; World news reports incidents; SciTech reports discoveries.",
+        "possible_values": [
+          "event_report",
+          "trend_analysis",
+          "competition_outcome",
+          "personal_achievement",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "emotional_tone",
+        "description": "The emotional valence—whether the text conveys urgency, excitement, concern, or neutrality—varies by category. Sports often use excitement; World news may use concern; Business is neutral; SciTech is technical.",
+        "possible_values": [
+          "excitement",
+          "concern",
+          "neutrality",
+          "urgency",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "specificity_of_action",
+        "description": "The level of detail about actions taken—e.g., 'cutting prices', 'arresting suspects', 'scoring touchdowns'—is high in Sports and Business, moderate in World, and low in SciTech (which might describe processes).",
+        "possible_values": [
+          "high",
+          "medium",
+          "low",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "presence_of_competition",
+        "description": "Whether the text describes a contest or rivalry, such as between teams, companies, or nations. Sports are inherently competitive; Business may involve market competition; World news may involve geopolitical rivalry; SciTech rarely involves competition.",
+        "possible_values": [
+          "explicit_competition",
+          "implicit_competition",
+          "no_competition",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "use_of_technical_jargon",
+        "description": "The presence of specialized terminology (e.g., 'barrel', 'output', 'knighthood', 'faxes') indicates domain-specific knowledge. Business uses economic terms; Sports uses game-specific terms; World news uses political terms; SciTech uses technical terms.",
+        "possible_values": [
+          "high",
+          "medium",
+          "low",
+          "none"
+        ]
+      },
+      {
+        "feature": "focus_on_individuals",
+        "description": "Whether the text centers on individuals (e.g., athletes, executives, politicians) or institutions. Sports and World news often highlight individuals; Business may focus on companies; SciTech on researchers or institutions.",
+        "possible_values": [
+          "individuals",
+          "institutions",
+          "mixed",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "temporal_duration",
+        "description": "The time span covered—whether it's a momentary event, a short-term trend, or a long-term development. Sports and World news often cover short events; Business may cover monthly trends; SciTech may cover long-term research.",
+        "possible_values": [
+          "momentary",
+          "short_term",
+          "medium_term",
+          "long_term",
+          "not_applicable"
+        ]
+      }
+    ]
+  }
+]

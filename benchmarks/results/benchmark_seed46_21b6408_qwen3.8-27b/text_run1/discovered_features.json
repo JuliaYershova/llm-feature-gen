@@ -1,0 +1,161 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "primary_actor_type",
+        "description": "Identifies the main subject of the text, which strongly correlates with the domain (e.g., corporations vs. athletes vs. governments vs. researchers).",
+        "possible_values": [
+          "corporate_entity",
+          "individual_athlete",
+          "government_body",
+          "technical_researcher",
+          "general_public",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "narrative_focus",
+        "description": "Describes the central event or state being reported, distinguishing between market movements, game outcomes, policy changes, and technical discoveries.",
+        "possible_values": [
+          "market_fluctuation",
+          "competitive_outcome",
+          "political_decision",
+          "technical_innovation",
+          "legal_proceeding",
+          "human_interest_story"
+        ]
+      },
+      {
+        "feature": "temporal_orientation",
+        "description": "Indicates whether the text focuses on immediate results, long-term trends, or future projections, which varies by category (e.g., sports are immediate, business often trend-based).",
+        "possible_values": [
+          "immediate_result",
+          "long_term_trend",
+          "future_projection",
+          "historical_context",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "quantitative_density",
+        "description": "Measures the frequency and type of numerical data (scores, financial figures, dates, technical specs) which helps distinguish data-heavy business/scitech from narrative-heavy world/sports.",
+        "possible_values": [
+          "high_financial_metrics",
+          "high_competitive_scores",
+          "low_numeric_density",
+          "technical_parameters",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "linguistic_register",
+        "description": "Captures the tone and formality, ranging from objective reporting to sensationalized headlines or technical jargon.",
+        "possible_values": [
+          "objective_news",
+          "sensationalized_headline",
+          "technical_jargon",
+          "colloquial_narrative",
+          "formal_diplomatic"
+        ]
+      },
+      {
+        "feature": "causal_complexity",
+        "description": "Assesses the depth of cause-and-effect reasoning presented, distinguishing simple event reporting from complex geopolitical or market analysis.",
+        "possible_values": [
+          "direct_causality",
+          "complex_geopolitical",
+          "market_interdependence",
+          "technical_mechanism",
+          "none"
+        ]
+      },
+      {
+        "feature": "stakeholder_scope",
+        "description": "Defines the breadth of impact, from individual/team level to global/macro-economic level, helping separate sports from world/business.",
+        "possible_values": [
+          "individual_or_team",
+          "national_economy",
+          "global_market",
+          "international_relations",
+          "technical_community"
+        ]
+      },
+      {
+        "feature": "action_verb_type",
+        "description": "Identifies the primary verbs used, such as 'win/lose' (sports), 'approve/regulate' (world/scitech), or 'rise/fall' (business).",
+        "possible_values": [
+          "competitive_action",
+          "regulatory_action",
+          "financial_movement",
+          "technical_operation",
+          "political_manipulation"
+        ]
+      },
+      {
+        "feature": "abstractness_level",
+        "description": "Measures the level of abstraction, from concrete physical events (sports) to abstract concepts (policy, market theory, code).",
+        "possible_values": [
+          "concrete_physical",
+          "institutional_process",
+          "abstract_conceptual",
+          "technical_specification",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "urgency_indicator",
+        "description": "Detects language indicating immediacy or breaking news, common in sports and breaking world news, less so in long-form business analysis.",
+        "possible_values": [
+          "breaking_news",
+          "scheduled_event",
+          "ongoing_process",
+          "retrospective_analysis",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "entity_specificity",
+        "description": "Assesses whether the text focuses on specific named entities (teams, companies, countries) or general categories (stocks, viruses, laws).",
+        "possible_values": [
+          "specific_named_entities",
+          "general_category_reference",
+          "mixed",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "conflict_nature",
+        "description": "Describes the type of conflict or tension, such as competitive rivalry, legal dispute, political opposition, or technical vulnerability.",
+        "possible_values": [
+          "competitive_rivalry",
+          "legal_dispute",
+          "political_opposition",
+          "technical_vulnerability",
+          "none"
+        ]
+      },
+      {
+        "feature": "outcome_certainty",
+        "description": "Indicates whether the outcome is definitive (final score, approved law) or probabilistic (market prediction, theoretical flaw).",
+        "possible_values": [
+          "definitive_outcome",
+          "probabilistic_prediction",
+          "theoretical_possibility",
+          "ongoing_uncertainty",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "domain_jargon_presence",
+        "description": "Checks for specialized terminology unique to specific fields (e.g., 'PGA Tour', 'severance', 'antivirus engine', 'roadmap to democracy').",
+        "possible_values": [
+          "sports_specific",
+          "financial_specific",
+          "technical_specific",
+          "political_specific",
+          "general_vocabulary"
+        ]
+      }
+    ]
+  }
+]
