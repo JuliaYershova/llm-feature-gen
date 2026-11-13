@@ -49,7 +49,7 @@ def test_discover_prompt_updated_for_multiple_classes(mock_provider, tmp_path):
 
     def capture_prompt(texts, prompt):
         captured_prompts.append(prompt)
-        return [{"proposed_features": []}]
+        return [{"proposed_features": [{"feature": "topic"}]}]
 
     mock_provider.text_features.side_effect = capture_prompt
 
@@ -76,7 +76,7 @@ def test_discover_prompt_unchanged_for_two_classes(mock_provider, tmp_path):
 
     def capture_prompt(texts, prompt):
         captured_prompts.append(prompt)
-        return [{"proposed_features": []}]
+        return [{"proposed_features": [{"feature": "topic"}]}]
 
     mock_provider.text_features.side_effect = capture_prompt
 

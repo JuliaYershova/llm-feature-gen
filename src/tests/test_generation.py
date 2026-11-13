@@ -249,9 +249,15 @@ def test_generation_response_schema_and_validation():
         with pytest.raises(ValueError):
             gen._validate_generation_features(output, spec)
 
+    with pytest.raises(ValueError, match="must be one of"):
+        gen._validate_generation_features(
+            {"risk": "not_applicable", "status": "approved", "summary": "ok"}, spec
+        )
+
+    # the explicit "not given" value stays valid, because the schema allows it
     assert gen._validate_generation_features(
-        {"risk": "not_applicable", "status": "not_visible", "summary": "ok"}, spec
-    ) == {"risk": gen.MISSING_FEATURE_VALUE, "status": gen.MISSING_FEATURE_VALUE, "summary": "ok"}
+        {"risk": gen.MISSING_FEATURE_VALUE, "status": "approved", "summary": "ok"}, spec
+    ) == {"risk": gen.MISSING_FEATURE_VALUE, "status": "approved", "summary": "ok"}
 
     assert gen._build_generation_response_schema(
         {"proposed_features": [{"feature": "already_missing", "possible_values": [gen.MISSING_FEATURE_VALUE]}]}
@@ -263,7 +269,7 @@ def test_generation_response_schema_and_validation():
     assert duplicate_schema["required"] == ["topic", "length"]
 
 
-def test_generation_writes_missing_value_for_inapplicable_enum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_generation_rejects_inapplicable_enum(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "root"
     class_dir = root / "birds"
     class_dir.mkdir(parents=True)
@@ -274,16 +280,16 @@ def test_generation_writes_missing_value_for_inapplicable_enum(tmp_path: Path, m
             return [{"flight_posture": "not_applicable"}]
 
     monkeypatch.setattr(gen, "tqdm", lambda files, desc=None, unit=None: files)
-    csv_path = gen.assign_feature_values_from_folder(
-        root,
-        "birds",
-        {"proposed_features": [{"feature": "flight_posture", "possible_values": ["gliding", "flapping"]}]},
-        provider=InapplicableProvider(),
-        output_dir=tmp_path / "out",
-        failure_threshold=1,
-    )
 
-    assert pd.read_csv(csv_path)["flight_posture"].tolist() == [gen.MISSING_FEATURE_VALUE]
+    with pytest.raises(gen.GenerationCircuitBreakerError, match="must be one of"):
+        gen.assign_feature_values_from_folder(
+            root,
+            "birds",
+            {"proposed_features": [{"feature": "flight_posture", "possible_values": ["gliding", "flapping"]}]},
+            provider=InapplicableProvider(),
+            output_dir=tmp_path / "out",
+            failure_threshold=1,
+        )
 
 
 def test_assign_feature_values_from_folder_for_tabular_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

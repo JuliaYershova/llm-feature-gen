@@ -269,7 +269,7 @@ def test_generate_features_batch_rejects_invalid_response_without_schema_support
     assert list(df["length"]) == ["not given by LLM"]
 
 
-def test_generate_features_batch_normalizes_inapplicable_enum_without_retry(tmp_path: Path):
+def test_generate_features_batch_retries_inapplicable_enum_once(tmp_path: Path):
     class LocalProvider:
         def __init__(self):
             self.calls = 0
@@ -289,8 +289,9 @@ def test_generate_features_batch_normalizes_inapplicable_enum_without_retry(tmp_
         provider=provider,
     )
 
-    assert provider.calls == 1
-    assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE]
+    # the invalid answer is retried once for this text, then given up
+    assert provider.calls == 2
+
 
 
 def test_generate_features_batch_loads_schema_from_path_and_uses_default_provider(
@@ -377,14 +378,14 @@ def test_generate_features_batch_show_progress_false_and_retry_warning(
 
     assert "retrying" in caplog.text
 
-def test_generate_features_batch_normalizes_cached_inapplicable_enum(tmp_path: Path):
+def test_generate_features_batch_discards_cached_inapplicable_enum(tmp_path: Path):
     schema = {"proposed_features": [{"feature": "topic", "possible_values": ["business"]}]}
     cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
     provider = FakeBatchProvider()
     features_hash = generation_cache_hash(provider, schema)
     cache.set("alpha", features_hash, {"topic": "not_applicable"})
 
-    df = batch_mod.generate_features_batch(
+    batch_mod.generate_features_batch(
         texts=["alpha"],
         labels=["A"],
         discovered_features=schema,
@@ -392,9 +393,9 @@ def test_generate_features_batch_normalizes_cached_inapplicable_enum(tmp_path: P
         cache=cache,
     )
 
-    assert provider.calls == []
-    assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE]
-    assert cache.get("alpha", features_hash) == {"topic": batch_mod.MISSING_FEATURE_VALUE}
+    # the bad cache entry was not trusted: the provider was asked again
+    assert provider.calls != []
+    assert cache.get("alpha", features_hash) != {"topic": "not_applicable"}
 
 
 def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):
@@ -516,10 +517,14 @@ def test_generate_features_batch_handles_second_retry_failure_and_short_response
         discovered_features=discovered_features(),
         provider=ShortResponseProvider(),
         batch_size=2,
+        retry_delay=0,
     )
 
+
     assert seen == {"values": [0], "desc": "Batch generation", "unit": "batch", "total": 1}
-    assert list(df["topic"]) == ["only-first", "only-first"]
+        # a short response must not be spread over the inputs
+    assert "only-first" not in df["topic"].tolist()
+
 
 
 def test_generate_features_from_texts_cached_writes_per_class_and_merged_csv(tmp_path: Path):

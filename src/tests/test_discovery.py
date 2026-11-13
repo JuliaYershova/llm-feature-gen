@@ -9,6 +9,7 @@ from PIL import Image
 from llm_feature_gen.discover import (
     discover_features_from_images,
     discover_features_from_videos,
+    discover_features_from_texts,
 )
 
 
@@ -32,8 +33,8 @@ class FakeProvider:
             return [
                 {
                     "proposed_features": [
-                        {"name": "size", "type": "numeric"},
-                        {"name": "color", "type": "categorical"},
+                        {"feature": "size", "type": "numeric"},
+                        {"feature": "color", "type": "categorical"},
                     ],
                     "count": len(image_base64_list),
                     "has_context": extra_context is not None,
@@ -41,7 +42,7 @@ class FakeProvider:
             ]
         # Per-image mode returns one dict per image
         return [
-            {"proposed_features": [{"name": f"feat_{i}", "type": "text"}]}
+            {"proposed_features": [{"feature": f"feat_{i}", "type": "text"}]}
             for i in range(len(image_base64_list))
         ]
 
@@ -302,3 +303,91 @@ def test_discovery_raises_on_error_payload(tmp_path: Path, monkeypatch: pytest.M
             output_dir=tmp_path / "out2",
             use_audio=False,
         )
+
+class _ProviderReturning:
+    def __init__(self, result):
+        self.result = result
+
+    def text_features(self, texts, **kwargs):
+        return self.result
+
+
+@pytest.mark.parametrize(
+    "bad_result",
+    [
+        [],
+        ["not a dict"],
+        [{"error": "boom"}],
+        [{"proposed_features": []}],
+        [{"something_else": 1}],
+        [{"proposed_features": "abc"}],
+        [{"proposed_features": [{}]}],
+        [{"proposed_features": [{"name": "x"}]}],
+        [{"proposed_features": [{"feature": "a"}, {}]}],
+        [{"proposed_features": [{"feature": "a"}, {"feature": "a"}]}],
+        [{"proposed_features": [{"feature": "a", "possible_values": "yes/no"}]}],
+        [{"proposed_features": [{"feature": "a", "possible_values": [1, 2]}]}],
+    ],
+)
+def test_failed_discovery_keeps_previous_file(tmp_path: Path, bad_result):
+    out_file = tmp_path / "discovered_text_features.json"
+    previous = '[{"proposed_features": [{"feature": "topic"}]}]'
+    out_file.write_text(previous, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Discovery failed"):
+        discover_features_from_texts(
+            ["some text"],
+            provider=_ProviderReturning(bad_result),
+            output_dir=tmp_path,
+        )
+
+    assert out_file.read_text(encoding="utf-8") == previous
+
+def test_unserializable_discovery_keeps_previous_file(tmp_path: Path):
+    out_file = tmp_path / "discovered_text_features.json"
+    previous = '[{"proposed_features": [{"feature": "topic"}]}]'
+    out_file.write_text(previous, encoding="utf-8")
+
+    result = [{"proposed_features": [{"feature": "topic"}], "extra": object()}]
+
+    with pytest.raises(TypeError):
+        discover_features_from_texts(
+            ["some text"],
+            provider=_ProviderReturning(result),
+            output_dir=tmp_path,
+        )
+
+    assert out_file.read_text(encoding="utf-8") == previous
+    assert not list(tmp_path.glob("*.tmp"))
+
+def test_failed_image_discovery_keeps_previous_file(tmp_images_dir: Path, tmp_path: Path):
+    class EmptyProvider:
+        def image_features(self, image_base64_list, **kwargs):
+            return [{"proposed_features": []}]
+
+    out_file = tmp_path / "discovered_image_features.json"
+    previous = '[{"proposed_features": [{"feature": "topic"}]}]'
+    out_file.write_text(previous, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Discovery failed"):
+        discover_features_from_images(
+            str(tmp_images_dir), provider=EmptyProvider(), output_dir=tmp_path
+        )
+
+    assert out_file.read_text(encoding="utf-8") == previous
+
+def test_valid_discovery_replaces_previous_file(tmp_path: Path):
+    out_file = tmp_path / "discovered_text_features.json"
+    out_file.write_text('[{"proposed_features": [{"feature": "old"}]}]', encoding="utf-8")
+
+    result = [{"proposed_features": [
+        {"feature": "topic", "description": "d", "possible_values": ["a", "b"]},
+    ]}]
+
+    discover_features_from_texts(
+        ["some text"], provider=_ProviderReturning(result), output_dir=tmp_path
+    )
+
+    assert json.loads(out_file.read_text(encoding="utf-8")) == result
+    assert not list(tmp_path.glob("*.tmp"))
+

@@ -376,7 +376,7 @@ def _build_generation_response_schema(discovered_features: Any) -> Dict[str, Any
 def _validate_generation_features(
     features: Dict[str, Any], discovered_features: Any
 ) -> Dict[str, Any]:
-    """Validate feature keys and strings, normalizing inapplicable enum values."""
+    """Validate feature keys and strings, rejecting values outside the allowed enum."""
     features = dict(features)
     specs = _iter_feature_specs(discovered_features)
     expected = [spec["feature"] for spec in specs]
@@ -398,8 +398,11 @@ def _validate_generation_features(
             raise ValueError(f"Generation value for '{name}' must be a string.")
 
         values = _enum_values(spec)
-        if values and value not in values:
-            features[name] = MISSING_FEATURE_VALUE
+        if values and value not in values and value != MISSING_FEATURE_VALUE:
+            raise ValueError(
+                f"Generation value for '{name}' must be one of {values} "
+                f"or '{MISSING_FEATURE_VALUE}', got {value!r}."
+            )
 
     return features
 
@@ -554,7 +557,7 @@ def assign_feature_values_from_folder(
                         }
 
                         for feat in feature_names:
-                            value = inner.get(feat, "not given by LLM")
+                            value = inner.get(feat, MISSING_FEATURE_VALUE)
                             row_dict[feat] = value
                             
                         df_out = pd.DataFrame([row_dict], columns=all_columns)
@@ -684,7 +687,7 @@ def assign_feature_values_from_folder(
         }
 
         for feat in feature_names:
-            value = inner.get(feat, "not given by LLM")
+            value = inner.get(feat, MISSING_FEATURE_VALUE)
             row[feat] = value
 
         pd.DataFrame([row], columns=all_columns).to_csv(
