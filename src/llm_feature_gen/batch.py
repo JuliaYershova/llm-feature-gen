@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from http.client import responses
 import json
 import time
 from pathlib import Path
@@ -114,6 +115,24 @@ def _call_provider_batch(
         prompt=prompt,
         **_provider_call_kwargs(provider, system_prompt, response_schema),
     )
+
+def _call_provider_batch_checked(
+    provider: OpenAIProvider,
+    texts: List[str],
+    prompt: str,
+    response_schema: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Call the provider and reject a response whose length differs from the input."""
+    responses = _call_provider_batch(provider, texts, prompt, response_schema, system_prompt)
+
+
+    if len(responses) != len(texts):
+        raise ValueError(
+            f"Provider returned {len(responses)} responses for {len(texts)} inputs."
+        )
+    return responses
+
 
 
 def _generation_cache_hash(
@@ -244,7 +263,7 @@ def generate_features_batch(
 
         batch_failed = False
         try:
-            responses = _call_provider_batch(
+            responses = _call_provider_batch_checked(
                 provider,
                 batch_texts,
                 full_prompt,
@@ -255,7 +274,7 @@ def generate_features_batch(
             print(f"Batch error ({exc}), retrying after {retry_delay}s...")
             time.sleep(retry_delay)
             try:
-                responses = _call_provider_batch(
+                responses = _call_provider_batch_checked(
                     provider,
                     batch_texts,
                     full_prompt,
@@ -269,7 +288,7 @@ def generate_features_batch(
 
         cache_changed = False
         for local_pos, global_index in enumerate(batch_indices):
-            parsed = responses[local_pos] if local_pos < len(responses) else {}
+            parsed = responses[local_pos]
             try:
                 inner = _validated_provider_response(parsed, discovered_features)
             except ValueError as exc:
@@ -312,7 +331,7 @@ def generate_features_batch(
             "raw_llm_output": json.dumps(inner, ensure_ascii=False),
         }
         for feature in feature_names:
-            row[feature] = inner.get(feature, "not given by LLM")
+            row[feature] = inner.get(feature, MISSING_FEATURE_VALUE)
         rows.append(row)
 
     df = pd.DataFrame(rows, columns=all_columns)
