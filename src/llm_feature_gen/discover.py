@@ -22,7 +22,7 @@ from .utils.image import image_to_base64
 from .utils.text import extract_text_from_file
 from dotenv import load_dotenv
 from .utils.video import extract_key_frames, extract_audio_track, downsample_batch
-from .generate import _provider_call_kwargs
+from .generate import _provider_call_kwargs, _validate_discovered_schema
 from .providers.openai_provider import FEATURE_DISCOVERY_SCHEMA, OpenAIProvider
 from .prompts import DiscoveryPromptBuilder
 
@@ -81,6 +81,59 @@ def _nonempty_text_chunks(chunks: List[str]) -> List[str]:
     """Return text chunks that contain non-whitespace content."""
     return [chunk for chunk in chunks if chunk.strip()]
 
+def _validate_discovery_result(result_list: Any) -> None:
+    """Raise ValueError unless the provider returned a usable discovery result.
+
+    Called before anything is written, so a failed discovery never overwrites
+    a previously saved valid schema.
+    """
+
+    if not isinstance(result_list, list) or not result_list:
+        raise ValueError("Discovery failed. Provider returned an empty or invalid response.")
+
+    for item in result_list:
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"Discovery failed. Expected a dict result, got {type(item).__name__}."
+            )
+        if "error" in item:
+            raise ValueError(
+                f"Discovery failed. Provider returned an error: {item['error']}\n"
+            )
+        try:
+            _validate_discovered_schema(item)
+        except ValueError as exc:
+            raise ValueError(f"Discovery failed. {exc}") from exc
+
+        names = []
+        for feature in item["proposed_features"]:
+            spec = feature if isinstance(feature, dict) else {"feature": feature}
+            name = spec.get("feature")
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(
+                    "Discovery failed. Every proposed feature needs a non-empty 'feature' name."
+                )
+
+            values = spec.get("possible_values")
+            if values is not None and (
+                not isinstance(values, list) or not all(isinstance(v, str) for v in values)
+            ):
+                raise ValueError(
+                    f"Discovery failed. 'possible_values' of '{name}' must be a list of strings."
+                )
+            names.append(name)
+
+        duplicates = sorted({name for name in names if names.count(name) > 1})
+        if duplicates:
+            raise ValueError(f"Discovery failed. Duplicate feature names: {duplicates}.")
+
+def _save_discovery_result(result_list: Any, output_path: Path) -> None:
+    """Write the result via a temp file so a failure never damages the old file."""
+    payload = json.dumps(result_list, ensure_ascii=False, indent=2)
+    tmp_path = output_path.with_name(output_path.name + ".tmp")
+    tmp_path.write_text(payload, encoding="utf-8")
+    os.replace(tmp_path, output_path)
+
 
 def discover_features_from_images(
         image_paths_or_folder: str | List[str],
@@ -112,6 +165,7 @@ def discover_features_from_images(
             ``discovered_image_features.json``.
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
+            This is only a request in the prompt; the result is not checked against it.
         system_prompt: Optional high-level instruction controlling the model's
             role, behavior, and response style. It does not replace ``prompt``.
 
@@ -180,10 +234,7 @@ def discover_features_from_images(
         )
 
     # validate before saving
-    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
-        raise ValueError(
-            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
-        )
+    _validate_discovery_result(result_list)
 
     # - joint mode: result_list is like: [ { "proposed_features": [...] } ]
     # - per-image mode: result_list is list of dicts
@@ -197,8 +248,7 @@ def discover_features_from_images(
 
     output_path = output_dir / output_filename
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(result_list, f, ensure_ascii=False, indent=2)
+    _save_discovery_result(result_list, output_path)
 
     print(f"Features saved to {output_path}")
 
@@ -262,6 +312,7 @@ def discover_features_from_videos(
             reproducible across runs.
         num_classes: Optional number of hidden classes reflected in the prompt.
         min_features: Minimum number of features to request from the provider.
+            This is only a request in the prompt; the result is not checked against it.
         system_prompt: Optional high-level instruction controlling the model's
             role, behavior, and response style. It does not replace ``prompt``.
 
@@ -390,10 +441,7 @@ def discover_features_from_videos(
         )
 
     # validate before saving
-    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
-        raise ValueError(
-            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
-        )
+    _validate_discovery_result(result_list)
 
     # -------------------------------------------------
     # 5) save results
@@ -406,8 +454,7 @@ def discover_features_from_videos(
 
     output_path = output_dir / output_filename
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(result_list, f, ensure_ascii=False, indent=2)
+    _save_discovery_result(result_list, output_path)
 
     print(f"Features saved to {output_path}")
 
@@ -450,8 +497,8 @@ def discover_features_from_texts(
         output_filename: Custom filename for the saved artifact. Defaults to
             ``discovered_text_features.json``.
         num_classes: Optional number of hidden classes reflected in the prompt.
-        min_features: Minimum number of distinct features to request from the
-            provider.
+        min_features: Minimum number of features to request from the provider.
+            This is only a request in the prompt; the result is not checked against it.
         system_prompt: Optional high-level instruction controlling the model's
             role, behavior, and response style. It does not replace ``prompt``.
 
@@ -555,10 +602,7 @@ def discover_features_from_texts(
         )
 
     # validate before saving
-    if len(result_list) == 1 and isinstance(result_list[0], dict) and "error" in result_list[0]:
-        raise ValueError(
-            f"Discovery failed. Provider returned an error: {result_list[0]['error']}\n"
-        )
+    _validate_discovery_result(result_list)
 
     # -------------------------------------------------
     # 4) save
@@ -571,8 +615,7 @@ def discover_features_from_texts(
 
     output_path = output_dir / output_filename
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(result_list, f, ensure_ascii=False, indent=2)
+    _save_discovery_result(result_list, output_path)
 
     print(f"Features saved to {output_path}")
 
@@ -621,7 +664,8 @@ def discover_features_from_tabular(
         max_rows: Optional cap on how many rows are used from the concatenated
             dataset.
         num_classes: Optional number of hidden classes reflected in the prompt.
-        min_features: Minimum number of distinct features to request from the provider.
+        min_features: Minimum number of features to request from the provider.
+            This is only a request in the prompt; the result is not checked against it.
         system_prompt: Optional high-level instruction controlling the model's
             role, behavior, and response style. It does not replace ``prompt``.
 
