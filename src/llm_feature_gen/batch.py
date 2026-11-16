@@ -206,6 +206,9 @@ def generate_features_batch(
     model, endpoint, and common generation settings so a transformer can safely
     reuse one cache across differently configured providers.
 
+    Identical texts within one call are sent to the provider once and share
+    the answer, which saves requests and keeps equal inputs consistent.
+
     Status messages go to the ``llm_feature_gen.batch`` logger. The progress
 +   bar is shown only when ``show_progress`` is true and some texts are not cached.
     """
@@ -266,6 +269,24 @@ def generate_features_batch(
 
     if cached_results:
         logger.info("Cache hits: %d / %d", len(cached_results), len(texts))
+
+    # Identical inputs are sent to the provider once. Every other row with the
+    # same text reuses that answer, so equal inputs always get equal values.
+    first_index_by_text: Dict[str, int] = {}
+    duplicate_of: Dict[int, int] = {}
+    unique_indices: List[int] = []
+    for index in indices_to_process:
+        first_index = first_index_by_text.setdefault(texts[index], index)
+        if first_index == index:
+            unique_indices.append(index)
+        else:
+            duplicate_of[index] = first_index
+    if duplicate_of:
+        logger.info(
+            "Duplicate inputs: %d rows reuse the answer of an identical row",
+            len(duplicate_of),
+        )
+    indices_to_process = unique_indices
 
     total_batches = (len(indices_to_process) + batch_size - 1) // batch_size
     iterator = range(0, len(indices_to_process), batch_size)
@@ -341,7 +362,8 @@ def generate_features_batch(
 
     rows: List[Dict[str, Any]] = []
     for index in range(len(texts)):
-        inner = cached_results.get(index, batch_responses.get(index, {}))
+        source_index = duplicate_of.get(index, index)
+        inner = cached_results.get(index, batch_responses.get(source_index, {}))
         row: Dict[str, Any] = {
             "File": f"text_{index}",
             "Class": labels[index],
