@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- `LLMFeatureTransformer.fit()` and `transform()` now reject missing text values (`None`, `NaN`, `pd.NA`) with a `ValueError` that reports their positions and index labels. Previously they were sent to the LLM as the literal texts `"None"` or `"nan"` (pandas 2.x and plain lists), or failed later with an `AttributeError` (pandas 3).
 - Improved offline test coverage for higher-level workflows so support claims are backed by end-to-end checks, not only unit tests.
 - Added a generation circuit breaker so repeated provider/output failures abort long runs instead of wasting the whole batch.
 - Documented the required Jupyter kernel restart after notebook installs to avoid immediate `ModuleNotFoundError` imports.
