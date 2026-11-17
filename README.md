@@ -273,6 +273,7 @@ pip install "llm-feature-gen[sklearn]"
 ```
 
 ```python
+> **Note:** Passing an empty input (such as `[]`, an empty `pandas.Series`, or a 0-row `DataFrame`) to `LLMFeatureTransformer.transform()` returns an empty `DataFrame` with columns matching `get_feature_names_out()` (preserving the input index when available).
 from llm_feature_gen import LLMFeatureTransformer
 from llm_feature_gen.providers import OpenAIProvider
 from sklearn.pipeline import Pipeline
