@@ -51,6 +51,11 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
     model's role and behavior. Generation always appends the discovered feature
     specification to the selected task prompt. ``show_progress`` turns the
     progress bar during :meth:`transform` on or off.
+
+    Missing text values (``None``, ``NaN``, ``pd.NA``) are rejected with a
+    ``ValueError`` in both :meth:`fit` and :meth:`transform` before any LLM
+    call, so they are never sent to the model as the text ``"None"`` or
+    ``"nan"``.
     """
 
     def __init__(
@@ -159,25 +164,31 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
         return np.asarray(self.feature_names_, dtype=object)
 
     def _as_text_list(self, X: Any) -> list[str]:
+        values, index = self._raw_text_values(X)
+        _reject_missing_texts(values, index)
+        return [str(value) for value in values]
+
+    def _raw_text_values(self, X: Any) -> tuple[list[Any], Optional[pd.Index]]:
+        """Return the unconverted text values and, for pandas input, their index."""
         if isinstance(X, pd.Series):
-            return X.astype(str).tolist()
+            return X.tolist(), X.index
 
         if isinstance(X, pd.DataFrame):
             if self.text_column is not None:
                 if self.text_column not in X.columns:
                     raise ValueError(f"Column '{self.text_column}' not found.")
-                return X[self.text_column].astype(str).tolist()
+                return X[self.text_column].tolist(), X.index
             if X.shape[1] != 1:
                 raise ValueError("Pass text_column when X has more than one column.")
-            return X.iloc[:, 0].astype(str).tolist()
+            return X.iloc[:, 0].tolist(), X.index
 
         array = np.asarray(X, dtype=object)
         if array.ndim == 0:
             raise ValueError("X must contain one or more text samples.")
         if array.ndim == 1:
-            return [str(value) for value in array.tolist()]
+            return array.tolist(), None
         if array.ndim == 2 and array.shape[1] == 1:
-            return [str(value) for value in array[:, 0].tolist()]
+            return array[:, 0].tolist(), None
         raise ValueError("X must be a 1D sequence of text or a single text column.")
 
     def _input_width(self, X: Any) -> int:
@@ -193,6 +204,39 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             return ["category_1", "category_2"]
         labels = pd.unique(np.asarray(y, dtype=object).ravel())
         return [str(label) for label in labels]
+
+
+_MAX_REPORTED_MISSING = 5
+
+
+def _is_missing(value: Any) -> bool:
+    """True for scalar missing markers: None, NaN, pd.NA and NaT."""
+    result = pd.isna(value)
+    return isinstance(result, (bool, np.bool_)) and bool(result)
+
+
+def _reject_missing_texts(values: list[Any], index: Optional[pd.Index]) -> None:
+    """Fail before any LLM call when a text sample is missing.
+
+    Converting a missing value with ``str()`` would turn it into the literal
+    text ``"None"`` or ``"nan"`` that the LLM then describes like any other
+    record, and pandas 3 keeps NaN as a float that later breaks hashing.
+    """
+    positions = [position for position, value in enumerate(values) if _is_missing(value)]
+    if not positions:
+        return
+
+    shown = positions[:_MAX_REPORTED_MISSING]
+    more = f" and {len(positions) - len(shown)} more" if len(positions) > len(shown) else ""
+    where = f"at positions {shown}{more}"
+    if index is not None:
+        where += f" (index labels {index[shown].tolist()})"
+    raise ValueError(
+        f"X contains {len(positions)} missing text value(s) {where}. "
+        "Missing values would be sent to the LLM as the text 'None' or 'nan'. "
+        "Drop these rows or replace them with an explicit text before calling "
+        "fit or transform."
+    )
 
 
 __all__ = ["LLMFeatureTransformer"]

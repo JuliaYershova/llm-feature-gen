@@ -347,3 +347,101 @@ def test_llm_feature_transformer_works_with_cross_val_score(tmp_path):
 
     assert len(scores) == 2
     assert sum(len(call["texts"]) for call in fake.calls) == len(texts)
+
+
+class RecordingTextProvider:
+    """Answers every request and remembers each text it was asked about."""
+
+    text_model = "offline-model"
+
+    def __init__(self) -> None:
+        self.texts_sent = []
+
+    def text_features(self, text_list, prompt=None, system_prompt=None, response_schema=None):
+        self.texts_sent.extend(text_list)
+        if prompt and "DISCOVERED_FEATURES_SPEC" in prompt:
+            return [{"features": {"topic": "billing"}} for _ in text_list]
+        return [{"proposed_features": [{"feature": "topic"}]} for _ in text_list]
+
+
+TOPIC_SCHEMA = {"proposed_features": [{"feature": "topic"}]}
+
+
+@pytest.mark.parametrize(
+    ("X", "transformer_kwargs"),
+    [
+        pytest.param(pd.Series(["need invoice", None]), {}, id="series-none"),
+        pytest.param(pd.Series(["need invoice", float("nan")]), {}, id="series-nan"),
+        pytest.param(
+            pd.Series(["need invoice", pd.NA], dtype="string"), {}, id="string-dtype-na"
+        ),
+        pytest.param(
+            pd.DataFrame({"body": ["need invoice", None], "id": [1, 2]}),
+            {"text_column": "body"},
+            id="dataframe-text-column",
+        ),
+        pytest.param(pd.DataFrame({"body": ["need invoice", None]}), {}, id="dataframe-one-column"),
+        pytest.param(["need invoice", None], {}, id="list-none"),
+        pytest.param([["need invoice"], [float("nan")]], {}, id="2d-column-nan"),
+    ],
+)
+@pytest.mark.parametrize("discover", [True, False], ids=["discovery", "given-schema"])
+def test_llm_feature_transformer_rejects_missing_texts_before_calling_llm(
+    tmp_path, X, transformer_kwargs, discover
+):
+    provider = RecordingTextProvider()
+    transformer = LLMFeatureTransformer(
+        provider=provider,
+        discovered_features=None if discover else TOPIC_SCHEMA,
+        output_dir=tmp_path,
+        min_features=1,
+        show_progress=False,
+        **transformer_kwargs,
+    )
+
+    with pytest.raises(ValueError, match=r"1 missing text value\(s\) at positions \[1\]"):
+        transformer.fit(X, [0, 1])
+
+    assert provider.texts_sent == []
+    assert not (tmp_path / "discovered_text_features.json").exists()
+
+
+def test_llm_feature_transformer_transform_rejects_missing_texts_after_clean_fit():
+    provider = RecordingTextProvider()
+    transformer = LLMFeatureTransformer(
+        provider=provider, discovered_features=TOPIC_SCHEMA, show_progress=False
+    ).fit(["need invoice"])
+
+    with pytest.raises(ValueError, match="missing text value"):
+        transformer.transform(pd.Series(["cannot log in", None, "need invoice"]))
+
+    assert provider.texts_sent == []
+
+
+def test_missing_text_error_reports_positions_and_index_labels():
+    transformer = LLMFeatureTransformer(
+        provider=RecordingTextProvider(), discovered_features=TOPIC_SCHEMA
+    ).fit(["need invoice"])
+    texts = pd.Series(
+        [None, "a", None, None, "b", None, None, None, None],
+        index=[10, 11, 12, 13, 14, 15, 16, 17, 18],
+    )
+
+    with pytest.raises(ValueError) as excinfo:
+        transformer.transform(texts)
+
+    message = str(excinfo.value)
+    assert "7 missing text value(s) at positions [0, 2, 3, 5, 6] and 2 more" in message
+    assert "(index labels [10, 12, 13, 15, 16])" in message
+
+
+def test_missing_texts_are_not_confused_with_literal_text():
+    provider = RecordingTextProvider()
+    texts = ["None", "nan", "NaN", "", "0"]
+
+    result = LLMFeatureTransformer(
+        provider=provider, discovered_features=TOPIC_SCHEMA, show_progress=False
+    ).fit_transform(texts)
+
+    assert provider.texts_sent == texts
+    assert result.shape == (5, 1)
