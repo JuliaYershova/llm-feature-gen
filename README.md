@@ -297,6 +297,34 @@ predictions = pipe.predict(test_texts)
 
 By default, each `fit()` discovers a new feature schema, which incurs an LLM call and can vary between runs. For cross-validation or parameter search, pass a saved `discovered_features` schema to avoid repeated discovery and schema changes.
 
+#### Missing text values
+
+`LLMFeatureTransformer` does not send missing values (`None`, `NaN`, `pd.NA`) to the LLM. If the text column contains one, `fit()` and `transform()` raise a `ValueError` before any request is made and report where the missing values are:
+
+```python
+import pandas as pd
+
+reviews = pd.DataFrame(
+    {"review": ["Arrived broken.", None, "Works as described."], "stars": [1, 4, 5]},
+    index=[101, 102, 103],
+)
+transformer = LLMFeatureTransformer(provider=provider, text_column="review")
+transformer.fit(reviews, reviews["stars"])
+# ValueError: X contains 1 missing text value(s) at positions [1] (index labels [102]). ...
+```
+
+Decide what a missing text means for your task before transforming. Drop those rows, or replace them with an explicit text that the LLM can interpret:
+
+```python
+complete = reviews.dropna(subset=["review"])
+transformer.fit(complete, complete["stars"])
+
+# or keep the rows with an explicit text
+filled = reviews.fillna({"review": "No review text was provided."})
+```
+
+Only real missing values are rejected. The strings `"None"`, `"nan"` and `""` are ordinary texts and are sent unchanged.
+
 ### Images
 
 ```python
