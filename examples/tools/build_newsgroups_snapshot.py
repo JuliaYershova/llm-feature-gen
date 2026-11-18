@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Rebuild the checked-in 20 Newsgroups snapshot used by the scikit-learn example.
 
 The example itself never touches the network: it reads the CSV this script

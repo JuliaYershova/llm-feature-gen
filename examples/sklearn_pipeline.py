@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Same pipeline as text_to_tabular_pipeline.py, expressed as a scikit-learn model.
 
 No folders, no CSVs on the way in: ``X`` is a list of strings and ``y`` is a
