@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Pytest configuration and helpers.
 
 Ensures the project package is importable when running tests directly from the

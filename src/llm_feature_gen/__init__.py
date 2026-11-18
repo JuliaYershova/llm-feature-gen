@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Stable public API for the ``llm_feature_gen`` package."""
 
 from importlib.metadata import PackageNotFoundError, version

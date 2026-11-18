@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Batch text feature generation with optional JSON-backed caching."""
 
 from __future__ import annotations

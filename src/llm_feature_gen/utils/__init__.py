@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Reusable utility helpers used by discovery and generation pipelines."""
 
 from .image import image_to_base64

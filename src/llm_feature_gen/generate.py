@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Feature value generation helpers built on top of discovered schemas.
 
 The functions in this module take discovery artifacts produced by

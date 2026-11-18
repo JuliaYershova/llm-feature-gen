@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Multi-class feature discovery and generation helpers."""
 
 from __future__ import annotations

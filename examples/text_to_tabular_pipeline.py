@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Canonical end-to-end example for turning raw text into tabular features."""
 
 from __future__ import annotations

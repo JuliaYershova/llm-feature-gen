@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 # src/llm_feature_gen/providers/local_provider.py
 from __future__ import annotations
 
