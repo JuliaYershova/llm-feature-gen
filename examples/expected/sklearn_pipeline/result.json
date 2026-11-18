@@ -1,0 +1,40 @@
+{
+  "dataset": "20 Newsgroups: comp.sys.mac.hardware vs comp.sys.ibm.pc.hardware",
+  "model": "qwen3-vl:32b-instruct",
+  "n_samples": 120,
+  "holdout": {
+    "n_train": 90,
+    "n_test": 30,
+    "test_size": 0.25,
+    "random_state": 0,
+    "accuracy": 0.9
+  },
+  "cv": {
+    "n_splits": 5,
+    "shuffle": true,
+    "random_state": 0
+  },
+  "feature_names": [
+    "mention_of_apple_specific_hardware",
+    "reference_to_mac_os_version",
+    "use_of_mac_specific_terms",
+    "discussion_of_mac_software_or_applications",
+    "expression_of_enthusiasm_or_emotion",
+    "mention_of_pc_specific_hardware",
+    "reference_to_os2_or_dos",
+    "inquiry_about_pc_configuration_or_troubleshooting",
+    "use_of_technical_schematics_or_circuit_diagrams",
+    "mention_of_networking_or_file_server_usage"
+  ],
+  "accuracy_mean": 0.925,
+  "accuracy_std": 0.03118,
+  "fold_accuracy": [
+    0.958333,
+    0.916667,
+    0.875,
+    0.916667,
+    0.958333
+  ],
+  "tfidf_baseline_mean": 0.775,
+  "tfidf_baseline_std": 0.113652
+}
