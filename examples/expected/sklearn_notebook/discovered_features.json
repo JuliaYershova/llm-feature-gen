@@ -1,0 +1,104 @@
+{
+  "proposed_features": [
+    {
+      "feature": "hardware_specificity",
+      "description": "Texts that mention specific hardware models, components, or configurations (e.g., drive models, SCSI IDs, IRQ settings) are more likely to be from one group, while the other group tends to focus on general system behavior or software issues.",
+      "possible_values": [
+        "high",
+        "medium",
+        "low",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "system_architecture_focus",
+      "description": "One group frequently discusses system architecture details like NuBus, PDS, or SCSI bus types, while the other group tends to focus on PC-specific buses like ISA, EISA, or VLB.",
+      "possible_values": [
+        "mac_specific",
+        "pc_specific",
+        "general",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "software_version_reference",
+      "description": "Mentions of specific software versions (e.g., System 7.01, Windows 3.1) or operating system-specific tools (e.g., Disk First Aid, Norton Utilities) are more common in one group, while the other group references DOS or Windows without version specificity.",
+      "possible_values": [
+        "mac_os",
+        "pc_os",
+        "generic",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "upgrade_strategy_discussion",
+      "description": "One group frequently discusses upgrading existing hardware (e.g., adding RAM, accelerators, or SCSI drives), while the other group often focuses on purchasing new systems or comparing models.",
+      "possible_values": [
+        "hardware_upgrade",
+        "new_system_purchase",
+        "mixed",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "monitor_resolution_concern",
+      "description": "Questions about monitor resolutions (e.g., 1024x768, 832x624) and VRAM requirements are more prevalent in one group, while the other group rarely mentions display resolution beyond general terms like '15-inch' or 'SVGA'.",
+      "possible_values": [
+        "detailed_resolution",
+        "general_resolution",
+        "no_resolution",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "power_supply_or_cooling_issue",
+      "description": "One group frequently discusses power supply noise, fan issues, or overheating, while the other group rarely mentions such physical system concerns.",
+      "possible_values": [
+        "power_supply_issue",
+        "cooling_issue",
+        "no_physical_issue",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "network_or_communication_protocol",
+      "description": "One group often discusses network protocols (e.g., AppleTalk, Ethernet) or serial communication settings (e.g., handshaking, baud rates), while the other group focuses on parallel port or modem settings.",
+      "possible_values": [
+        "apple_network",
+        "pc_network",
+        "mixed",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "driver_or_firmware_update",
+      "description": "One group frequently asks about or references firmware updates (e.g., ROM upgrades, BIOS versions), while the other group tends to focus on software drivers or OS-level configuration.",
+      "possible_values": [
+        "firmware_update",
+        "software_driver",
+        "no_update",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "user_experience_or_perception",
+      "description": "One group often expresses subjective experiences (e.g., 'I am happy with the monitor', 'the fan is distractingly LOUD'), while the other group tends to focus on technical specifications or troubleshooting.",
+      "possible_values": [
+        "subjective_experience",
+        "technical_troubleshooting",
+        "mixed",
+        "not_applicable"
+      ]
+    },
+    {
+      "feature": "educational_or_academic_context",
+      "description": "One group frequently mentions academic or educational settings (e.g., 'first-year elec-eng students', 'Bio 100 to 103 classes'), while the other group rarely references such contexts.",
+      "possible_values": [
+        "academic",
+        "professional",
+        "personal",
+        "not_applicable"
+      ]
+    }
+  ]
+}
