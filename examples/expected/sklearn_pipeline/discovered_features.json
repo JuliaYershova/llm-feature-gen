@@ -1,0 +1,96 @@
+[
+  {
+    "proposed_features": [
+      {
+        "feature": "mention_of_apple_specific_hardware",
+        "description": "References to Apple-branded or Mac-specific hardware components (e.g., AppleTalk, PowerPort, Mac II, PB100) are more prevalent in one group, indicating a focus on Apple ecosystem.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "reference_to_mac_os_version",
+        "description": "Explicit mention of Mac OS versions (e.g., System 7.1) is a strong indicator of the Apple-centric group, as such references are rare in PC contexts.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "use_of_mac_specific_terms",
+        "description": "Use of terms unique to Mac culture or hardware (e.g., Nubus, SIMM, PMMU, SCSI DB-25 interface) helps distinguish the group focused on Apple systems.",
+        "possible_values": [
+          "high_frequency",
+          "low_frequency",
+          "none"
+        ]
+      },
+      {
+        "feature": "discussion_of_mac_software_or_applications",
+        "description": "Mentions of Mac-specific software (e.g., MATLAB on Mac, DEC4015 terminal emulation, After Dark screensaver) are more common in one group.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "expression_of_enthusiasm_or_emotion",
+        "description": "Use of exclamation marks, emoticons, and enthusiastic language (e.g., 'FABULOUS setup !!!! :) Weeee!!!') is more frequent in one group, reflecting a passionate user community.",
+        "possible_values": [
+          "high",
+          "moderate",
+          "low"
+        ]
+      },
+      {
+        "feature": "mention_of_pc_specific_hardware",
+        "description": "References to PC-specific hardware (e.g., Bondwell 38, 286, MasterCard for hardware purchase) are more common in the other group.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "reference_to_os2_or_dos",
+        "description": "Mentions of OS/2 or DOS environments (e.g., 'operate under OS/2') are more typical of the PC group, as these were common PC operating systems.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "inquiry_about_pc_configuration_or_troubleshooting",
+        "description": "Questions about PC-specific configuration (e.g., switch settings, identifying an old PC) are more common in the PC group.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "use_of_technical_schematics_or_circuit_diagrams",
+        "description": "Inclusion of ASCII schematics or circuit diagrams (e.g., for a DAC) is more common in one group, often associated with DIY or hardware tinkering.",
+        "possible_values": [
+          "present",
+          "absent",
+          "not_applicable"
+        ]
+      },
+      {
+        "feature": "mention_of_networking_or_file_server_usage",
+        "description": "References to file servers (e.g., Q700 file server) or network protocols (e.g., AppleTalk) help distinguish between groups, with AppleTalk being Mac-specific.",
+        "possible_values": [
+          "apple_specific",
+          "pc_specific",
+          "general"
+        ]
+      }
+    ]
+  }
+]

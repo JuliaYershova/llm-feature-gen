@@ -1,0 +1,21 @@
+{
+  "model": "qwen3-vl:32b-instruct",
+  "n_train": 90,
+  "n_test": 30,
+  "random_state": 0,
+  "features": [
+    "hardware_specificity",
+    "system_architecture_focus",
+    "software_version_reference",
+    "upgrade_strategy_discussion",
+    "monitor_resolution_concern",
+    "power_supply_or_cooling_issue",
+    "network_or_communication_protocol",
+    "driver_or_firmware_update",
+    "user_experience_or_perception",
+    "educational_or_academic_context"
+  ],
+  "seconds_discovery_and_generation": 308.0,
+  "accuracy_generated_features": 0.933,
+  "accuracy_tfidf": 0.667
+}

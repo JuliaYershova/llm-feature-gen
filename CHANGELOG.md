@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Newsgroup snapshot builder `examples/tools/build_newsgroups_snapshot.py`, which leaves out posts that contain email addresses or telephone numbers and keeps repeated posts once.
+- scikit-learn example: `examples/sklearn_pipeline.py` with offline replay of recorded responses (the model that produced them is stored in `result.json`) and a test that runs the replay, plus `examples/sklearn_pipeline.ipynb`, whose recorded run (result, discovered schema and per-document feature table) is checked in under `examples/expected/sklearn_notebook/`.
 - Contributor documentation and GitHub issue templates.
 - Cross-platform CI coverage for Linux, macOS, and Windows, with Python 3.9, 3.11, and 3.13 exercised in GitHub Actions.
 - Explicit support documentation via `SUPPORT.md`, a docs support matrix, and PyPI classifiers for supported operating systems and Python versions.
