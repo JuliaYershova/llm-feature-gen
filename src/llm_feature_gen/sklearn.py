@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """scikit-learn compatible adapters for LLM feature generation."""
 
 from __future__ import annotations

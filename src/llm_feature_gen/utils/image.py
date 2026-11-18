@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 # src/llm_feature_gen/utils/image.py
 import base64, io
 from PIL import Image

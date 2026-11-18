@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Discovery prompt templates and the builder that fills them in."""
 
 from __future__ import annotations

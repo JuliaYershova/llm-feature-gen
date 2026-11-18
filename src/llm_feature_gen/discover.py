@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Licensed under the MIT License. See the LICENSE file in the repository root.
 """Public discovery helpers for multimodal feature schema generation.
 
 The functions in this module accept raw inputs or folders on disk, delegate the
