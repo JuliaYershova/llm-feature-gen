@@ -20,10 +20,10 @@ The current GitHub Actions matrix exercises the following environments:
 | Runner | Python versions | CI scope |
 | --- | --- | --- |
 | `ubuntu-latest` | 3.9, 3.11, 3.13 | Full test suite |
-| `macos-latest` | 3.11 | Smoke test |
-| `windows-latest` | 3.11 | Smoke test |
+| `macos-latest` | 3.11 | Full test suite |
+| `windows-latest` | 3.11 | Full test suite |
 
-This means Linux has full multi-version coverage in CI, while macOS and Windows are explicitly checked for platform regressions through reduced smoke coverage.
+This means Linux has full multi-version coverage in CI, while macOS and Windows run the same full test suite on Python 3.11 to check for platform regressions.
 
 ## Notes and caveats
 
