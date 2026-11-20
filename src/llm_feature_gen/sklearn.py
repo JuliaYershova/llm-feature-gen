@@ -123,21 +123,25 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
 
         texts = self._as_text_list(X)
         if not self.use_batch:
-            return self._transform_one_by_one(texts)
+            result = self._transform_one_by_one(texts)
+        else:
+            df = generate_features_batch(
+                texts=texts,
+                labels=[""] * len(texts),
+                discovered_features=self.discovered_features_,
+                provider=self.provider_,
+                batch_size=self.batch_size,
+                cache=self.cache,
+                retry_delay=self.retry_delay,
+                system_prompt=self.generation_system_prompt,
+                prompt=self.generation_prompt,
+                show_progress=self.show_progress
+            )
+            result = df.loc[:, self.feature_names_]
 
-        df = generate_features_batch(
-            texts=texts,
-            labels=[""] * len(texts),
-            discovered_features=self.discovered_features_,
-            provider=self.provider_,
-            batch_size=self.batch_size,
-            cache=self.cache,
-            retry_delay=self.retry_delay,
-            system_prompt=self.generation_system_prompt,
-            prompt=self.generation_prompt,
-            show_progress=self.show_progress
-        )
-        return df.loc[:, self.feature_names_]
+        if isinstance(X, (pd.Series, pd.DataFrame)):
+            result.index = X.index.copy()
+        return result
 
     def _transform_one_by_one(self, texts: list[str]) -> pd.DataFrame:
         df = generate_features_batch(
