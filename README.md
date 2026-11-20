@@ -297,6 +297,49 @@ predictions = pipe.predict(test_texts)
 
 By default, each `fit()` discovers a new feature schema, which incurs an LLM call and can vary between runs. For cross-validation or parameter search, pass a saved `discovered_features` schema to avoid repeated discovery and schema changes.
 
+#### Pandas indices and mixed-column outputs
+
+For pandas Series and DataFrame inputs, generated features keep the input index,
+including its names and MultiIndex levels, in both batch and one-by-one mode.
+List and NumPy array inputs keep a RangeIndex. This preserves alignment when
+assigning indexed labels or combining text features with numeric columns through
+`ColumnTransformer.set_output(transform="pandas")`.
+
+The following example is fully offline and does not require an API key:
+
+```python
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from llm_feature_gen import LLMFeatureTransformer
+
+class OfflineProvider:
+    def text_features(self, texts, **kwargs):
+        return [{"features": {"topic": text}} for text in texts]
+
+schema = {"proposed_features": [{
+    "feature": "topic",
+    "description": "Echo the synthetic topic for this offline example.",
+    "possible_values": ["billing", "access"],
+}]}
+X = pd.DataFrame(
+    {"body": ["billing", "access"], "age": [28, 50]},
+    index=pd.Index([205, 101], name="client_id"),
+)
+combined = ColumnTransformer([
+    ("llm", LLMFeatureTransformer(
+        provider=OfflineProvider(), discovered_features=schema,
+        show_progress=False,
+    ), "body"),
+    ("numeric", "passthrough", ["age"]),
+]).set_output(transform="pandas")
+
+features = combined.fit_transform(X)
+pd.testing.assert_index_equal(features.index, X.index)
+assert features["llm__topic"].tolist() == ["billing", "access"]
+features["target"] = pd.Series([1, 0], index=X.index)
+assert features["target"].tolist() == [1, 0]
+```
+
 ### Images
 
 ```python
