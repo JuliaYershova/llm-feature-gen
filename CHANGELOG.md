@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Preserve pandas input indices in both transformer generation modes, avoiding label misalignment and inconsistent row counts in mixed-column pandas outputs (#82).
 - Improved offline test coverage for higher-level workflows so support claims are backed by end-to-end checks, not only unit tests.
 - Added a generation circuit breaker so repeated provider/output failures abort long runs instead of wasting the whole batch.
 - Documented the required Jupyter kernel restart after notebook installs to avoid immediate `ModuleNotFoundError` imports.
