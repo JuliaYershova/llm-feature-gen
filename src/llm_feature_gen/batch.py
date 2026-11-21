@@ -258,8 +258,11 @@ def generate_features_batch(
                     cache_changed = True
                 else:
                     cached_results[index] = validated_cached
-                    cache.set(text, features_hash, validated_cached, persist=False)
-                    cache_changed = True
+                    # Rewrite the entry only when validation normalized it, so a
+                    # fully cached run does not touch (or need write access to) the file.
+                    if validated_cached != cached:
+                        cache.set(text, features_hash, validated_cached, persist=False)
+                        cache_changed = True
                     continue
         indices_to_process.append(index)
 
