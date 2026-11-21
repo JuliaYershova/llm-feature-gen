@@ -379,6 +379,33 @@ def test_generate_features_batch_show_progress_false_and_retry_warning(
 
     assert "retrying" in caplog.text
 
+def test_generate_features_batch_fully_cached_run_does_not_rewrite_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    cache_file = tmp_path / "cache.json"
+    provider = FakeBatchProvider()
+    schema = discovered_features()
+    batch_mod.BatchTextCache(cache_file).set(
+        "alpha", generation_cache_hash(provider, schema), {"topic": "cached", "length": "5"}
+    )
+    content_before = cache_file.read_text(encoding="utf-8")
+    cache = batch_mod.BatchTextCache(cache_file)
+    # A read-only cache file must still serve a run whose answers are all cached.
+    monkeypatch.setattr(cache, "save", lambda: pytest.fail("fully cached run rewrote the cache file"))
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha"],
+        labels=["A"],
+        discovered_features=schema,
+        provider=provider,
+        cache=cache,
+    )
+
+    assert provider.calls == []
+    assert df["topic"].tolist() == ["cached"]
+    assert cache_file.read_text(encoding="utf-8") == content_before
+
+
 def test_generate_features_batch_normalizes_cached_inapplicable_enum(tmp_path: Path):
     schema = {"proposed_features": [{"feature": "topic", "possible_values": ["business"]}]}
     cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
@@ -397,6 +424,8 @@ def test_generate_features_batch_normalizes_cached_inapplicable_enum(tmp_path: P
     assert provider.calls == []
     assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE]
     assert cache.get("alpha", features_hash) == {"topic": batch_mod.MISSING_FEATURE_VALUE}
+    reloaded = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    assert reloaded.get("alpha", features_hash) == {"topic": batch_mod.MISSING_FEATURE_VALUE}
 
 
 def test_generate_features_batch_retries_invalid_responses_without_caching_failures(tmp_path: Path):
