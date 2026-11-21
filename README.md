@@ -362,6 +362,19 @@ generate_features_from_texts_cached(
 )
 ```
 
+The same cache can be passed to `LLMFeatureTransformer`. A run whose answers are all cached sends no requests and does not rewrite the cache file, so a finished cache can be shared read-only, for example together with course materials:
+
+```python
+from llm_feature_gen import BatchTextCache, LLMFeatureTransformer
+
+transformer = LLMFeatureTransformer(
+    provider=provider,
+    discovered_features="outputs/discovered_text_features.json",
+    cache=BatchTextCache("outputs/feature_cache.json"),  # may be read-only once complete
+)
+features = transformer.fit_transform(texts)
+```
+
 For three or more classes, use the multi-class helpers:
 
 ```python
