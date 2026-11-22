@@ -349,3 +349,15 @@ def test_llm_feature_transformer_works_with_cross_val_score(tmp_path):
 
     assert len(scores) == 2
     assert sum(len(call["texts"]) for call in fake.calls) == len(texts)
+
+def test_llm_feature_transformer_validates_target_length():
+    transformer = LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+    )
+
+    with pytest.raises(ValueError, match="same number of samples"):
+        transformer.fit(["need invoice", "cannot log in"], y=["billing"])
+
+    with pytest.raises(ValueError, match="same number of samples"):
+        transformer.fit(["need invoice", "cannot log in"], y="billing")

@@ -93,6 +93,13 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
+        if y is not None:
+            y_arr = np.asarray(y, dtype=object)
+            n_y = 0 if y_arr.ndim == 0 else len(y_arr)
+            if y_arr.ndim == 0 or n_y != len(texts):
+                raise ValueError(
+                    f"X and y must have the same number of samples (got {len(texts)} and {n_y})."
+                )
         self.provider_ = self.provider or OpenAIProvider()
         self.n_features_in_ = self._input_width(X)
 

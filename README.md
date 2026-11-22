@@ -380,6 +380,19 @@ generate_features_multiclass(
     classes=classes,
 )
 ```
+### Supervised Feature Discovery with `LLMFeatureTransformer`
+
+When passing target labels `y` to `fit(X, y)`, the length of `y` must match the number of samples in `X`:
+
+```python
+from llm_feature_gen.sklearn import LLMFeatureTransformer
+
+transformer = LLMFeatureTransformer(min_features=5)
+X_features = transformer.fit_transform(
+    ["Invoice #104 is overdue", "Cannot reset my password"],
+    y=["billing", "access"],
+)
+```
 
 ## End-to-End Example
 
