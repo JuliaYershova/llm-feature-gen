@@ -281,6 +281,34 @@ def test_llm_feature_transformer_validates_input_shape():
         ).fit(["one"])
 
 
+@pytest.mark.parametrize(
+    "y",
+    [
+        ["billing"],
+        "billing",
+    ],
+)
+def test_llm_feature_transformer_rejects_mismatched_or_scalar_y(y):
+    transformer = LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+    )
+
+    with pytest.raises(ValueError, match="y"):
+        transformer.fit(["need invoice", "cannot log in"], y=y)
+
+
+def test_llm_feature_transformer_accepts_matching_y():
+    transformer = LLMFeatureTransformer(
+        provider=FakeTextProvider(),
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+    )
+
+    transformer.fit(["need invoice", "cannot log in"], y=["billing", "access"])
+
+    assert transformer.feature_names_ == ["topic"]
+
+
 def test_llm_feature_transformer_works_in_sklearn_pipeline():
     pytest.importorskip("sklearn")
     from sklearn.pipeline import Pipeline

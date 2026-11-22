@@ -93,6 +93,7 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
 
     def fit(self, X: Any, y: Any = None) -> "LLMFeatureTransformer":
         texts = self._as_text_list(X)
+        self._validate_y(y, len(texts))
         self.provider_ = self.provider or OpenAIProvider()
         self.n_features_in_ = self._input_width(X)
 
@@ -187,6 +188,17 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             return int(X.shape[1])
         array = np.asarray(X, dtype=object)
         return int(array.shape[1]) if array.ndim == 2 else 1
+
+    def _validate_y(self, y: Any, n_samples: int) -> None:
+        if y is None or self.classes is not None:
+            return
+        array = np.asarray(y, dtype=object)
+        if array.ndim == 0:
+            raise ValueError("y must be a 1D sequence of labels, not a scalar.")
+        if len(array) != n_samples:
+            raise ValueError(
+                f"X and y have inconsistent numbers of samples: {n_samples} != {len(array)}."
+            )
 
     def _classes_from_y(self, y: Any) -> list[str]:
         if self.classes is not None:
