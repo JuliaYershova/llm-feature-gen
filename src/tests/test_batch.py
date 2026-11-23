@@ -80,11 +80,12 @@ def test_batch_cache_handles_invalid_json_and_deferred_persistence(tmp_path: Pat
     cache_file = tmp_path / "cache.json"
     cache_file.write_text("{not-json", encoding="utf-8")
 
-    cache = batch_mod.BatchTextCache(cache_file)
+    with pytest.warns(UserWarning, match="not a JSON object"):
+        cache = batch_mod.BatchTextCache(cache_file)
     assert len(cache) == 0
 
     cache.set("hello", "schema", {"topic": "deferred"}, persist=False)
-    assert cache_file.read_text(encoding="utf-8") == "{not-json"
+    assert not cache_file.exists()
 
     cache.save()
     assert json.loads(cache_file.read_text(encoding="utf-8"))
@@ -675,3 +676,45 @@ def test_generate_features_batch_skips_cache_when_model_is_unknown(tmp_path: Pat
     assert df["topic"].tolist() == ["value"]
     assert len(cache) == 0
     assert not cache.cache_file.exists()
+
+
+def test_batch_cache_keeps_unreadable_file_instead_of_overwriting_it(tmp_path: Path):
+    """Regression: an unreadable cache file was silently replaced on the next save."""
+    cache_file = tmp_path / "cache.json"
+    truncated = '{"abc_schema": {"topic": "paid answer"}, "def_sch'
+    cache_file.write_text(truncated, encoding="utf-8")
+
+    with pytest.warns(UserWarning, match=r"moved to cache\.json\.unreadable-1"):
+        cache = batch_mod.BatchTextCache(cache_file)
+    cache.set("new", "schema", {"topic": "fresh"})
+
+    backup = tmp_path / "cache.json.unreadable-1"
+    assert backup.read_text(encoding="utf-8") == truncated
+    assert json.loads(cache_file.read_text(encoding="utf-8")) == {
+        cache._make_key("new", "schema"): {"topic": "fresh"}
+    }
+
+    # A second unreadable file (valid JSON, but not an object) gets its own backup name.
+    cache_file.write_text("[]", encoding="utf-8")
+    with pytest.warns(UserWarning, match=r"moved to cache\.json\.unreadable-2"):
+        batch_mod.BatchTextCache(cache_file)
+    assert backup.read_text(encoding="utf-8") == truncated
+    assert (tmp_path / "cache.json.unreadable-2").read_text(encoding="utf-8") == "[]"
+
+
+def test_batch_cache_save_keeps_previous_file_when_replace_fails(tmp_path: Path, monkeypatch):
+    cache_file = tmp_path / "cache.json"
+    cache = batch_mod.BatchTextCache(cache_file)
+    cache.set("old", "schema", {"topic": "kept"})
+    before = cache_file.read_bytes()
+
+    def failing_replace(source, target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(batch_mod.os, "replace", failing_replace)
+    cache.set("new", "schema", {"topic": "lost"}, persist=False)
+    with pytest.raises(OSError, match="disk full"):
+        cache.save()
+
+    assert cache_file.read_bytes() == before
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["cache.json"]

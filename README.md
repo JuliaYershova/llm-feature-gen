@@ -362,6 +362,22 @@ generate_features_from_texts_cached(
 )
 ```
 
+The cache file is written atomically, so an interrupted run cannot leave it half-written.
+If an existing cache file cannot be read as a JSON object, it is not overwritten: it is
+renamed to `<name>.unreadable-1` (then `-2`, ...), a `UserWarning` names the backup and
+the run starts with an empty cache. Previously paid answers can then be recovered:
+
+```python
+import warnings
+from llm_feature_gen import BatchTextCache
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    cache = BatchTextCache("outputs/feature_cache.json")
+for warning in caught:
+    print(warning.message)  # ... moved to feature_cache.json.unreadable-1 ...
+```
+
 For three or more classes, use the multi-class helpers:
 
 ```python
