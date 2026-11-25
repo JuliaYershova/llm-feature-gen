@@ -24,6 +24,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- `BatchTextCache` no longer silently replaces a cache file it cannot read. The file is kept as `<name>.unreadable-N` with a warning, and cache writes are atomic so an interrupted save cannot truncate the cache.
 - Improved offline test coverage for higher-level workflows so support claims are backed by end-to-end checks, not only unit tests.
 - Added a generation circuit breaker so repeated provider/output failures abort long runs instead of wasting the whole batch.
 - Documented the required Jupyter kernel restart after notebook installs to avoid immediate `ModuleNotFoundError` imports.

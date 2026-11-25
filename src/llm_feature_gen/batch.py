@@ -5,8 +5,10 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import logging
+import os
 import time
 import warnings
 from pathlib import Path
@@ -48,18 +50,43 @@ class BatchTextCache:
             return
 
         try:
-            self._store = json.loads(self.cache_file.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            self._store = {}
+            store = json.loads(self.cache_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            store = None
+
+        if not isinstance(store, dict):
+            # Keep the unreadable file: it may hold paid answers that can be recovered.
+            backup = self._set_aside_unreadable_file()
+            warnings.warn(
+                f"Cache file {self.cache_file} is not a JSON object. It was moved to "
+                f"{backup.name} and an empty cache is used instead.",
+                UserWarning,
+                stacklevel=3,
+            )
+            return
+
+        self._store = store
+
+    def _set_aside_unreadable_file(self) -> Path:
+        for number in itertools.count(1):
+            backup = self.cache_file.with_name(f"{self.cache_file.name}.unreadable-{number}")
+            if not backup.exists():
+                self.cache_file.replace(backup)
+                return backup
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def save(self) -> None:
-        """Persist all pending cache updates to disk."""
+        """Persist all pending cache updates to disk atomically."""
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         # Serialize a snapshot, clones share this store and may write meanwhile.
-        self.cache_file.write_text(
-            json.dumps(dict(self._store), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        payload = json.dumps(dict(self._store), ensure_ascii=False, indent=2)
+        # Write to a temporary file first so an interrupted write cannot truncate the cache.
+        temporary = self.cache_file.with_name(f".{self.cache_file.name}.{os.getpid()}.tmp")
+        try:
+            temporary.write_text(payload, encoding="utf-8")
+            os.replace(temporary, self.cache_file)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
     def _hash(value: str) -> str:
