@@ -362,6 +362,17 @@ generate_features_from_texts_cached(
 )
 ```
 
+Identical inputs in one call are sent to the model only once and share its answer. This matters for
+tabular rows serialized to text, where many rows can be equal:
+
+```python
+from llm_feature_gen import LLMFeatureTransformer
+
+rows = ['{"legs": 4, "tail": true}', '{"legs": 2, "tail": false}', '{"legs": 4, "tail": true}']
+transformer = LLMFeatureTransformer(discovered_features="outputs/discovered_text_features.json")
+features = transformer.fit_transform(rows)  # 2 LLM requests, 3 output rows; rows 0 and 2 get equal values
+```
+
 For three or more classes, use the multi-class helpers:
 
 ```python

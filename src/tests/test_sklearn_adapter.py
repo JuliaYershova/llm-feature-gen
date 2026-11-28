@@ -349,3 +349,25 @@ def test_llm_feature_transformer_works_with_cross_val_score(tmp_path):
 
     assert len(scores) == 2
     assert sum(len(call["texts"]) for call in fake.calls) == len(texts)
+
+
+@pytest.mark.parametrize("use_batch", [True, False])
+def test_llm_feature_transformer_sends_identical_rows_once(use_batch):
+    provider = FakeTextProvider()
+    rows = pd.Series(
+        ['{"legs": 4}', '{"legs": 2}', '{"legs": 4}', '{"legs": 4}'],
+        index=[10, 11, 12, 13],
+    )
+    transformer = LLMFeatureTransformer(
+        provider=provider,
+        discovered_features={"proposed_features": [{"feature": "topic"}]},
+        use_batch=use_batch,
+        show_progress=False,
+    )
+
+    result = transformer.fit_transform(rows)
+
+    sent = [text for call in provider.calls for text in call["texts"]]
+    assert sent == ['{"legs": 4}', '{"legs": 2}']
+    assert len(result) == len(rows)
+    assert result["topic"].nunique() == 1

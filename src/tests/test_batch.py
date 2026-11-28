@@ -675,3 +675,79 @@ def test_generate_features_batch_skips_cache_when_model_is_unknown(tmp_path: Pat
     assert df["topic"].tolist() == ["value"]
     assert len(cache) == 0
     assert not cache.cache_file.exists()
+
+
+class AlternatingProvider:
+    """Answers change with every text, like a non-deterministic model."""
+
+    model = "fake-model"
+
+    def __init__(self) -> None:
+        self.texts_sent = []
+
+    def text_features(self, text_list, prompt=None, response_schema=None):
+        responses = []
+        for text in text_list:
+            self.texts_sent.append(text)
+            topic = "odd" if len(self.texts_sent) % 2 else "even"
+            responses.append({"features": {"topic": topic, "length": str(len(text))}})
+        return responses
+
+
+def test_generate_features_batch_sends_identical_texts_once(caplog):
+    provider = AlternatingProvider()
+    texts = ["alpha", "beta", "alpha", "alpha", "beta", "alpha"]
+
+    with caplog.at_level("INFO", logger="llm_feature_gen.batch"):
+        df = batch_mod.generate_features_batch(
+            texts=texts,
+            labels=["A", "B", "A", "A", "B", "A"],
+            discovered_features=discovered_features(),
+            provider=provider,
+            batch_size=4,
+            show_progress=False,
+        )
+
+    assert provider.texts_sent == ["alpha", "beta"]
+    assert df["topic"].tolist() == ["odd", "even", "odd", "odd", "even", "odd"]
+    assert df["File"].tolist() == [f"text_{index}" for index in range(6)]
+    assert df["Class"].tolist() == ["A", "B", "A", "A", "B", "A"]
+    assert "4 rows reuse the answer of an identical row" in caplog.text
+
+
+def test_generate_features_batch_duplicates_match_cached_rerun(tmp_path: Path):
+    provider = AlternatingProvider()
+    cache = batch_mod.BatchTextCache(tmp_path / "cache.json")
+    texts = ["alpha", "alpha", "beta", "alpha"]
+    kwargs = dict(
+        texts=texts,
+        labels=[""] * len(texts),
+        discovered_features=discovered_features(),
+        provider=provider,
+        cache=cache,
+        show_progress=False,
+    )
+
+    first = batch_mod.generate_features_batch(**kwargs)
+    second = batch_mod.generate_features_batch(**kwargs)
+
+    assert provider.texts_sent == ["alpha", "beta"]
+    assert len(cache) == 2
+    assert first["topic"].tolist() == ["odd", "odd", "even", "odd"]
+    assert second["topic"].tolist() == first["topic"].tolist()
+
+
+def test_generate_features_batch_failed_duplicate_stays_missing_for_all_rows():
+    failing_provider = AlwaysFailProvider()
+
+    df = batch_mod.generate_features_batch(
+        texts=["alpha", "alpha"],
+        labels=["A", "A"],
+        discovered_features=discovered_features(),
+        provider=failing_provider,
+        retry_delay=0,
+        show_progress=False,
+    )
+
+    assert [call["texts"] for call in failing_provider.calls] == [["alpha"], ["alpha"]]
+    assert df["topic"].tolist() == [batch_mod.MISSING_FEATURE_VALUE] * 2

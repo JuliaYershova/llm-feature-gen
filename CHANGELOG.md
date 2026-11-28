@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - OpenAI and Azure providers now prefer structured outputs while falling back to JSON-object mode for deployments that do not support JSON Schema.
 - `max_completion_tokens` is the preferred completion limit; `max_tokens` remains a compatible alias.
 - Discovery and generation helpers accept custom system prompts, and invalid batch responses are no longer cached.
+- Batch generation and `LLMFeatureTransformer.transform` send identical texts in one call to the provider only once and reuse the answer for every duplicate row, so equal inputs always receive equal feature values.
 
 ### Fixed
 
