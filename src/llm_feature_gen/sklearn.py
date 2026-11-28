@@ -122,6 +122,9 @@ class LLMFeatureTransformer(TransformerMixin, BaseEstimator):
             raise ValueError("This LLMFeatureTransformer instance is not fitted yet.")
 
         texts = self._as_text_list(X)
+        if not texts:
+            index = X.index if isinstance(X, (pd.Series, pd.DataFrame)) else None
+            return pd.DataFrame(columns=self.feature_names_, index=index)
         if not self.use_batch:
             return self._transform_one_by_one(texts)
 

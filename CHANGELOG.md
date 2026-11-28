@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - Improved offline test coverage for higher-level workflows so support claims are backed by end-to-end checks, not only unit tests.
 - Added a generation circuit breaker so repeated provider/output failures abort long runs instead of wasting the whole batch.
 - Documented the required Jupyter kernel restart after notebook installs to avoid immediate `ModuleNotFoundError` imports.
+- - Return an empty `DataFrame` with expected feature columns when `LLMFeatureTransformer.transform()` receives an empty input (`#97`).
 
 ## [0.1.8]
 
